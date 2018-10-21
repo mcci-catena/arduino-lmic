@@ -20,6 +20,9 @@ struct lmic_pinmap {
     u1_t rxtx;                  // byte 1: pin for rx/tx control
     u1_t rst;                   // byte 2: pin for reset
     u1_t dio[NUM_DIO];          // bytes 3..5: pins for DIO0, DOI1, DIO2
+    u1_t mosi;                  // byte 9: pin for master out / slave in (write to LORA chip)
+    u1_t miso;                  // byte 10: pin for master in / slave out (read from LORA chip)
+    u1_t sck;                   // byte 11: pin for serial clock by master
     // true if we must set rxtx for rx_active, false for tx_active
     u1_t rxtx_rx_active;        // byte 6: polarity of rxtx active
     s1_t rssi_cal;              // byte 7: cal in dB -- added to RSSI
