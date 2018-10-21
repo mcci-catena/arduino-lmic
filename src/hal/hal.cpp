@@ -138,7 +138,7 @@ static void hal_io_check() {
 // SPI
 
 static void hal_spi_init () {
-    SPI.begin();
+    SPI.begin(plmic_pins->sck, plmic_pins->miso, plmic_pins->mosi, plmic_pins->nss);
 }
 
 void hal_pin_nss (u1_t val) {
