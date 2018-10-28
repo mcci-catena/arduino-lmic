@@ -93,7 +93,7 @@ script:
 # *** Tests for ESP32
 #
  - _notesp32 || { _projcfg COMPILE_REGRESSION_TEST CFG_us915 CFG_sx1276_radio && arduino --verify --board $(_esp32opts '' projcfg) $PWD/examples/ttn-otaa/ttn-otaa.ino ; }
- - _notesp32 || { _projcfg COMPILE_REGRESSION_TEST CFG_us915 CFG_sx1276_radio && arduino --verify --board $(_esp32opts '' projcfg) $PWD/examples/ttn-abp/ttn-abp.ino ; } ; }
+ - _notesp32 || { _projcfg COMPILE_REGRESSION_TEST CFG_us915 CFG_sx1276_radio && arduino --verify --board $(_esp32opts '' projcfg) $PWD/examples/ttn-abp/ttn-abp.ino ; }
  # make sure debug works
  - _notesp32 || { _projcfg COMPILE_REGRESSION_TEST CFG_us915 CFG_sx1276_radio LMIC_DEBUG_LEVEL=2 LMIC_PRINTF_TO=Serial && arduino --verify --board $(_esp32opts '' projcfg) $PWD/examples/ttn-otaa/ttn-otaa.ino ; }
 
