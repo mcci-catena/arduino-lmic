@@ -42,11 +42,11 @@ before_install:
   #
   # Select based on target
   #
-  - function _notsamd { test "$TARGET" = "samd"; }
-  - function _notstm32l0 { test "$TARGET" = "stm32l0"; }
-  - function _notavr { test "$TARGET" = "avr"; }
-  - function _notesp32 { test "$TARGET" = "esp32"; }
-  - function _notany { for i in "$@" ; do if [ "$TARGET" = "$i" ]; then return 0 ; fi ; done; return 1; }
+  - function _notsamd { test "$TARGET" != "samd"; }
+  - function _notstm32l0 { test "$TARGET" != "stm32l0"; }
+  - function _notavr { test "$TARGET" != "avr"; }
+  - function _notesp32 { test "$TARGET" != "esp32"; }
+  - function _notany { for i in "$@" ; do if [ "$TARGET" = "$i" ]; then return 1 ; fi ; done; return 0; }
   #
   # Put one or more arguments into lmic_project_config.h as  `#define $i 1\n` or `#define $i $arg`
   - function _splitdef { if [ "$1" = "${1/=/}" ]; then echo "$1" 1 ; else echo "${1/=/ }" ; fi ; }
@@ -77,10 +77,10 @@ install:
  - git clone --depth=1 https://github.com/adafruit/Adafruit_Sensor.git $ARDUINO_LIBS/Adafruit_Sensor
  - git clone --depth=1 https://github.com/adafruit/DHT-sensor-library.git $ARDUINO_LIBS/DHT-sensor-library
  # be careful when installing; with caching, we usually won't update. Select most recent.
- - notavr ||      arduino --install-boards adafruit:avr || echo "assume adafruit:avr already installed, continue"
- - notsamd ||     arduino --install-boards mcci:samd || echo "assume mcci:samd already installed, continue"
- - notstm32l0 ||  arduino --install-boards mcci:stm32 || echo "assume mcci:samd already installed, continue"
- - notesp32 ||    arduino --install-boards esp32:esp32 || echo "assume esp32:esp32 already installed, condtinue"
+ - _notavr ||      arduino --install-boards adafruit:avr || echo "assume adafruit:avr already installed, continue"
+ - _notsamd ||     arduino --install-boards mcci:samd || echo "assume mcci:samd already installed, continue"
+ - _notstm32l0 ||  arduino --install-boards mcci:stm32 || echo "assume mcci:samd already installed, continue"
+ - _notesp32 ||    arduino --install-boards esp32:esp32 || echo "assume esp32:esp32 already installed, condtinue"
  - 'if [ "$TARGET" = stm32l0 -a -d $HOME/.arduino15/packages/mcci/hardware/stm32/1.1.0 ]; then echo "Work around broken BSP version 1.1.0" ; export MCCI_STM32_OPTS="$MCCI_STM32_OPTS --pref build.board=CATENA_4551" ; fi'
 
 script:
@@ -92,7 +92,7 @@ script:
 #
 # *** Tests for ESP32
 #
- - _notesp32 || projcfg COMPILE_REGRESSION_TEST CFG_us915 CFG_sx1276_radio && arduino --verify --board $(_esp32opts '' projcfg) $PWD/examples/ttn-otaa/ttn-otaa.ino
+ - _notesp32 || _projcfg COMPILE_REGRESSION_TEST CFG_us915 CFG_sx1276_radio && arduino --verify --board $(_esp32opts '' projcfg) $PWD/examples/ttn-otaa/ttn-otaa.ino
  - _notesp32 || _projcfg COMPILE_REGRESSION_TEST CFG_us915 CFG_sx1276_radio && arduino --verify --board $(_esp32opts '' projcfg) $PWD/examples/ttn-abp/ttn-abp.ino
  # make sure debug works
  - _notesp32 || _projcfg COMPILE_REGRESSION_TEST CFG_us915 CFG_sx1276_radio LMIC_DEBUG_LEVEL=2 LMIC_PRINTF_TO=Serial && arduino --verify --board $(_esp32opts '' projcfg) $PWD/examples/ttn-otaa/ttn-otaa.ino
