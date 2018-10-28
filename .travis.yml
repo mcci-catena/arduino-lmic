@@ -8,9 +8,9 @@ env:
   - IDE_VERSION=1.8.7
  matrix:
   - TARGET=samd
+  - TARGET=stm32l0
   - TARGET=esp32
   - TARGET=avr
-  - TARGET=stm32l0
 
 cache:
   directories:
