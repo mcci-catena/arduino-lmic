@@ -26,11 +26,11 @@
  * Multiple devices can use the same AppEUI, but each device has its own
  * DevEUI and AppKey.
  *
- * Do not forget to define the radio type correctly in
- * arduino-lmic/project_config/lmic_project_config.h or from your BOARDS.txt.
+ * Do not forget to define the radio type correctly in config.h.
  *
  *******************************************************************************/
 
+#include <Time.h>
 #include <lmic.h>
 #include <hal/hal.h>
 #include <SPI.h>
@@ -48,6 +48,7 @@
 # warning "You must replace the values marked FILLMEIN with real values from the TTN control panel!"
 # define FILLMEIN (#dont edit this, edit the lines that use FILLMEIN)
 #endif
+
 
 // This EUI must be in little-endian format, so least-significant-byte
 // first. When copying an EUI from ttnctl output, this means to reverse
@@ -152,7 +153,7 @@ void onEvent (ev_t ev) {
               Serial.println(F(" bytes of payload"));
             }
             // Schedule next transmission
-            os_setTimedCallback(&sendjob, os_getTime()+sec2osticks(TX_INTERVAL), do_send);
+            os_setTimedCallback(&sendjob, os_getTime() + sec2osticks(TX_INTERVAL), do_send);
             break;
         case EV_LOST_TSYNC:
             Serial.println(F("EV_LOST_TSYNC"));
@@ -188,11 +189,78 @@ void onEvent (ev_t ev) {
     }
 }
 
-void do_send(osjob_t* j){
+uint32_t userUTCTime; // Seconds since the UTC epoch
+
+// Utility function for digital clock display: prints preceding colon and
+// leading 0
+void printDigits(int digits) {
+    Serial.print(':');
+    if (digits < 10) Serial.print('0');
+    Serial.print(digits);
+}
+
+void user_request_network_time_callback(void *pVoidUserUTCTime, int flagSuccess) {
+    // Explicit conversion from void* to uint32_t* to avoid compiler errors
+    uint32_t *pUserUTCTime = (uint32_t *) pVoidUserUTCTime;
+
+    // A struct that will be populated by LMIC_getNetworkTimeReference.
+    // It contains the following fields:
+    //  - tLocal: the value returned by os_GetTime() when the time
+    //            request was sent to the gateway, and
+    //  - tNetwork: the seconds between the GPS epoch and the time
+    //              the gateway received the time request
+    lmic_time_reference_t lmicTimeReference;
+
+    if (flagSuccess != 1) {
+        Serial.println(F("USER CALLBACK: Not a success"));
+        return;
+    }
+
+    // Populate "lmic_time_reference"
+    flagSuccess = LMIC_getNetworkTimeReference(&lmicTimeReference);
+    if (flagSuccess != 1) {
+        Serial.println(F("USER CALLBACK: LMIC_getNetworkTimeReference didn't succeed"));
+        return;
+    }
+
+    // Update userUTCTime, considering the difference between the GPS and UTC
+    // epoch, and the leap seconds
+    *pUserUTCTime = lmicTimeReference.tNetwork + 315964800;
+
+    // Add the delay between the instant the time was transmitted and
+    // the current time
+
+    // Current time, in ticks
+    ostime_t ticksNow = os_getTime();
+    // Time when the request was sent, in ticks
+    ostime_t ticksRequestSent = lmicTimeReference.tLocal;
+    uint32_t requestDelaySec = osticks2ms(ticksNow - ticksRequestSent) / 1000;
+    *pUserUTCTime += requestDelaySec;
+
+    // Update the system time with the time read from the network
+    setTime(*pUserUTCTime);
+
+    Serial.print(F("The current UTC time is: "));
+    Serial.print(hour());
+    printDigits(minute());
+    printDigits(second());
+    Serial.print(' ');
+    Serial.print(day());
+    Serial.print('/');
+    Serial.print(month());
+    Serial.print('/');
+    Serial.print(year());
+    Serial.println();
+}
+
+void do_send(osjob_t* j) {
     // Check if there is not a current TX/RX job running
     if (LMIC.opmode & OP_TXRXPEND) {
         Serial.println(F("OP_TXRXPEND, not sending"));
     } else {
+        // Schedule a network time request at the next possible time
+        LMIC_requestNetworkTime(user_request_network_time_callback, &userUTCTime);
+
         // Prepare upstream data transmission at the next possible time.
         LMIC_setTxData2(1, mydata, sizeof(mydata)-1, 0);
         Serial.println(F("Packet queued"));
