@@ -1,15 +1,15 @@
 /*******************************************************************************
  * The Things Network - Sensor Data Example
- * 
+ *
  * Example of sending a valid LoRaWAN packet with DHT22 temperature and
  * humidity data to The Things Networ using a Feather M0 LoRa.
- * 
+ *
  * Learn Guide: https://learn.adafruit.com/the-things-network-for-feather
- * 
+ *
  * Copyright (c) 2015 Thomas Telkamp and Matthijs Kooijman
  * Copyright (c) 2018 Terry Moore, MCCI
  * Copyright (c) 2018 Brent Rubell, Adafruit Industries
- * 
+ *
  * Permission is hereby granted, free of charge, to anyone
  * obtaining a copy of this document and accompanying files,
  * to do whatever they want with them without any restriction,
@@ -80,6 +80,52 @@ const lmic_pinmap lmic_pins = {
 // init. DHT
 DHT dht(DHTPIN, DHTTYPE);
 
+void do_send(osjob_t* j){
+    // Check if there is not a current TX/RX job running
+    if (LMIC.opmode & OP_TXRXPEND) {
+        Serial.println(F("OP_TXRXPEND, not sending"));
+    } else {
+        // read the temperature from the DHT22
+        float temperature = dht.readTemperature();
+        Serial.print("Temperature: "); Serial.print(temperature);
+        Serial.println(" *C");
+        // adjust for the f2sflt16 range (-1 to 1)
+        temperature = temperature / 100;
+
+        // read the humidity from the DHT22
+        float rHumidity = dht.readHumidity();
+        Serial.print("%RH ");
+        Serial.println(rHumidity);
+        // adjust for the f2sflt16 range (-1 to 1)
+        rHumidity = rHumidity / 100;
+
+        // float -> int
+        // note: this uses the sflt16 datum (https://github.com/mcci-catena/arduino-lmic#sflt16)
+        uint16_t payloadTemp = LMIC_f2sflt16(temperature);
+        // int -> bytes
+        byte tempLow = lowByte(payloadTemp);
+        byte tempHigh = highByte(payloadTemp);
+        // place the bytes into the payload
+        payload[0] = tempLow;
+        payload[1] = tempHigh;
+
+        // float -> int
+        uint16_t payloadHumid = LMIC_f2sflt16(rHumidity);
+        // int -> bytes
+        byte humidLow = lowByte(payloadHumid);
+        byte humidHigh = highByte(payloadHumid);
+        payload[2] = humidLow;
+        payload[3] = humidHigh;
+
+        // prepare upstream data transmission at the next possible time.
+        // transmit on port 1 (the first parameter); you can use any value from 1 to 223 (others are reserved).
+        // don't request an ack (the last parameter, if not zero, requests an ack from the network).
+        // Remember, acks consume a lot of network resources; don't ask for an ack unless you really need it.
+        LMIC_setTxData2(1, payload, sizeof(payload)-1, 0);
+    }
+    // Next TX is scheduled after TX_COMPLETE event.
+}
+
 void onEvent (ev_t ev) {
     Serial.print(os_getTime());
     Serial.print(": ");
@@ -146,7 +192,7 @@ void onEvent (ev_t ev) {
             Serial.println(F("EV_REJOIN_FAILED"));
             break;
             break;
-        case EV_TXCOMPLETE:            
+        case EV_TXCOMPLETE:
             Serial.println(F("EV_TXCOMPLETE (includes waiting for RX windows)"));
             if (LMIC.txrxFlags & TXRX_ACK)
               Serial.println(F("Received ack"));
@@ -190,52 +236,6 @@ void onEvent (ev_t ev) {
             Serial.println((unsigned) ev);
             break;
     }
-}
-
-void do_send(osjob_t* j){
-    // Check if there is not a current TX/RX job running
-    if (LMIC.opmode & OP_TXRXPEND) {
-        Serial.println(F("OP_TXRXPEND, not sending"));
-    } else {
-        // read the temperature from the DHT22
-        float temperature = dht.readTemperature();
-        Serial.print("Temperature: "); Serial.print(temperature);
-        Serial.println(" *C");
-        // adjust for the f2sflt16 range (-1 to 1)
-        temperature = temperature / 100; 
-
-        // read the humidity from the DHT22
-        float rHumidity = dht.readHumidity();
-        Serial.print("%RH ");
-        Serial.println(rHumidity);
-        // adjust for the f2sflt16 range (-1 to 1)
-        rHumidity = rHumidity / 100;
-        
-        // float -> int
-        // note: this uses the sflt16 datum (https://github.com/mcci-catena/arduino-lmic#sflt16)
-        uint16_t payloadTemp = LMIC_f2sflt16(temperature);
-        // int -> bytes
-        byte tempLow = lowByte(payloadTemp);
-        byte tempHigh = highByte(payloadTemp);
-        // place the bytes into the payload
-        payload[0] = tempLow;
-        payload[1] = tempHigh;
-
-        // float -> int
-        uint16_t payloadHumid = LMIC_f2sflt16(rHumidity);
-        // int -> bytes
-        byte humidLow = lowByte(payloadHumid);
-        byte humidHigh = highByte(payloadHumid);
-        payload[2] = humidLow;
-        payload[3] = humidHigh;
-
-        // prepare upstream data transmission at the next possible time.
-        // transmit on port 1 (the first parameter); you can use any value from 1 to 223 (others are reserved).
-        // don't request an ack (the last parameter, if not zero, requests an ack from the network).
-        // Remember, acks consume a lot of network resources; don't ask for an ack unless you really need it.
-        LMIC_setTxData2(1, payload, sizeof(payload)-1, 0);
-    }
-    // Next TX is scheduled after TX_COMPLETE event.
 }
 
 void setup() {
