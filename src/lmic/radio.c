@@ -450,20 +450,29 @@ static void configChannel () {
 
 static void configPower () {
 #ifdef CFG_sx1276_radio
-    // PA_BOOST output is assumed but not 20 dBm.
-    s1_t pw = (s1_t)LMIC.radio_txpow;
-    if(pw > 17) {
-        pw = 17;
-    } else if(pw < 2) {
-        pw = 2;
+    s1_t pw = (s1_t)LMIC.txpow;
+    if ( pw >= 20 ) {
+        // limit current at 130mA / Activate PA Max Power
+        writeReg(RegOcp,0x31);
+        writeReg(RegPaConfig, (u1_t)(0x8F));
+        writeReg(RegPaDac, (readReg(RegPaDac)&0xF8)|0x7);
+    } else if ( pw > MAX_RFO_PWR ){
+        // limit current at 130mA / Activate PA Max Power
+        // use PA_BOOST
+        if ( pw < 0 ) pw = 0;
+        if ( pw > 15 ) pw = 15;
+        writeReg(RegOcp,0x31);
+        writeReg(RegPaConfig, (u1_t)(0x80) | ( pw - 2 ));
+        writeReg(RegPaDac, (readReg(RegPaDac)&0xF8)|0x4);
+    } else {
+        if ( pw < 2 ) pw = 2;
+        if ( pw > MAX_RFO_PWR ) pw = MAX_RFO_PWR;
+        // limit current at 80mA / use RFO 
+        // max power 13dB on RFO (PA_HF)
+        writeReg(RegOcp,0x27);
+        writeReg(RegPaConfig, (u1_t)(0x00) | ( ((10*MAX_RFO_PWR - 108)/6) << 4 ) | (pw+(15-MAX_RFO_PWR)) );
+        writeReg(RegPaDac, (readReg(RegPaDac)&0xF8)|0x4);        
     }
-    // 0x80 forces use of PA_BOOST; but we don't 
-    //    turn on 20 dBm mode. So powers are:
-    //    0000 => 2dBm, 0001 => 3dBm, ... 1111 => 17dBm
-    // But we also enforce that the high-power mode
-    //    is off by writing RegPaDac.
-    writeReg(RegPaConfig, (u1_t)(0x80|(pw - 2)));
-    writeReg(RegPaDac, readReg(RegPaDac)|0x4);
 
 #elif CFG_sx1272_radio
     // set PA config (2-17 dBm using PA_BOOST)

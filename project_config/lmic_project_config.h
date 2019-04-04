@@ -7,3 +7,6 @@
 //#define CFG_in866 1
 #define CFG_sx1276_radio 1
 //#define LMIC_USE_INTERRUPTS
+
+// Max RFO Power 0 when no power amplifier behind RFO
+#define MAX_RFO_PWR 0
