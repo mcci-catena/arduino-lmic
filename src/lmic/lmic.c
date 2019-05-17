@@ -1503,8 +1503,14 @@ static void setupRx2DnData (xref2osjob_t osjob) {
 static void processRx1DnData (xref2osjob_t osjob) {
     LMIC_API_PARAMETER(osjob);
 
-    if( LMIC.dataLen == 0 || !processDnData() )
-        schedRx12(sec2osticks(LMIC.rxDelay +(int)DELAY_EXTDNW2), FUNC_ADDR(setupRx2DnData), LMIC.dn2Dr);
+    if( LMIC.dataLen == 0 || !processDnData() )       
+    {
+      #ifdef LMIC_DISABLE_DOWNLINK
+      schedRx12(sec2osticks(0), FUNC_ADDR(setupRx2DnData), LMIC.dn2Dr);
+      #else
+      schedRx12(sec2osticks(LMIC.rxDelay +(int)DELAY_EXTDNW2), FUNC_ADDR(setupRx2DnData), LMIC.dn2Dr);
+      #endif
+    }
 }
 
 
@@ -1518,7 +1524,11 @@ static void setupRx1DnData (xref2osjob_t osjob) {
 static void updataDone (xref2osjob_t osjob) {
     LMIC_API_PARAMETER(osjob);
 
+    #ifdef LMIC_DISABLE_DOWNLINK
+    txDone(0, FUNC_ADDR(setupRx1DnData));
+    #else
     txDone(sec2osticks(LMIC.rxDelay), FUNC_ADDR(setupRx1DnData));
+    #endif
 }
 
 // ========================================
