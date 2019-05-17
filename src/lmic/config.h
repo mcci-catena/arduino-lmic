@@ -47,7 +47,7 @@
 //#define CFG_sx1272_radio 1
 // This is the SX1276/SX1277/SX1278/SX1279 radio, which is also used on
 // the HopeRF RFM95 boards.
-//#define CFG_sx1276_radio 1
+#define CFG_sx1276_radio 1
 
 // ensure that a radio is defined.
 #if ! (defined(CFG_sx1272_radio) || defined(CFG_sx1276_radio))
@@ -189,5 +189,13 @@
 #if !defined(LMIC_ENABLE_long_messages)
 # define LMIC_ENABLE_long_messages 1        /* PARAM */
 #endif
+
+// LMIC_DISABLE_DOWNLINK
+// Disable any downlink action on the node. Trigger EV_TXCOMPLETE just after
+// completing the uplink. This feature is specially useful for low-power devices
+// not in the need to receive downlink packets from server. This flag prevents the
+// node from having wait to around five seconds (DNW2_SAFETY_ZONE + LMICcore_rndDelay(2))
+// before going to sleep
+#define LMIC_DISABLE_DOWNLINK 1
 
 #endif // _lmic_config_h_

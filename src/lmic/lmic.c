@@ -1476,11 +1476,16 @@ static void processRx2DnData (xref2osjob_t osjob) {
 
     if( LMIC.dataLen == 0 ) {
         initTxrxFlags(__func__, 0);  // nothing in 1st/2nd DN slot
+
+        #ifdef LMIC_DISABLE_DOWNLINK
+        os_setTimedCallback(&LMIC.osjob, os_getTime(), FUNC_ADDR(processRx2DnDataDelay));
+        #else
         // Delay callback processing to avoid up TX while gateway is txing our missed frame!
         // Since DNW2 uses SF12 by default we wait 3 secs.
         os_setTimedCallback(&LMIC.osjob,
                             (os_getTime() + DNW2_SAFETY_ZONE + LMICcore_rndDelay(2)),
                             FUNC_ADDR(processRx2DnDataDelay));
+        #endif
         return;
     }
     processDnData();
