@@ -109,10 +109,10 @@
 // define this in lmic_project_config.h to disable all code related to joining
 //#define DISABLE_JOIN
 // define this in lmic_project_config.h to disable all code related to ping
-//#define DISABLE_PING
+#define DISABLE_PING
 // define this in lmic_project_config.h to disable all code related to beacon tracking.
 // Requires ping to be disabled too
-//#define DISABLE_BEACONS
+#define DISABLE_BEACONS
 
 // define these in lmic_project_config.h to disable the corresponding MAC commands.
 // Class A
