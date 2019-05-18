@@ -1477,15 +1477,11 @@ static void processRx2DnData (xref2osjob_t osjob) {
     if( LMIC.dataLen == 0 ) {
         initTxrxFlags(__func__, 0);  // nothing in 1st/2nd DN slot
 
-        #ifdef LMIC_DISABLE_DOWNLINK
-        os_setTimedCallback(&LMIC.osjob, os_getTime(), FUNC_ADDR(processRx2DnDataDelay));
-        #else
         // Delay callback processing to avoid up TX while gateway is txing our missed frame!
         // Since DNW2 uses SF12 by default we wait 3 secs.
         os_setTimedCallback(&LMIC.osjob,
                             (os_getTime() + DNW2_SAFETY_ZONE + LMICcore_rndDelay(2)),
                             FUNC_ADDR(processRx2DnDataDelay));
-        #endif
         return;
     }
     processDnData();
@@ -1504,13 +1500,7 @@ static void processRx1DnData (xref2osjob_t osjob) {
     LMIC_API_PARAMETER(osjob);
 
     if( LMIC.dataLen == 0 || !processDnData() )       
-    {
-      #ifdef LMIC_DISABLE_DOWNLINK
-      schedRx12(sec2osticks(0), FUNC_ADDR(setupRx2DnData), LMIC.dn2Dr);
-      #else
       schedRx12(sec2osticks(LMIC.rxDelay +(int)DELAY_EXTDNW2), FUNC_ADDR(setupRx2DnData), LMIC.dn2Dr);
-      #endif
-    }
 }
 
 
@@ -1525,7 +1515,8 @@ static void updataDone (xref2osjob_t osjob) {
     LMIC_API_PARAMETER(osjob);
 
     #ifdef LMIC_DISABLE_DOWNLINK
-    txDone(0, FUNC_ADDR(setupRx1DnData));
+    LMIC.opmode &= ~(OP_TXDATA|OP_TXRXPEND);
+    reportEventAndUpdate(EV_TXCOMPLETE);
     #else
     txDone(sec2osticks(LMIC.rxDelay), FUNC_ADDR(setupRx1DnData));
     #endif
