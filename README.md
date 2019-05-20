@@ -1,4 +1,4 @@
-** This fork was specifically created for those developpers wanting to create low-power applications. Unlike the mainstream version and other forks, this version allows disabling downlinks completely. Calling LMIC_setDownlinks(false) turns downlinks off anytime dynamically, reducing active times down to the minimum necessary to transmit uplink messages. As an example, typical uplink+downlink intervals at SF7 vary around 6-9 seconds. With downlinks deactivated, uplinks only take ~50 msec to complete.**
+**This fork was specifically created for those developpers wanting to build real low-power applications. Unlike the mainstream version and other forks, this version allows disabling downlinks completely. Calling LMIC_setDownlinks(false) turns downlinks off anytime dynamically, reducing active times down to the minimum necessary to transmit uplink messages. As an example, typical uplink+downlink intervals at SF7 vary around 6-9 seconds. With downlinks deactivated, uplinks only take ~50 msec to complete.**
 
 # Arduino-LMIC library
 
