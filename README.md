@@ -2,7 +2,7 @@
 
 # Important note
 
-This version of Arduino-lmic does not comply with LoRaWAN™ Specification v1.1 since downlinks can not be disabled.
+This version of Arduino-lmic does not comply with LoRaWAN™ Specification v1.1 since downlinks should never be disabled.
 
 From LoRaWAN™ Specification v1.1:
 
