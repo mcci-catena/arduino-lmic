@@ -37,6 +37,8 @@
 #include <lmic.h>
 #include <hal/hal.h>
 
+#include <raspi/raspi.h>
+
 // This EUI must be in little-endian format, so least-significant-byte
 
 // first. When copying an EUI from ttnctl output, this means to reverse
@@ -73,30 +75,46 @@ volatile sig_atomic_t force_exit = 0;
 // see https://github.com/hallard/LoRasPI
 //#define RF_LED_PIN RPI_V2_GPIO_P1_16 // Led on GPIO23 so P1 connector pin #16
 //#define RF_CS_PIN  RPI_V2_GPIO_P1_24 // Slave Select on CE0 so P1 connector pin #24
-//#define RF_IRQ_PIN RPI_V2_GPIO_P1_22 // IRQ on GPIO25 so P1 connector pin #22
+//#define RF_DIO0_PIN RPI_V2_GPIO_P1_22 // IRQ on GPIO25 so P1 connector pin #22
 //#define RF_RST_PIN RPI_V2_GPIO_P1_15 // RST on GPIO22 so P1 connector pin #15
 
 // Raspberri PI Lora Gateway for multiple modules 
 // see https://github.com/hallard/RPI-Lora-Gateway
 // Module 1 on board RFM95 868 MHz (example)
-#define RF_LED_PIN RPI_V2_GPIO_P1_07 // Led on GPIO4 so P1 connector pin #7
-#define RF_CS_PIN  RPI_V2_GPIO_P1_24 // Slave Select on CE0 so P1 connector pin #24
-#define RF_IRQ_PIN RPI_V2_GPIO_P1_22 // IRQ on GPIO25 so P1 connector pin #22
-#define RF_RST_PIN RPI_V2_GPIO_P1_29 // Reset on GPIO5 so P1 connector pin #29
-
+//#define RF_LED_PIN RPI_V2_GPIO_P1_07 // Led on GPIO4 so P1 connector pin #7
+//#define RF_CS_PIN  RPI_V2_GPIO_P1_24 // Slave Select on CE0 so P1 connector pin #24
+//#define RF_DIO0_PIN RPI_V2_GPIO_P1_22 // IRQ on GPIO25 so P1 connector pin #22
+//#define RF_RST_PIN RPI_V2_GPIO_P1_29 // Reset on GPIO5 so P1 connector pin #29
 
 // Dragino Raspberry PI hat (no onboard led)
 // see https://github.com/dragino/Lora
 //#define RF_CS_PIN  RPI_V2_GPIO_P1_22 // Slave Select on GPIO25 so P1 connector pin #22
-//#define RF_IRQ_PIN RPI_V2_GPIO_P1_07 // IRQ on GPIO4 so P1 connector pin #7
+//#define RF_DIO0_PIN RPI_V2_GPIO_P1_07 // IRQ on GPIO4 so P1 connector pin #7
 //#define RF_RST_PIN RPI_V2_GPIO_P1_11 // Reset on GPIO17 so P1 connector pin #11
+
+// Chistera-Pi (no onboard led)
+// see https://www.framboise314.fr/chistera-pi-lora-a-portee-de-main-grace-a-snootlab/
+#define RF_CS_PIN  RPI_V2_GPIO_P1_24  // Slave Select on CE0/GPIO8 so P1 connector pin #24
+#define RF_DIO0_PIN RPI_V2_GPIO_P1_07 // IRQ on GPIO4 so P1 connector pin #7
+#define RF_DIO1_PIN RPI_V2_GPIO_P1_16 // IRQ on GPIO23 so P1 connector pin #7
+#define RF_RST_PIN RPI_V2_GPIO_P1_11  // Reset on GPIO17 so P1 connector pin #11
+
+#ifndef RF_DIO0_PIN
+#define RF_DIO0_PIN LMIC_UNUSED_PIN
+#endif
+#ifndef RF_DIO1_PIN
+#define RF_DIO1_PIN LMIC_UNUSED_PIN
+#endif
+#ifndef RF_DIO2_PIN
+#define RF_DIO2_PIN LMIC_UNUSED_PIN
+#endif
 
 // Pin mapping
 const lmic_pinmap lmic_pins = { 
     .nss  = RF_CS_PIN,
     .rxtx = LMIC_UNUSED_PIN,
     .rst  = RF_RST_PIN,
-    .dio  = {LMIC_UNUSED_PIN, LMIC_UNUSED_PIN, LMIC_UNUSED_PIN},
+    .dio  = {RF_DIO0_PIN,RF_DIO1_PIN,RF_DIO2_PIN},
 };
 
 #ifndef RF_LED_PIN

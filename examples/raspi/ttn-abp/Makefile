@@ -1,11 +1,11 @@
-# Sample for ttn-otaa example on Raspberry Pi
+# Sample for ttn-abp example on Raspberry Pi
 # Caution: requires bcm2835 library to be already installed
 # http://www.airspayce.com/mikem/bcm2835/
 
 include ../Makefile.env
 LMICBASE = ../../../src
 
-all: ttn-otaa 
+all: ttn-abp
 
 %.o: %.cpp
 	$(CXX) $(CFLAGS) -c $(INCLUDE) $<
@@ -14,4 +14,4 @@ all: ttn-otaa
 	$(CXX) $^ $(LIBS) -o $@
 
 clean:
-	rm -rf *.o ttn-otaa
+	rm -rf *.o ttn-abp

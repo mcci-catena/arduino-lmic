@@ -10,8 +10,12 @@
  * This the HAL to run LMIC on top of the Arduino environment.
  *******************************************************************************/
 
+#ifdef RASPBERRY_PI
+#include "raspi/raspi.h"
+#else
 #include <Arduino.h>
 #include <SPI.h>
+#endif
 // include all the lmic header files, including ../lmic/hal.h
 #include "../lmic.h"
 // include the C++ hal.h
@@ -53,6 +57,13 @@ static void hal_io_init () {
     if (plmic_pins->rst != LMIC_UNUSED_PIN) {
         // initialize RST to floating
         pinMode(plmic_pins->rst, INPUT);
+
+#ifdef RASPBERRY_PI
+        // Enable pull down an rising edge detection on this one
+        bcm2835_gpio_set_pud(plmic_pins->rst, BCM2835_GPIO_PUD_DOWN);
+        bcm2835_gpio_ren(plmic_pins->rst);
+#endif
+
     }
 
     hal_interrupt_init();
@@ -94,6 +105,15 @@ static bool dio_states[NUM_DIO] = {0};
 static void hal_io_check() {
     uint8_t i;
     for (i = 0; i < NUM_DIO; ++i) {
+#ifdef RASPBERRY_PI
+        // Rising edge fired ?
+        if (bcm2835_gpio_eds(lmic_pins.dio[i])) {
+            // Now clear the eds flag by setting it to 1
+            bcm2835_gpio_set_eds(lmic_pins.dio[i]);
+            // Handle pseudo interrupt
+            radio_irq_handler(i);
+        }
+#else
         if (plmic_pins->dio[i] == LMIC_UNUSED_PIN)
             continue;
 
@@ -102,6 +122,7 @@ static void hal_io_check() {
             if (dio_states[i])
                 radio_irq_handler(i);
         }
+#endif
     }
 }
 
@@ -164,7 +185,12 @@ static void hal_spi_trx(u1_t cmd, u1_t* buf, size_t len, bit_t is_read) {
     if ((spi_freq = plmic_pins->spi_freq) == 0)
         spi_freq = LMIC_SPI_FREQ;
 
+#ifdef RASPBERRY_PI
+    // Clock divider / 32 = 8MHz
+    SPISettings settings(BCM2835_SPI_CLOCK_DIVIDER_32 , BCM2835_SPI_BIT_ORDER_MSBFIRST, BCM2835_SPI_MODE0);
+#else
     SPISettings settings(spi_freq, MSBFIRST, SPI_MODE0);
+#endif
     SPI.beginTransaction(settings);
     digitalWrite(nss, 0);
 

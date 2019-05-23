@@ -321,6 +321,14 @@ size_t SerialSimulator::println(char ch) {
   fprintf(stdout, "%c\n", ch);
 }
 
+size_t SerialSimulator::print(unsigned int i) {
+  fprintf(stdout, "%d", i);
+}
+
+size_t SerialSimulator::println(unsigned int i) {
+  fprintf(stdout, "%d\n", i);
+}
+
 size_t SerialSimulator::print(unsigned char ch, int base) {
   return print((unsigned int)ch, base);
 }

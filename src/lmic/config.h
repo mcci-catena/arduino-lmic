@@ -84,7 +84,7 @@
 // configured (e.g. on AVR it is not by default), otherwise using it can
 // cause crashing.
 #ifndef LMIC_DEBUG_LEVEL
-#define LMIC_DEBUG_LEVEL 0
+#define LMIC_DEBUG_LEVEL 1
 #endif
 
 // Enable this to allow using printf() to print to the given serial port
@@ -147,6 +147,12 @@
 
 #if defined(USE_ORIGINAL_AES) && defined(USE_IDEETRON_AES)
 # error "You may define at most one of USE_ORIGINAL_AES and USE_IDEETRON_AES"
+#endif
+
+// Force Original AES on RPI
+#if defined(RASPBERRY_PI) && defined(USE_IDEETRON_AES)
+#undef USE_IDEETRON_AES
+#define USE_ORIGINAL_AES
 #endif
 
 // LMIC_DISABLE_DR_LEGACY

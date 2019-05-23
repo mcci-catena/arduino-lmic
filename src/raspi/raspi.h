@@ -64,7 +64,7 @@
 #endif
 
 // F() Macro
-#define F(s) 
+#define F(s) s
 
 #define random(x) (rand() % x)
 
@@ -114,6 +114,8 @@ class SerialSimulator {
     #define OCT 8
     #define BIN 2
 
+    operator bool() { return true; }
+
     // TODO: move these from being inlined
     static void begin(int baud);
     static size_t println(void);
@@ -124,6 +126,8 @@ class SerialSimulator {
     static size_t print(unsigned int n, int base = DEC);
     static size_t print(char ch);
     static size_t println(char ch);
+    static size_t print(unsigned int i);
+    static size_t println(unsigned int i);
     static size_t print(unsigned char ch, int base = DEC);
     static size_t println(unsigned char ch, int base = DEC);
     static size_t write(char ch);
