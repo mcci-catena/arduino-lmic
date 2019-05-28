@@ -50,8 +50,10 @@
 #include <lmic.h>
 #include <hal/hal.h>
 
-#include "si7021.h"
-#include "bmp180.h"
+#include <raspi/raspi.h>
+
+#include "si7021.c"
+#include "bmp180.cpp"
 
 // This EUI must be in little-endian format, so least-significant-byte
 // first. When copying an EUI from ttnctl output, this means to reverse

@@ -1,21 +1,9 @@
-# Makefile
-# Sample for gettting device EUI from MAC address
-#
-# 
+# Sample for ttn-abp example on Raspberry Pi
+# Caution: requires bcm2835 library to be already installed
+# http://www.airspayce.com/mikem/bcm2835/
 
-CC            = g++
-CFLAGS        = -DRASPBERRY_PI -DBCM2835_NO_DELAY_COMPATIBILITY -D__BASEFILE__=\"$*\"
-LIBS          = -lbcm2835 
-RADIOHEADBASE = ../../..
-INCLUDE       = -I$(RADIOHEADBASE)
+BIN=get_deveui
 
-all: get_deveui
-
-get_deveui.o: get_deveui.c
-				$(CC) $(CFLAGS) -c $(INCLUDE) $<
-
-get_deveui: get_deveui.o
-				$(CC) $^ $(LIBS) -o get_deveui
-
-clean:
-				rm -rf *.o get_deveui
+LIBDIR=../
+all: $(BIN)
+include ../Makefile.env
