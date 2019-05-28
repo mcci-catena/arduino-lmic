@@ -3,9 +3,9 @@
 # http://www.airspayce.com/mikem/bcm2835/
 BCM2835 = 1.59
 
-include Makefile.env
-
 all: /usr/local/lib/libbcm2835.a arduino-lmic.a
+
+include Makefile.env
 
 arduino-lmic.a: raspi.o radio.o oslmic.o lmic.o hal.o aes.o \
 		lmic_as923.o lmic_au921.o lmic_eu868.o lmic_in866.o lmic_us915.o \

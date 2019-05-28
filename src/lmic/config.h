@@ -84,7 +84,7 @@
 // configured (e.g. on AVR it is not by default), otherwise using it can
 // cause crashing.
 #ifndef LMIC_DEBUG_LEVEL
-#define LMIC_DEBUG_LEVEL 1
+#define LMIC_DEBUG_LEVEL 0
 #endif
 
 // Enable this to allow using printf() to print to the given serial port
