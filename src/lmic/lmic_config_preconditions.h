@@ -71,6 +71,7 @@ Revision history:
 #define LMIC_REGION_as923    7
 #define LMIC_REGION_kr921    8
 #define LMIC_REGION_in866    9
+#define LMIC_REGION_sa433    10
 
 // Some regions have country-specific overrides. For generality, we specify
 // country codes using the LMIC_COUNTY_CODE_C() macro These values are chosen
