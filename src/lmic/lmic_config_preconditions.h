@@ -64,6 +64,7 @@ Revision history:
 // constants for comparison
 #define LMIC_REGION_eu868    1
 #define LMIC_REGION_us915    2
+#define LMIC_REGION_au915    2
 #define LMIC_REGION_cn783    3
 #define LMIC_REGION_eu433    4
 #define LMIC_REGION_au921    5
@@ -121,6 +122,7 @@ Revision history:
 //
 # define CFG_LMIC_REGION_MASK   \
                         ((defined(CFG_eu868) << LMIC_REGION_eu868) | \
+                         (defined(CFG_au915) << LMIC_REGION_au915) | \
                          (defined(CFG_us915) << LMIC_REGION_us915) | \
                          (defined(CFG_cn783) << LMIC_REGION_cn783) | \
                          (defined(CFG_eu433) << LMIC_REGION_eu433) | \
@@ -136,6 +138,8 @@ Revision history:
 // user-editable.
 #if defined(CFG_eu868)
 # define CFG_region     LMIC_REGION_eu868
+#elif defined(CFG_au915)
+# define CFG_region     LMIC_REGION_au915
 #elif defined(CFG_us915)
 # define CFG_region     LMIC_REGION_us915
 #elif defined(CFG_cn783)
@@ -185,6 +189,7 @@ Revision history:
 // user-editable.
 #define CFG_LMIC_US_like_MASK   (                               \
                              /* (1 << LMIC_REGION_eu868) | */   \
+                                (1 << LMIC_REGION_au915) |      \
                                 (1 << LMIC_REGION_us915) |      \
                              /* (1 << LMIC_REGION_cn783) | */   \
                              /* (1 << LMIC_REGION_eu433) | */   \

@@ -44,14 +44,7 @@ typedef u1_t cr_t;
 typedef u1_t sf_t;
 typedef u1_t bw_t;
 typedef u1_t dr_t;
-
 // Radio parameter set (encodes SF/BW/CR/IH/NOCRC)
-// 2..0:    Spreading factor
-// 4..3:    bandwidth: 0 == 125kHz, 1 == 250 kHz, 2 == 500 kHz. 3 == reserved.
-// 6..5:    coding rate: 0 == 4/5, 1 == 4/6, 2 == 4/7, 3 == 4/8
-// 7:       nocrc: 0 == with crc, 1 == without crc
-// 15..8:   Implicit header control: 0 ==> none, 1..0xFF ==> length in bytes.
-
 typedef u2_t rps_t;
 TYPEDEF_xref2rps_t;
 
@@ -59,7 +52,7 @@ enum { ILLEGAL_RPS = 0xFF };
 
 // Global maximum frame length
 enum { STD_PREAMBLE_LEN  =  8 };
-enum { MAX_LEN_FRAME     =  LMIC_ENABLE_long_messages ? 255 : 64 };
+enum { MAX_LEN_FRAME     = 64 };
 enum { LEN_DEVNONCE      =  2 };
 enum { LEN_ARTNONCE      =  3 };
 enum { LEN_NETID         =  3 };
@@ -221,6 +214,60 @@ enum _dr_configured_t {
         DR_SF9CR  = US915_DR_SF9CR,
         DR_SF8CR  = US915_DR_SF8CR,
         DR_SF7CR  = US915_DR_SF7CR
+};
+# endif // LMIC_DR_LEGACY
+
+#elif defined(CFG_au915)  // =========================================
+
+#include "lorabase_au915.h"
+
+// per 2.2.3: not implemented
+#define LMIC_ENABLE_TxParamSetupReq	0
+
+enum { DR_DFLTMIN = AU915_DR_SF7 };  // DR5
+
+// DR_PAGE is a debugging parameter; it must be defined but it has no use in arduino-lmic
+enum { DR_PAGE = DR_PAGE_AU915 };
+
+//enum { CHNL_PING         = 0 }; // used only for default init of state (follows beacon - rotating)
+enum { FREQ_PING         = AU915_500kHz_DNFBASE + 0*AU915_500kHz_DNFSTEP };  // default ping freq
+enum { DR_PING           = AU915_DR_SF10CR };       // default ping DR
+//enum { CHNL_DNW2         = 0 };
+enum { FREQ_DNW2         = AU915_500kHz_DNFBASE + 0*AU915_500kHz_DNFSTEP };
+enum { DR_DNW2           = AU915_DR_SF12CR };
+enum { CHNL_BCN          = 0 }; // used only for default init of state (rotating beacon scheme)
+enum { DR_BCN            = AU915_DR_SF12CR };
+// TODO(tmm@mcci.com): check this, as beacon DR was SF10 in IBM code.
+enum { AIRTIME_BCN       = 72192 };  // micros
+enum { LMIC_REGION_EIRP = AU915_LMIC_REGION_EIRP };         // region uses EIRP
+
+enum {
+    // Beacon frame format US SF10
+    OFF_BCN_NETID    = 0,
+    OFF_BCN_TIME     = 3,
+    OFF_BCN_CRC1     = 7,
+    OFF_BCN_INFO     = 9,
+    OFF_BCN_LAT      = 10,
+    OFF_BCN_LON      = 13,
+    OFF_BCN_RFU1     = 16,
+    OFF_BCN_CRC2     = 17,
+    LEN_BCN          = 19
+};
+
+# if LMIC_DR_LEGACY
+enum _dr_configured_t {
+        DR_SF10   = AU915_DR_SF10,
+        DR_SF9    = AU915_DR_SF9,
+        DR_SF8    = AU915_DR_SF8,
+        DR_SF7    = AU915_DR_SF7,
+        DR_SF8C   = AU915_DR_SF8C,
+        DR_NONE   = AU915_DR_NONE,
+        DR_SF12CR = AU915_DR_SF12CR,
+        DR_SF11CR = AU915_DR_SF11CR,
+        DR_SF10CR = AU915_DR_SF10CR,
+        DR_SF9CR  = AU915_DR_SF9CR,
+        DR_SF8CR  = AU915_DR_SF8CR,
+        DR_SF7CR  = AU915_DR_SF7CR
 };
 # endif // LMIC_DR_LEGACY
 
@@ -421,6 +468,7 @@ enum {
     HDR_FTYPE_DADN   = 0x60,  // data (unconfirmed) dn
     HDR_FTYPE_DCUP   = 0x80,  // data confirmed up
     HDR_FTYPE_DCDN   = 0xA0,  // data confirmed dn
+    HDR_FTYPE_REJOIN = 0xC0,  // rejoin for roaming
     HDR_FTYPE_PROP   = 0xE0
 };
 enum {
@@ -572,6 +620,30 @@ enum {
     US915_MCMD_LADR_14dBm     = 8,
     US915_MCMD_LADR_12dBm     = 9,
     US915_MCMD_LADR_10dBm     = 10
+#elif defined(CFG_au915)
+    AU915_MCMD_LADR_SF10      = AU915_DR_SF10<<4,
+    AU915_MCMD_LADR_SF9       = AU915_DR_SF9 <<4,
+    AU915_MCMD_LADR_SF8       = AU915_DR_SF8 <<4,
+    AU915_MCMD_LADR_SF7       = AU915_DR_SF7 <<4,
+    AU915_MCMD_LADR_SF8C      = AU915_DR_SF8C<<4,
+    AU915_MCMD_LADR_SF12CR    = AU915_DR_SF12CR<<4,
+    AU915_MCMD_LADR_SF11CR    = AU915_DR_SF11CR<<4,
+    AU915_MCMD_LADR_SF10CR    = AU915_DR_SF10CR<<4,
+    AU915_MCMD_LADR_SF9CR     = AU915_DR_SF9CR<<4,
+    AU915_MCMD_LADR_SF8CR     = AU915_DR_SF8CR<<4,
+    AU915_MCMD_LADR_SF7CR     = AU915_DR_SF7CR<<4,
+
+    AU915_MCMD_LADR_30dBm     = 0,
+    AU915_MCMD_LADR_28dBm     = 1,
+    AU915_MCMD_LADR_26dBm     = 2,
+    AU915_MCMD_LADR_24dBm     = 3,
+    AU915_MCMD_LADR_22dBm     = 4,
+    AU915_MCMD_LADR_20dBm     = 5,
+    AU915_MCMD_LADR_18dBm     = 6,
+    AU915_MCMD_LADR_16dBm     = 7,
+    AU915_MCMD_LADR_14dBm     = 8,
+    AU915_MCMD_LADR_12dBm     = 9,
+    AU915_MCMD_LADR_10dBm     = 10
 #endif
 };
 
