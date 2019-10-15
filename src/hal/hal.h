@@ -12,7 +12,7 @@
 #ifndef _hal_hal_h_
 #define _hal_hal_h_
 
-#include "arduino_lmic_hal_configuration.h"
+#include "../arduino_lmic_hal_configuration.h"
 
 // for compatbility reasons, we need to disclose the configuration
 // structure as global type lmic_pinmap.

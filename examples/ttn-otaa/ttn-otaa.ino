@@ -31,8 +31,8 @@
  *
  *******************************************************************************/
 
-#include <lmic.h>
-#include <hal/hal.h>
+#include "../../src/lmic.h"
+#include "../../src/hal/hal.h"
 #include <SPI.h>
 
 //
