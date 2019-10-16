@@ -55,6 +55,8 @@ const HalPinmap_t *GetPinmap_ThisBoard(void)
         return GetPinmap_Catena4630();
 #elif defined(ARDUINO_MCCI_CATENA_4801)
         return GetPinmap_Catena4801();
+#elif defined(ARDUINO_TTGO_LoRa32_V1)
+        return GetPinmap_ttgo_lora32_v1();
 #elif defined(PINNOCHIO_SCOUT)
         return GetPinmap_PinnochioScount();
 #else
