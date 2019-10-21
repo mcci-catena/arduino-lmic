@@ -33,8 +33,10 @@
 # include "lmic_eu_like.h"
 #endif
 
+// return maximum frame length (including PHY header) for this data rate (eu868); 0 --> not valid dr.
 uint8_t LMICeu868_maxFrameLen(uint8_t dr);
-#define maxFrameLen(dr) LMICeu868_maxFrameLen(dr)
+// return maximum frame length (including PHY header) for this data rate; 0 --> not valid dr.
+#define LMICbandplan_maxFrameLen(dr) LMICeu868_maxFrameLen(dr)
 
 int8_t LMICeu868_pow2dBm(uint8_t mcmd_ladr_p1);
 #define pow2dBm(mcmd_ladr_p1)   LMICeu868_pow2dBm(mcmd_ladr_p1)
@@ -57,13 +59,7 @@ LMICeu868_isValidBeacon1(const uint8_t *d) {
 
 // override default for LMICbandplan_isFSK()
 #undef LMICbandplan_isFSK
-#define LMICbandplan_isFSK()    (/* TX datarate */LMIC.rxsyms == EU868_DR_FSK)
-
-// txDone handling for FSK.
-void
-LMICeu868_txDoneFSK(ostime_t delay, osjobcb_t func);
-
-#define LMICbandplan_txDoneFsk(delay, func) LMICeu868_txDoneFSK(delay, func)
+#define LMICbandplan_isFSK()    (/* RX datarate */LMIC.dndr == EU868_DR_FSK)
 
 #define LMICbandplan_getInitialDrJoin() (EU868_DR_SF7)
 

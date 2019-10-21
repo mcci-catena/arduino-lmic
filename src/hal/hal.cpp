@@ -130,6 +130,7 @@ static void hal_interrupt_init() {
       if (plmic_pins->dio[i] == LMIC_UNUSED_PIN)
           continue;
 
+      pinMode(plmic_pins->dio[i], INPUT);
       attachInterrupt(digitalPinToInterrupt(plmic_pins->dio[i]), interrupt_fns[i], RISING);
   }
 }
@@ -424,4 +425,16 @@ ostime_t hal_setModuleActive (bit_t val) {
 
 bit_t hal_queryUsingTcxo(void) {
     return pHalConfig->queryUsingTcxo();
+}
+
+uint8_t hal_getTxPowerPolicy(
+    u1_t inputPolicy,
+    s1_t requestedPower,
+    u4_t frequency
+    ) {
+    return (uint8_t) pHalConfig->getTxPowerPolicy(
+                        Arduino_LMIC::HalConfiguration_t::TxPowerPolicy_t(inputPolicy),
+                        requestedPower,
+                        frequency
+                        );
 }

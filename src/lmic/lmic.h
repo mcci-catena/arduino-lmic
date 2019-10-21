@@ -103,9 +103,9 @@ extern "C"{
 
 // Arduino LMIC version
 #define ARDUINO_LMIC_VERSION_CALC(major, minor, patch, local)	\
-	(((major) << 24u) | ((minor) << 16u) | ((patch) << 8u) | (local))
+	(((major) << 24ul) | ((minor) << 16ul) | ((patch) << 8ul) | ((local) << 0ul))
 
-#define	ARDUINO_LMIC_VERSION	ARDUINO_LMIC_VERSION_CALC(2, 3, 2, 50)	/* v2.3.2.50 */
+#define	ARDUINO_LMIC_VERSION	ARDUINO_LMIC_VERSION_CALC(3, 0, 99, 5)	/* v3.0.99.5 */
 
 #define	ARDUINO_LMIC_VERSION_GET_MAJOR(v)	\
 	(((v) >> 24u) & 0xFFu)
@@ -132,6 +132,8 @@ enum { MAX_RXSYMS         = 100 };   // stop tracking beacon beyond this
 
 enum { LINK_CHECK_CONT    =  0  ,    // continue with this after reported dead link
        LINK_CHECK_DEAD    =  32 ,    // after this UP frames and no response to ack from NWK assume link is dead (ADR_ACK_DELAY)
+       LINK_CHECK_UNJOIN_MIN = LINK_CHECK_DEAD + 4,         // this is the minimum value of LINK_CHECK_UNJOIN if we parameterize
+       LINK_CHECK_UNJOIN  =  LINK_CHECK_DEAD + (3 * 240),   // after this many UP frames and no response, switch to join (by default)
        LINK_CHECK_INIT    = -64 ,    // UP frame count until we ask for ack (ADR_ACK_LIMIT)
        LINK_CHECK_OFF     =-128 };   // link check disabled
 
@@ -167,6 +169,8 @@ enum { MAX_XCHANNELS = 2 };      // extra channels in RAM, channels 0-71 are imm
 
 struct lmic_saved_adr_state_s {
     u2_t        channelMap[(72+MAX_XCHANNELS+15)/16];  // enabled bits
+    u2_t        activeChannels125khz;
+    u2_t        activeChannels500khz;
 };
 
 #endif // ==========================================================================
@@ -174,7 +178,7 @@ struct lmic_saved_adr_state_s {
 typedef struct lmic_saved_adr_state_s   lmic_saved_adr_state_t;
 
 // Keep in sync with evdefs.hpp::drChange
-enum { DRCHG_SET, DRCHG_NOJACC, DRCHG_NOACK, DRCHG_NOADRACK, DRCHG_NWKCMD };
+enum { DRCHG_SET, DRCHG_NOJACC, DRCHG_NOACK, DRCHG_NOADRACK, DRCHG_NWKCMD, DRCHG_FRAMESIZE };
 enum { KEEP_TXPOW = -128 };
 
 
@@ -234,15 +238,19 @@ enum { OP_NONE     = 0x0000,
        OP_NEXTCHNL = 0x0800, // find a new channel
        OP_LINKDEAD = 0x1000, // link was reported as dead
        OP_TESTMODE = 0x2000, // developer test mode
+       OP_UNJOIN   = 0x4000, // unjoin and rejoin on next engineUpdate().
 };
 // TX-RX transaction flags - report back to user
 enum { TXRX_ACK    = 0x80,   // confirmed UP frame was acked
        TXRX_NACK   = 0x40,   // confirmed UP frame was not acked
        TXRX_NOPORT = 0x20,   // set if a frame with a port was RXed, clr if no frame/no port
        TXRX_PORT   = 0x10,   // set if a frame with a port was RXed, LMIC.frame[LMIC.dataBeg-1] => port
-       TXRX_DNW1   = 0x01,   // received in 1st DN slot
+       TXRX_LENERR = 0x08,   // set if frame was discarded due to length error.
+       TXRX_PING   = 0x04,   // received in a scheduled RX slot
        TXRX_DNW2   = 0x02,   // received in 2dn DN slot
-       TXRX_PING   = 0x04 }; // received in a scheduled RX slot
+       TXRX_DNW1   = 0x01,   // received in 1st DN slot
+};
+
 // Event types for event callback
 enum _ev_t { EV_SCAN_TIMEOUT=1, EV_BEACON_FOUND,
              EV_BEACON_MISSED, EV_BEACON_TRACKED, EV_JOINING,
@@ -251,6 +259,66 @@ enum _ev_t { EV_SCAN_TIMEOUT=1, EV_BEACON_FOUND,
              EV_RXCOMPLETE, EV_LINK_DEAD, EV_LINK_ALIVE, EV_SCAN_FOUND,
              EV_TXSTART, EV_TXCANCELED, EV_RXSTART, EV_JOIN_TXCOMPLETE };
 typedef enum _ev_t ev_t;
+
+// this macro can be used to initalize a normal table of event strings
+#define LMIC_EVENT_NAME_TABLE__INIT                                         \
+    "<<zero>>",                                                             \
+    "EV_SCAN_TIMEOUT", "EV_BEACON_FOUND",                                   \
+    "EV_BEACON_MISSED", "EV_BEACON_TRACKED", "EV_JOINING",                  \
+    "EV_JOINED", "EV_RFU1", "EV_JOIN_FAILED", "EV_REJOIN_FAILED",           \
+    "EV_TXCOMPLETE", "EV_LOST_TSYNC", "EV_RESET",                           \
+    "EV_RXCOMPLETE", "EV_LINK_DEAD", "EV_LINK_ALIVE", "EV_SCAN_FOUND",      \
+    "EV_TXSTART", "EV_TXCANCELED", "EV_RXSTART", "EV_JOIN_TXCOMPLETE"
+
+// if working on an AVR (or worried about it), you can use this multi-zero
+// string and put this in a single const F() string.  Index through this
+// counting up from 0, until you get to the entry you want or to an
+// entry that begins with a \0.
+#define LMIC_EVENT_NAME_MULTISZ__INIT                                       \
+    "<<zero>>\0"                                                            \
+    "EV_SCAN_TIMEOUT\0" "EV_BEACON_FOUND\0"                                 \
+    "EV_BEACON_MISSED\0" "EV_BEACON_TRACKED\0" "EV_JOINING\0"               \
+    "EV_JOINED\0" "EV_RFU1\0" "EV_JOIN_FAILED\0" "EV_REJOIN_FAILED\0"       \
+    "EV_TXCOMPLETE\0" "EV_LOST_TSYNC\0" "EV_RESET\0"                        \
+    "EV_RXCOMPLETE\0" "EV_LINK_DEAD\0" "EV_LINK_ALIVE\0" "EV_SCAN_FOUND\0"  \
+    "EV_TXSTART\0" "EV_TXCANCELED\0" "EV_RXSTART\0" "EV_JOIN_TXCOMPLETE\0"
+
+enum {
+    LMIC_ERROR_SUCCESS = 0,
+    LMIC_ERROR_TX_BUSY = -1,
+    LMIC_ERROR_TX_TOO_LARGE = -2,
+    LMIC_ERROR_TX_NOT_FEASIBLE = -3,
+    LMIC_ERROR_TX_FAILED = -4,
+};
+
+typedef int lmic_tx_error_t;
+
+#define LMIC_ERROR_NAME__INIT                                               \
+    "LMIC_ERROR_SUCCESS",                                                   \
+    "LMIC_ERROR_TX_BUSY",                                                   \
+    "LMIC_ERROR_TX_TOO_LARGE",                                              \
+    "LMIC_ERROR_TX_NOT_FEASIBLE",                                           \
+    "LMIC_ERROR_TX_FAILED"
+
+#define LMIC_ERROR_NAME_MULTISZ__INIT                                       \
+    "LMIC_ERROR_SUCCESS\0"                                                  \
+    "LMIC_ERROR_TX_BUSY\0"                                                  \
+    "LMIC_ERROR_TX_TOO_LARGE\0"                                             \
+    "LMIC_ERROR_TX_NOT_FEASIBLE\0"                                          \
+    "LMIC_ERROR_TX_FAILED"
+
+enum {
+    LMIC_BEACON_ERROR_INVALID   = -2,
+    LMIC_BEACON_ERROR_WRONG_NETWORK = -1,
+    LMIC_BEACON_ERROR_SUCCESS_PARTIAL = 0,
+    LMIC_BEACON_ERROR_SUCCESS_FULL = 1,
+};
+
+typedef s1_t lmic_beacon_error_t;
+
+static inline bit_t LMIC_BEACON_SUCCESSFUL(lmic_beacon_error_t e) {
+    return e < 0;
+}
 
 enum {
         // This value represents 100% error in LMIC.clockError
@@ -291,6 +359,14 @@ enum lmic_request_time_state_e {
 };
 
 typedef u1_t lmic_request_time_state_t;
+
+enum lmic_engine_update_state_e {
+    lmic_EngineUpdateState_idle = 0,    // engineUpdate is idle.
+    lmic_EngineUpdateState_busy = 1,    // engineUpdate is busy, but has not been reentered.
+    lmic_EngineUpdateState_again = 2,   // engineUpdate is busy, and has to be evaluated again.
+};
+
+typedef u1_t lmic_engine_update_state_t;
 
 /*
 
@@ -397,6 +473,10 @@ struct lmic_t {
 #if CFG_LMIC_EU_like
     band_t      bands[MAX_BANDS];
     u4_t        channelFreq[MAX_CHANNELS];
+#if !defined(DISABLE_MCMD_DlChannelReq)
+    u4_t        channelDlFreq[MAX_CHANNELS];
+#endif
+    // bit map of enabled datarates for each channel
     u2_t        channelDrMap[MAX_CHANNELS];
     u2_t        channelMap;
 #elif CFG_LMIC_US_like
@@ -408,10 +488,11 @@ struct lmic_t {
 #endif
 
     /* (u)int16_t things */
-
     rps_t       rps;            // radio parameter selections: SF, BW, CodingRate, NoCrc, implicit hdr
     u2_t        opmode;         // engineUpdate() operating mode flags
     u2_t        devNonce;       // last generated nonce
+
+    s2_t        adrAckReq;      // counter for link integrity tracking (LINK_CHECK_OFF=off)
 
 #if !defined(DISABLE_BEACONS)
     s2_t        drift;          // last measured drift
@@ -420,12 +501,17 @@ struct lmic_t {
 #endif
 
     /* (u)int8_t things */
+    lmic_engine_update_state_t engineUpdateState;   // state of the engineUpdate() evaluator.
     s1_t        rssi;
     s1_t        snr;            // LMIC.snr is SNR times 4
     u1_t        rxsyms;
     u1_t        dndr;
     s1_t        txpow;          // transmit dBm (administrative)
-    s1_t        radio_txpow;    // the radio driver's copy of txpow, limited by adrTxPow.
+    s1_t        radio_txpow;    // the radio driver's copy of txpow, in dB limited by adrTxPow, and
+				// also adjusted for EIRP/antenna gain considerations.
+				// This is just the radio's idea of power. So if you are
+				// controlling EIRP, and you have 3 dB antenna gain, this
+				// needs to reduced by 3 dB.
     s1_t        lbt_dbmax;      // max permissible dB on our channel (eg -80)
 
     u1_t        txChnl;          // channel for next TX
@@ -437,36 +523,33 @@ struct lmic_t {
     u1_t        errcr;        // error coding rate (used for TX only)
     u1_t        rejoinCnt;    // adjustment for rejoin datarate
 
+    u1_t        upRepeatCount;  // current up-repeat
     bit_t       initBandplanAfterReset; // cleared by LMIC_reset(), set by first join. See issue #244
 
     u1_t        pendTxPort;
     u1_t        pendTxConf;   // confirmed data
-    u1_t        pendTxLen;    // +0x80 = confirmed
+    u1_t        pendTxLen;    // count of bytes in pendTxData.
     u1_t        pendTxData[MAX_LEN_PAYLOAD];
+
+    u1_t        pendMacLen;         // number of bytes of pending Mac response data
+    bit_t       pendMacPiggyback;   // received on port 0 or piggyback?
+    // response data if piggybacked
+    u1_t        pendMacData[LWAN_FCtrl_FOptsLen_MAX];
 
     u1_t        nwkKey[16];   // network session key
     u1_t        artKey[16];   // application router session key
 
     u1_t        dnConf;       // dn frame confirm pending: LORA::FCT_ACK or 0
-    s1_t        adrAckReq;    // counter until we reset data rate (0=off)
+    u1_t        lastDnConf;   // downlink with seqnoDn-1 requested confirmation
     u1_t        adrChanged;
 
     u1_t        rxDelay;      // Rx delay after TX
 
     u1_t        margin;
-    bit_t       ladrAns;      // link adr adapt answer pending
-    bit_t       devsAns;      // device status answer pending
     s1_t        devAnsMargin; // SNR value between -32 and 31 (inclusive) for the last successfully received DevStatusReq command
     u1_t        adrEnabled;
     u1_t        moreData;     // NWK has more data pending
-#if !defined(DISABLE_MCMD_DCAP_REQ)
-    bit_t       dutyCapAns;   // have to ACK duty cycle settings
-#endif
-#if !defined(DISABLE_MCMD_SNCH_REQ)
-    u1_t        snchAns;      // answer set new channel
-#endif
 #if LMIC_ENABLE_TxParamSetupReq
-    bit_t       txParamSetupAns; // transmit setup answer pending.
     u1_t        txParam;        // the saved TX param byte.
 #endif
 #if LMIC_ENABLE_DeviceTimeReq
@@ -479,17 +562,20 @@ struct lmic_t {
 
     // 2nd RX window (after up stream)
     u1_t        dn2Dr;
-#if !defined(DISABLE_MCMD_DN2P_SET)
+#if !defined(DISABLE_MCMD_RXParamSetupReq)
     u1_t        dn2Ans;       // 0=no answer pend, 0x80+ACKs
+#endif
+#if !defined(DISABLE_MCMD_DlChannelReq)
+    u1_t        macDlChannelAns;        // 0 ==> no answer pending, 0x80+ACK bits
+#endif
+#if !defined(DISABLE_MCMD_RXTimingSetupReq)
+    bit_t       macRxTimingSetupAns;    // 0 ==> no answer pend, non-zero inserts response.
 #endif
 
     // Class B state
 #if !defined(DISABLE_BEACONS)
     u1_t        missedBcns;   // unable to track last N beacons
     u1_t        bcninfoTries; // how often to try (scan mode only)
-#endif
-#if !defined(DISABLE_MCMD_PING_SET) && !defined(DISABLE_PING)
-    u1_t        pingSetAns;   // answer set cmd and ACK bits
 #endif
     // Public part of MAC state
     u1_t        txCnt;
@@ -530,6 +616,7 @@ void  LMIC_setAdrMode   (bit_t enabled);        // set ADR mode (if mobile turn 
 bit_t LMIC_startJoining (void);
 void  LMIC_tryRejoin    (void);
 void  LMIC_unjoin       (void);
+void  LMIC_unjoinAndRejoin (void);
 #endif
 
 void  LMIC_shutdown     (void);
@@ -537,8 +624,11 @@ void  LMIC_init         (void);
 void  LMIC_reset        (void);
 void  LMIC_clrTxData    (void);
 void  LMIC_setTxData    (void);
-int   LMIC_setTxData2   (u1_t port, xref2u1_t data, u1_t dlen, u1_t confirmed);
-int   LMIC_sendWithCallback(u1_t port, xref2u1_t data, u1_t dlen, u1_t confirmed, lmic_txmessage_cb_t *pCb, void *pUserData);
+void  LMIC_setTxData_strict(void);
+lmic_tx_error_t LMIC_setTxData2(u1_t port, xref2u1_t data, u1_t dlen, u1_t confirmed);
+lmic_tx_error_t LMIC_setTxData2_strict(u1_t port, xref2u1_t data, u1_t dlen, u1_t confirmed);
+lmic_tx_error_t LMIC_sendWithCallback(u1_t port, xref2u1_t data, u1_t dlen, u1_t confirmed, lmic_txmessage_cb_t *pCb, void *pUserData);
+lmic_tx_error_t LMIC_sendWithCallback_strict(u1_t port, xref2u1_t data, u1_t dlen, u1_t confirmed, lmic_txmessage_cb_t *pCb, void *pUserData);
 void  LMIC_sendAlive    (void);
 
 #if !defined(DISABLE_BEACONS)

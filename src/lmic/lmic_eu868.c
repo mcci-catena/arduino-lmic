@@ -49,21 +49,28 @@ CONST_TABLE(u1_t, _DR2RPS_CRC)[] = {
         ILLEGAL_RPS
 };
 
-static CONST_TABLE(u1_t, maxFrameLens)[] = { 64,64,64,123 };
+static CONST_TABLE(u1_t, maxFrameLens)[] = {
+        59+5, 59+5, 59+5, 123+5, 250+5, 250+5, 250+5, 250+5
+};
 
 uint8_t LMICeu868_maxFrameLen(uint8_t dr) {
         if (dr < LENOF_TABLE(maxFrameLens))
                 return TABLE_GET_U1(maxFrameLens, dr);
         else
-                return 0xFF;
+                return 0;
 }
 
 static CONST_TABLE(s1_t, TXPOWLEVELS)[] = {
-        16, 14, 12, 10, 8, 6, 4, 2, 0,0,0,0, 0,0,0,0
+        16, 14, 12, 10, 8, 6, 4, 2
 };
 
 int8_t LMICeu868_pow2dBm(uint8_t mcmd_ladr_p1) {
-        return TABLE_GET_S1(TXPOWLEVELS, (mcmd_ladr_p1&MCMD_LADR_POW_MASK)>>MCMD_LADR_POW_SHIFT);
+        uint8_t const pindex = (mcmd_ladr_p1&MCMD_LinkADRReq_POW_MASK)>>MCMD_LinkADRReq_POW_SHIFT;
+        if (pindex < LENOF_TABLE(TXPOWLEVELS)) {
+                return TABLE_GET_S1(TXPOWLEVELS, pindex);
+        } else {
+                return -128;
+        }
 }
 
 // only used in this module, but used by variant macro dr2hsym().
@@ -75,7 +82,7 @@ static CONST_TABLE(ostime_t, DR2HSYM_osticks)[] = {
         us2osticksRound(128 << 3),  // DR_SF8
         us2osticksRound(128 << 2),  // DR_SF7
         us2osticksRound(128 << 1),  // DR_SF7B
-        us2osticksRound(80)       // FSK -- not used (time for 1/2 byte)
+        us2osticksRound(80)         // FSK -- time for 1/2 byte (unused by LMIC)
 };
 
 ostime_t LMICeu868_dr2hsym(uint8_t dr) {
@@ -93,6 +100,9 @@ static CONST_TABLE(u4_t, iniChannelFreq)[6] = {
 
 void LMICeu868_initDefaultChannels(bit_t join) {
         os_clearMem(&LMIC.channelFreq, sizeof(LMIC.channelFreq));
+#if !defined(DISABLE_MCMD_DlChannelReq)
+        os_clearMem(&LMIC.channelDlFreq, sizeof(LMIC.channelDlFreq));
+#endif // !DISABLE_MCMD_DlChannelReq
         os_clearMem(&LMIC.channelDrMap, sizeof(LMIC.channelDrMap));
         os_clearMem(&LMIC.bands, sizeof(LMIC.bands));
 
@@ -104,18 +114,9 @@ void LMICeu868_initDefaultChannels(bit_t join) {
                 LMIC.channelDrMap[fu] = DR_RANGE_MAP(EU868_DR_SF12, EU868_DR_SF7);
         }
 
-        LMIC.bands[BAND_MILLI].txcap = 1000;  // 0.1%
-        LMIC.bands[BAND_MILLI].txpow = 14;
-        LMIC.bands[BAND_MILLI].lastchnl = os_getRndU1() % MAX_CHANNELS;
-        LMIC.bands[BAND_CENTI].txcap = 100;   // 1%
-        LMIC.bands[BAND_CENTI].txpow = 14;
-        LMIC.bands[BAND_CENTI].lastchnl = os_getRndU1() % MAX_CHANNELS;
-        LMIC.bands[BAND_DECI].txcap = 10;    // 10%
-        LMIC.bands[BAND_DECI].txpow = 27;
-        LMIC.bands[BAND_DECI].lastchnl = os_getRndU1() % MAX_CHANNELS;
-        LMIC.bands[BAND_MILLI].avail =
-                LMIC.bands[BAND_CENTI].avail =
-                LMIC.bands[BAND_DECI].avail = os_getTime();
+        (void) LMIC_setupBand(BAND_MILLI, 14 /* dBm */, 1000 /* 0.1% */);
+        (void) LMIC_setupBand(BAND_CENTI, 14 /* dBm */,  100 /* 1% */);
+        (void) LMIC_setupBand(BAND_DECI,  27 /* dBm */,   10 /* 10% */);
 }
 
 bit_t LMIC_setupBand(u1_t bandidx, s1_t txpow, u2_t txcap) {
@@ -129,26 +130,59 @@ bit_t LMIC_setupBand(u1_t bandidx, s1_t txpow, u2_t txcap) {
         return 1;
 }
 
+// this table is from highest to lowest
+static CONST_TABLE(u4_t, bandAssignments)[] = {
+  870000000 /* .. and above */    | BAND_MILLI,
+  869700000 /* .. 869700000 */    | BAND_CENTI,
+  869650000 /* .. 869700000 */    | BAND_MILLI,
+  869400000 /* .. 869650000 */    | BAND_DECI,
+  868600000 /* .. 869640000 */    | BAND_MILLI,
+  865000000 /* .. 868400000 */    | BAND_CENTI,
+};
+
 bit_t LMIC_setupChannel(u1_t chidx, u4_t freq, u2_t drmap, s1_t band) {
+        // zero the band bits in freq, just in case.
+        freq &= ~3;
+
+        if (chidx < NUM_DEFAULT_CHANNELS) {
+                // can't disable a default channel.
+                if (freq == 0)
+                        return 0;
+                // can't change a default channel.
+                else if (freq != (LMIC.channelFreq[chidx] & ~3))
+                        return 0;
+        }
+        bit_t fEnable = (freq != 0);
         if (chidx >= MAX_CHANNELS)
                 return 0;
+
         if (band == -1) {
-                if (freq >= 869400000 && freq <= 869650000)
-                        freq |= BAND_DECI;   // 10% 27dBm
-                else if ((freq >= 868000000 && freq <= 868600000) ||
-                        (freq >= 869700000 && freq <= 870000000))
-                        freq |= BAND_CENTI;  // 1% 14dBm
-                else
-                        freq |= BAND_MILLI;  // 0.1% 14dBm
+                for (u1_t i = 0; i < LENOF_TABLE(bandAssignments); ++i) {
+                        const u4_t thisFreqBand = TABLE_GET_U4(bandAssignments, i);
+                        const u4_t thisFreq = thisFreqBand & ~3;
+                        if (freq >= thisFreq) {
+                                band = ((u1_t)thisFreqBand & 3);
+                                break;
+                        }
+                }
+
+                // if we didn't identify a frequency, it's millis.
+                if (band == -1) {
+                        band = BAND_MILLI;
+                }
         }
-        else {
-                if (band > BAND_AUX) return 0;
-                freq = (freq&~3) | band;
-        }
+
+        if ((u1_t)band > BAND_AUX)
+                return 0;
+
+        freq |= band;
+
         LMIC.channelFreq[chidx] = freq;
-        // TODO(tmm@mcci.com): don't use US SF directly, use something from the LMIC context or a static const
         LMIC.channelDrMap[chidx] = drmap == 0 ? DR_RANGE_MAP(EU868_DR_SF12, EU868_DR_SF7) : drmap;
-        LMIC.channelMap |= 1 << chidx;  // enabled right away
+        if (fEnable)
+                LMIC.channelMap |= 1 << chidx;  // enabled right away
+        else
+                LMIC.channelMap &= ~(1 << chidx);
         return 1;
 }
 
@@ -213,19 +247,13 @@ ostime_t LMICeu868_nextJoinState(void) {
 }
 #endif // !DISABLE_JOIN
 
-// txDone handling for FSK.
-void
-LMICeu868_txDoneFSK(ostime_t delay, osjobcb_t func) {
-        LMIC.rxtime = LMIC.txend + delay - PRERX_FSK*us2osticksRound(160);
-        LMIC.rxsyms = RXLEN_FSK;
-        os_setTimedCallback(&LMIC.osjob, LMIC.rxtime - RX_RAMPUP, func);
-}
-
 // set the Rx1 dndr, rps.
 void LMICeu868_setRx1Params(void) {
     u1_t const txdr = LMIC.dndr;
     s1_t drOffset;
     s1_t candidateDr;
+
+    LMICeulike_setRx1Freq();
 
     if ( LMIC.rx1DrOffset <= 5)
         drOffset = (s1_t) LMIC.rx1DrOffset;

@@ -2,7 +2,7 @@
 * Copyright (c) 2014-2016 IBM Corporation.
 * All rights reserved.
 *
-* Copyright (c) 2017 MCCI Corporation
+* Copyright (c) 2017, 2019 MCCI Corporation
 * All rights reserved.
 *
 *  Redistribution and use in source and binary forms, with or without
@@ -28,8 +28,8 @@
 * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#ifndef _lorabase_us915_h_
-#define _lorabase_us915_h_
+#ifndef _lorabase_kr920_h_
+#define _lorabase_kr920_h_
 
 #ifndef _LMIC_CONFIG_PRECONDITIONS_H_
 # include "lmic_config_preconditions.h"
@@ -37,48 +37,48 @@
 
 /****************************************************************************\
 |
-| Basic definitions for US915 (always in scope)
+| Basic definitions for KR920 (always in scope)
 |
 \****************************************************************************/
 
-// Frequency plan for US 915MHz ISM band
-// data rates
-enum _dr_us915_t {
-        US915_DR_SF10 = 0,
-        US915_DR_SF9,
-        US915_DR_SF8,
-        US915_DR_SF7,
-        US915_DR_SF8C,
-        US915_DR_NONE,
-        // Devices "behind a router" (and upper half of DR list):
-        US915_DR_SF12CR = 8,
-        US915_DR_SF11CR,
-        US915_DR_SF10CR,
-        US915_DR_SF9CR,
-        US915_DR_SF8CR,
-        US915_DR_SF7CR
+enum _dr_kr920_t {
+        KR920_DR_SF12 = 0,      // DR0
+        KR920_DR_SF11,          // DR1
+        KR920_DR_SF10,          // DR2
+        KR920_DR_SF9,           // DR3
+        KR920_DR_SF8,           // DR4
+        KR920_DR_SF7,           // DR5
+        KR920_DR_NONE
 };
 
-// Default frequency plan for US 915MHz
+// There is no dwell-time or duty-cycle limitation for IN
+//
+// max power: 30dBM
+//
+//                 freq                 datarates
 enum {
-        US915_125kHz_UPFBASE = 902300000,
-        US915_125kHz_UPFSTEP = 200000,
-        US915_500kHz_UPFBASE = 903000000,
-        US915_500kHz_UPFSTEP = 1600000,
-        US915_500kHz_DNFBASE = 923300000,
-        US915_500kHz_DNFSTEP = 600000
+        KR920_F1 = 922100000,      //   SF7-12 (DR0-5)
+        KR920_F2 = 922300000,      //   SF7-12 (DR0-5)
+        KR920_F3 = 922500000,      //   SF7-12 (DR0-5)
+        KR920_FBCN = 923100000,    //   beacon/ping
+        KR920_F14DBM = 922100000,  //   Allows 14 dBm (not 10) if >= this.
+        KR920_FDOWN = 921900000,   //   RX2 downlink frequency
 };
 enum {
-        US915_FREQ_MIN = 902000000,
-        US915_FREQ_MAX = 928000000
+        KR920_FREQ_MIN = 920900000,
+        KR920_FREQ_MAX = 923300000
 };
 enum {
-        US915_TX_MAX_DBM = 30           // 30 dBm (but not EIRP): assumes we're
-                                        // on an 64-channel bandplan. See code
-                                        // that computes tx power.
+        KR920_TX_EIRP_MAX_DBM = 14,     // 14 dBm for most
+        KR920_TX_EIRP_MAX_DBM_LOW = 10, // 10 dBm for some
 };
-enum { DR_PAGE_US915 = 0x10 * (LMIC_REGION_us915 - 1) };
+enum { DR_PAGE_KR920 = 0x10 * (LMIC_REGION_kr920 - 1) };
 
-enum { US915_LMIC_REGION_EIRP = 0 };         // region doesn't use EIRP, uses tx power
+enum { KR920_LMIC_REGION_EIRP = 1 };    // region uses EIRP
 
-#endif /* _lorabase_us915_h_ */
+enum { KR920_LBT_US = 128 };            // microseconds of LBT time.
+
+enum { KR920_LBT_DB_MAX = -80 };        // maximum channel strength in dB; if TX
+                                        // we measure more than this, we don't tx.
+
+#endif /* _lorabase_in866_h_ */

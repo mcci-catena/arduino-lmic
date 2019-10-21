@@ -51,19 +51,19 @@ CONST_TABLE(u1_t, _DR2RPS_CRC)[] = {
 };
 
 // see table in 2.7.6 -- this assumes UplinkDwellTime = 0.
-static CONST_TABLE(u1_t, maxFrameLens_dwell0)[] = { 
+static CONST_TABLE(u1_t, maxFrameLens_dwell0)[] = {
 	59+5,   // [0]
 	59+5,   // [1]
 	59+5,   // [2]
 	123+5,  // [3]
-	230+5,  // [4]
-	230+5,  // [5]
-	230+5,  // [6]
-	230+5   // [7]
+	250+5,  // [4]
+	250+5,  // [5]
+	250+5,  // [6]
+	250+5   // [7]
 };
 
 // see table in 2.7.6 -- this assumes UplinkDwellTime = 1.
-static CONST_TABLE(u1_t, maxFrameLens_dwell1)[] = { 
+static CONST_TABLE(u1_t, maxFrameLens_dwell1)[] = {
 	0,      // [0]
 	0,      // [1]
 	19+5,   // [2]
@@ -74,18 +74,20 @@ static CONST_TABLE(u1_t, maxFrameLens_dwell1)[] = {
 	250+5   // [7]
 };
 
-static uint8_t 
+static uint8_t
 LMICas923_getUplinkDwellBit(uint8_t mcmd_txparam) {
-        LMIC_API_PARAMETER(mcmd_txparam);
+        if (mcmd_txparam == 0xFF)
+                return AS923_INITIAL_TxParam_UplinkDwellTime;
 
-        return (LMIC.txParam & MCMD_TxParam_TxDWELL_MASK) != 0; 
+        return (mcmd_txparam & MCMD_TxParam_TxDWELL_MASK) != 0;
 }
 
-static uint8_t 
+static uint8_t
 LMICas923_getDownlinkDwellBit(uint8_t mcmd_txparam) {
-        LMIC_API_PARAMETER(mcmd_txparam);
+        if (mcmd_txparam == 0xFF)
+                return AS923_INITIAL_TxParam_DownlinkDwellTime;
 
-        return (LMIC.txParam & MCMD_TxParam_RxDWELL_MASK) != 0; 
+        return (mcmd_txparam & MCMD_TxParam_RxDWELL_MASK) != 0;
 }
 
 uint8_t LMICas923_maxFrameLen(uint8_t dr) {
@@ -95,7 +97,7 @@ uint8_t LMICas923_maxFrameLen(uint8_t dr) {
 		else
 			return TABLE_GET_U1(maxFrameLens_dwell0, dr);
 	} else {
-                return 0xFF;
+                return 0;
 	}
 }
 
@@ -110,7 +112,6 @@ static CONST_TABLE(s1_t, TXPOWLEVELS)[] = {
 	-10,	// [5]: MaxEIRP - 10dB
 	-12,	// [6]: MaxEIRP - 12dB
 	-14,	// [7]: MaxEIRP - 14dB
-	0, 0, 0, 0, 0, 0, 0, 0
 };
 
 // from LoRaWAN 5.8: mapping from txParam to MaxEIRP
@@ -119,6 +120,7 @@ static CONST_TABLE(s1_t, TXMAXEIRP)[16] = {
 };
 
 static int8_t LMICas923_getMaxEIRP(uint8_t mcmd_txparam) {
+        // if uninitialized, return default.
 	if (mcmd_txparam == 0xFF)
 		return AS923_TX_EIRP_MAX_DBM;
 	else
@@ -127,18 +129,23 @@ static int8_t LMICas923_getMaxEIRP(uint8_t mcmd_txparam) {
 			(mcmd_txparam & MCMD_TxParam_MaxEIRP_MASK) >>
 				MCMD_TxParam_MaxEIRP_SHIFT
 			);
-}	
+}
 
-// translate from an encoded power to an actual power using 
-// the maxeirp setting.
+// translate from an encoded power to an actual power using
+// the maxeirp setting; return -128 if not legal.
 int8_t LMICas923_pow2dBm(uint8_t mcmd_ladr_p1) {
-        s1_t const adj = 
-		TABLE_GET_S1(
-			TXPOWLEVELS, 
-			(mcmd_ladr_p1&MCMD_LADR_POW_MASK)>>MCMD_LADR_POW_SHIFT
-			);
-			
-	return LMICas923_getMaxEIRP(LMIC.txParam) + adj;
+        uint8_t const pindex = (mcmd_ladr_p1&MCMD_LinkADRReq_POW_MASK)>>MCMD_LinkADRReq_POW_SHIFT;
+        if (pindex < LENOF_TABLE(TXPOWLEVELS)) {
+                s1_t const adj =
+                        TABLE_GET_S1(
+                                TXPOWLEVELS,
+                                pindex
+                                );
+
+                return LMICas923_getMaxEIRP(LMIC.txParam) + adj;
+        } else {
+                return -128;
+        }
 }
 
 // only used in this module, but used by variant macro dr2hsym().
@@ -162,7 +169,7 @@ ostime_t LMICas923_dr2hsym(uint8_t dr) {
 enum { NUM_DEFAULT_CHANNELS = 2 };
 static CONST_TABLE(u4_t, iniChannelFreq)[NUM_DEFAULT_CHANNELS] = {
         // Default operational frequencies
-        AS923_F1 | BAND_CENTI, 
+        AS923_F1 | BAND_CENTI,
         AS923_F2 | BAND_CENTI,
 };
 
@@ -171,6 +178,9 @@ void LMICas923_initDefaultChannels(bit_t join) {
         LMIC_API_PARAMETER(join);
 
         os_clearMem(&LMIC.channelFreq, sizeof(LMIC.channelFreq));
+#if !defined(DISABLE_MCMD_DlChannelReq)
+        os_clearMem(&LMIC.channelDlFreq, sizeof(LMIC.channelDlFreq));
+#endif // !DISABLE_MCMD_DlChannelReq
         os_clearMem(&LMIC.channelDrMap, sizeof(LMIC.channelDrMap));
         os_clearMem(&LMIC.bands, sizeof(LMIC.bands));
 
@@ -217,6 +227,18 @@ bit_t LMIC_setupBand(u1_t bandidx, s1_t txpow, u2_t txcap) {
 }
 
 bit_t LMIC_setupChannel(u1_t chidx, u4_t freq, u2_t drmap, s1_t band) {
+        // zero the band bits in freq, just in case.
+        freq &= ~3;
+
+        if (chidx < NUM_DEFAULT_CHANNELS) {
+                // can't disable a default channel.
+                if (freq == 0)
+                        return 0;
+                // can't change a default channel.
+                else if (freq != (LMIC.channelFreq[chidx] & ~3))
+                        return 0;
+        }
+        bit_t fEnable = (freq != 0);
         if (chidx >= MAX_CHANNELS)
                 return 0;
         if (band == -1) {
@@ -226,10 +248,13 @@ bit_t LMIC_setupChannel(u1_t chidx, u4_t freq, u2_t drmap, s1_t band) {
                 freq = (freq&~3) | band;
         }
         LMIC.channelFreq[chidx] = freq;
-        LMIC.channelDrMap[chidx] = 
-		drmap == 0 ? DR_RANGE_MAP(AS923_DR_SF12, AS923_DR_SF7B) 
+        LMIC.channelDrMap[chidx] =
+		drmap == 0 ? DR_RANGE_MAP(AS923_DR_SF12, AS923_DR_SF7B)
 		           : drmap;
-        LMIC.channelMap |= 1 << chidx;  // enabled right away
+        if (fEnable)
+                LMIC.channelMap |= 1 << chidx;  // enabled right away
+        else
+                LMIC.channelMap &= ~(1 << chidx);
         return 1;
 }
 
@@ -259,7 +284,9 @@ void LMICas923_setRx1Params(void) {
 	int const txdr = LMIC.dndr;
 	int effective_rx1DrOffset;
 	int candidateDr;
-	
+
+        LMICeulike_setRx1Freq();
+
 	effective_rx1DrOffset = LMIC.rx1DrOffset;
 	// per section 2.7.7 of regional, lines 1101:1103:
 	switch (effective_rx1DrOffset) {
@@ -267,22 +294,22 @@ void LMICas923_setRx1Params(void) {
 		case 7: effective_rx1DrOffset = -2; break;
 		default: /* no change */ break;
 	}
-	
+
 	// per regional 2.2.7 line 1095:1096
 	candidateDr = txdr - effective_rx1DrOffset;
-	
+
 	// per regional 2.2.7 lines 1097:1100
 	if (LMICas923_getDownlinkDwellBit(LMIC.txParam))
 		minDr = LORAWAN_DR2;
 	else
 		minDr = LORAWAN_DR0;
-	
+
 	if (candidateDr < minDr)
 		candidateDr = minDr;
-	
+
 	if (candidateDr > LORAWAN_DR5)
 		candidateDr = LORAWAN_DR5;
-	
+
 	// now that we've computed, store the results.
 	LMIC.dndr = (uint8_t) candidateDr;
 	LMIC.rps = dndr2rps(LMIC.dndr);
@@ -334,23 +361,18 @@ ostime_t LMICas923_nextJoinState(void) {
 }
 #endif // !DISABLE_JOIN
 
-// txDone handling for FSK.
-void
-LMICas923_txDoneFSK(ostime_t delay, osjobcb_t func) {
-        LMIC.rxtime = LMIC.txend + delay - PRERX_FSK*us2osticksRound(160);
-        LMIC.rxsyms = RXLEN_FSK;
-        os_setTimedCallback(&LMIC.osjob, LMIC.rxtime - RX_RAMPUP, func);
-}
-
 void
 LMICas923_initJoinLoop(void) {
-	LMIC.txParam = 0xFF;
+        // LMIC.txParam is set to 0xFF by the central code at init time.
         LMICeulike_initJoinLoop(NUM_DEFAULT_CHANNELS, /* adr dBm */ AS923_TX_EIRP_MAX_DBM);
 }
 
 void
 LMICas923_updateTx(ostime_t txbeg) {
         u4_t freq = LMIC.channelFreq[LMIC.txChnl];
+        u4_t dwellDelay;
+        u4_t globalDutyDelay;
+
         // Update global/band specific duty cycle stats
         ostime_t airtime = calcAirTime(LMIC.rps, LMIC.dataLen);
         // Update channel/global duty cycle stats
@@ -358,8 +380,18 @@ LMICas923_updateTx(ostime_t txbeg) {
         LMIC.freq = freq & ~(u4_t)3;
         LMIC.txpow = LMICas923_getMaxEIRP(LMIC.txParam);
         band->avail = txbeg + airtime * band->txcap;
-        if (LMIC.globalDutyRate != 0)
-                LMIC.globalDutyAvail = txbeg + (airtime << LMIC.globalDutyRate);
+        dwellDelay = globalDutyDelay = 0;
+        if (LMIC.globalDutyRate != 0) {
+                globalDutyDelay = (airtime << LMIC.globalDutyRate);
+        }
+        if (LMICas923_getUplinkDwellBit(LMIC.txParam)) {
+                dwellDelay = AS923_UPLINK_DWELL_TIME_osticks;
+        }
+        if (dwellDelay > globalDutyDelay) {
+                globalDutyDelay = dwellDelay;
+        }
+        if (globalDutyDelay != 0)
+                LMIC.globalDutyAvail = txbeg + globalDutyDelay;
 }
 
 

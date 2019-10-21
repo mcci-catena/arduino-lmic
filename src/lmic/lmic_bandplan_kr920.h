@@ -26,59 +26,66 @@
 * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#ifndef _lmic_bandplan_in866_h_
-# define _lmic_bandplan_in866_h_
+#ifndef _lmic_kr920_h_
+# define _lmic_kr920_h_
 
 #ifndef _lmic_eu_like_h_
 # include "lmic_eu_like.h"
 #endif
 
-// return maximum frame length (including PHY header) for this data rate (in866); 0 --> not valid dr.
-uint8_t LMICin866_maxFrameLen(uint8_t dr);
+// return maximum frame length (including PHY header) for this data rate (kr920); 0 --> not valid dr.
+uint8_t LMICkr920_maxFrameLen(uint8_t dr);
 // return maximum frame length (including PHY header) for this data rate; 0 --> not valid dr.
-#define LMICbandplan_maxFrameLen(dr) LMICin866_maxFrameLen(dr)
+#define LMICbandplan_maxFrameLen(dr) LMICkr920_maxFrameLen(dr)
 
-int8_t LMICin866_pow2dBm(uint8_t mcmd_ladr_p1);
-#define pow2dBm(mcmd_ladr_p1)   LMICin866_pow2dBm(mcmd_ladr_p1)
+int8_t LMICkr920_pow2dBm(uint8_t mcmd_ladr_p1);
+#define pow2dBm(mcmd_ladr_p1)   LMICkr920_pow2dBm(mcmd_ladr_p1)
 
 // Times for half symbol per DR
 // Per DR table to minimize rounding errors
-ostime_t LMICin866_dr2hsym(uint8_t dr);
-#define dr2hsym(dr) LMICin866_dr2hsym(dr)
+ostime_t LMICkr920_dr2hsym(uint8_t dr);
+#define dr2hsym(dr) LMICkr920_dr2hsym(dr)
 
+
+// TODO(tmm@mcci.com) this looks bogus compared to current 1.02 regional
+// spec. https://github.com/mcci-catena/arduino-lmic/issues/18
 static inline int
-LMICin866_isValidBeacon1(const uint8_t *d) {
-        return os_rlsbf2(&d[OFF_BCN_CRC1]) != os_crc16(d, OFF_BCN_CRC1);
+LMICkr920_isValidBeacon1(const uint8_t *d) {
+    return d[OFF_BCN_CRC1] != (u1_t)os_crc16(d, OFF_BCN_CRC1);
 }
 
 #undef LMICbandplan_isValidBeacon1
-#define LMICbandplan_isValidBeacon1(pFrame) LMICin866_isValidBeacon1(pFrame)
+#define LMICbandplan_isValidBeacon1(pFrame) LMICkr920_isValidBeacon1(pFrame)
 
 // override default for LMICbandplan_isFSK()
 #undef LMICbandplan_isFSK
-#define LMICbandplan_isFSK()    (/* TX datarate */LMIC.dndr == IN866_DR_FSK)
+#define LMICbandplan_isFSK()    (/* always false */ 0)
 
-#define LMICbandplan_getInitialDrJoin() (IN866_DR_SF7)
+#define LMICbandplan_getInitialDrJoin() (KR920_DR_SF7)
 
-void LMICin866_setBcnRxParams(void);
-#define LMICbandplan_setBcnRxParams()   LMICin866_setBcnRxParams()
+void LMICkr920_setBcnRxParams(void);
+#define LMICbandplan_setBcnRxParams()   LMICkr920_setBcnRxParams()
 
-u4_t LMICin866_convFreq(xref2cu1_t ptr);
-#define LMICbandplan_convFreq(ptr)      LMICin866_convFreq(ptr)
+u4_t LMICkr920_convFreq(xref2cu1_t ptr);
+#define LMICbandplan_convFreq(ptr)      LMICkr920_convFreq(ptr)
 
-void LMICin866_initJoinLoop(void);
-#define LMICbandplan_initJoinLoop()     LMICin866_initJoinLoop()
+void LMICkr920_initJoinLoop(void);
+#define LMICbandplan_initJoinLoop()     LMICkr920_initJoinLoop()
 
-ostime_t LMICin866_nextTx(ostime_t now);
-#define LMICbandplan_nextTx(now)        LMICin866_nextTx(now)
+ostime_t LMICkr920_nextTx(ostime_t now);
+#define LMICbandplan_nextTx(now)        LMICkr920_nextTx(now)
 
-ostime_t LMICin866_nextJoinState(void);
-#define LMICbandplan_nextJoinState()    LMICin866_nextJoinState()
+ostime_t LMICkr920_nextJoinState(void);
+#define LMICbandplan_nextJoinState()    LMICkr920_nextJoinState()
 
-void LMICin866_initDefaultChannels(bit_t join);
-#define LMICbandplan_initDefaultChannels(join)  LMICin866_initDefaultChannels(join)
+void LMICkr920_initDefaultChannels(bit_t join);
+#define LMICbandplan_initDefaultChannels(join)  LMICkr920_initDefaultChannels(join)
 
-void LMICin866_setRx1Params(void);
-#define LMICbandplan_setRx1Params()     LMICin866_setRx1Params()
+void LMICkr920_setRx1Params(void);
+#define LMICbandplan_setRx1Params()     LMICkr920_setRx1Params()
 
-#endif // _lmic_bandplan_in866_h_
+#undef LMICbandplan_updateTx
+void LMICkr920_updateTx(ostime_t txbeg);
+#define LMICbandplan_updateTx(t)        LMICkr920_updateTx(t)
+
+#endif // _lmic_kr920_h_

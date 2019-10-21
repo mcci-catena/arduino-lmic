@@ -37,10 +37,13 @@
 # include "lmic_us_like.h"
 #endif
 
+// return maximum frame length (including PHY header) for this data rate (us915); 0 --> not valid dr.
 uint8_t LMICus915_maxFrameLen(uint8_t dr);
-#define maxFrameLen(dr) LMICus915_maxFrameLen(dr)
+// return maximum frame length (including PHY header) for this data rate; 0 --> not valid dr.
+#define LMICbandplan_maxFrameLen(dr) LMICus915_maxFrameLen(dr)
 
-#define pow2dBm(mcmd_ladr_p1) ((s1_t)(US915_TX_MAX_DBM - (((mcmd_ladr_p1)&MCMD_LADR_POW_MASK)<<1)))
+int8_t LMICus915_pow2dbm(uint8_t mcmd_ladr_p1);
+#define pow2dBm(mcmd_ladr_p1) LMICus915_pow2dbm(mcmd_ladr_p1)
 
 ostime_t LMICus915_dr2hsym(uint8_t dr);
 #define dr2hsym(dr) LMICus915_dr2hsym(dr)

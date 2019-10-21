@@ -20,6 +20,7 @@ Author:
 #include <arduino_lmic_lorawan_compliance.h>
 
 #include <SPI.h>
+class cEventQueue;
 
 //
 // For compliance tests with the RWC5020A, we use the default addresses
@@ -29,20 +30,21 @@ Author:
 
 // This EUI must be in little-endian format, so least-significant-byte
 // first.  This corresponds to 0x0000000000000001
-static const u1_t PROGMEM APPEUI[8]= { 1, 0, 0, 0, 0, 0, 0, 0 };
-void os_getArtEui (u1_t* buf) { memcpy_P(buf, APPEUI, 8);}
+// static const u1_t PROGMEM APPEUI[8]= { 1, 0, 0, 0, 0, 0, 0, 0 };
+void os_getArtEui (u1_t* buf) { memset(buf, 0, 8); buf[0] = 1; }
 
 // This should also be in little endian format, see above.
 // This corresponds to 0x0000000000000001
-static const u1_t PROGMEM DEVEUI[8]= { 1, 0, 0, 0, 0, 0, 0, 0 };
-void os_getDevEui (u1_t* buf) { memcpy_P(buf, DEVEUI, 8);}
+// static const u1_t PROGMEM DEVEUI[8]= { 1, 0, 0, 0, 0, 0, 0, 0 };
+void os_getDevEui (u1_t* buf) { memset(buf, 0, 8); buf[0] = 1; }
 
 // This key should be in big endian format (or, since it is not really a
-// number but a block of memory, endianness does not really apply). 
-static const u1_t PROGMEM APPKEY[16] = { 0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 2 };
-void os_getDevKey (u1_t* buf) {  memcpy_P(buf, APPKEY, 16);}
+// number but a block of memory, endianness does not really apply).
+// static const u1_t PROGMEM APPKEY[16] = { 0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 2 };
+void os_getDevKey (u1_t* buf) { memset(buf, 0, 16); buf[15] = 2; }
 
-static uint8_t mydata[] = "Hello, world!";
+// this data must be kept short -- max is 11 bytes for US DR0
+static uint8_t mydata[] = { 0xCA, 0xFE, 0xF0, 0x0D };
 static osjob_t sendjob;
 
 // Schedule TX every this many seconds (might become longer due to duty
@@ -56,15 +58,7 @@ bool g_fTestMode = false;
 lmic_event_cb_t myEventCb;
 lmic_rxmessage_cb_t myRxMessageCb;
 
-const char * const evNames[] = {
-    "<<zero>>",
-    "EV_SCAN_TIMEOUT", "EV_BEACON_FOUND",
-    "EV_BEACON_MISSED", "EV_BEACON_TRACKED", "EV_JOINING",
-    "EV_JOINED", "EV_RFU1", "EV_JOIN_FAILED", "EV_REJOIN_FAILED",
-    "EV_TXCOMPLETE", "EV_LOST_TSYNC", "EV_RESET",
-    "EV_RXCOMPLETE", "EV_LINK_DEAD", "EV_LINK_ALIVE", "EV_SCAN_FOUND",
-    "EV_TXSTART", "EV_TXCANCELED", "EV_RXSTART", "EV_JOIN_TXCOMPLETE"
-};
+const char * const evNames[] = { LMIC_EVENT_NAME_TABLE__INIT };
 
 /*
 
@@ -95,11 +89,16 @@ public:
     struct eventnode_t {
         osjob_t     job;
         ev_t        event;
+        const char *pMessage;
+        uint32_t    datum;
         ostime_t    time;
         ostime_t    txend;
+        ostime_t    globalDutyAvail;
         u4_t        freq;
-        rps_t       rps;
         u2_t        opmode;
+        u2_t        fcntDn;
+        u2_t        fcntUp;
+        rps_t       rps;
         u1_t        txChnl;
         u1_t        datarate;
         u1_t        txrxFlags;
@@ -117,21 +116,27 @@ public:
         return true;
     }
 
-    bool putEvent(ev_t event) {
+    bool putEvent(ev_t event, const char *pMessage = nullptr, uint32_t datum = 0) {
         auto i = m_tail + 1;
         if (i == sizeof(m_queue) / sizeof(m_queue[0])) {
             i = 0;
         }
         if (i != m_head) {
             auto const pn = &m_queue[m_tail];
+            pn->job = LMIC.osjob;
             pn->time = os_getTime();
             pn->txend = LMIC.txend;
+            pn->globalDutyAvail = LMIC.globalDutyAvail;
             pn->event = event;
+            pn->pMessage = pMessage;
+            pn->datum = datum;
             pn->freq = LMIC.freq;
-            pn->txChnl = LMIC.txChnl;
-            pn->rps = LMIC.rps;
-            pn->datarate = LMIC.datarate;
             pn->opmode = LMIC.opmode;
+            pn->fcntDn = (u2_t) LMIC.seqnoDn;
+            pn->fcntUp = (u2_t) LMIC.seqnoUp;
+            pn->rps = LMIC.rps;
+            pn->txChnl = LMIC.txChnl;
+            pn->datarate = LMIC.datarate;
             pn->txrxFlags = LMIC.txrxFlags;
             pn->saveIrqFlags = LMIC.saveIrqFlags;
             m_tail = i;
@@ -143,18 +148,51 @@ public:
 
 private:
     unsigned m_head, m_tail;
-    eventnode_t m_queue[16];
+    eventnode_t m_queue[32];
     osjob_t m_job;
 };
 
 cEventQueue eventQueue;
 
-uint8_t lastTxChannel;
-bool lastTxStart;
+#if LMIC_ENABLE_event_logging
+extern "C" {
+    void LMICOS_logEvent(const char *pMessage);
+    void LMICOS_logEventUint32(const char *pMessage, uint32_t datum);
+}
+
+void LMICOS_logEvent(const char *pMessage)
+    {
+    eventQueue.putEvent(ev_t(-1), pMessage);
+    }
+
+void LMICOS_logEventUint32(const char *pMessage, uint32_t datum)
+    {
+    eventQueue.putEvent(ev_t(-2), pMessage, datum);
+    }
+#endif // LMIC_ENABLE_event_logging
+
+hal_failure_handler_t log_assertion;
+
+void log_assertion(const char *pMessage, uint16_t line) {
+    eventQueue.putEvent(ev_t(-3), pMessage, line);
+    eventPrintAll();
+    Serial.println(F("***HALTED BY ASSERT***"));
+    while (true)
+        yield();
+}
+
+bool lastWasTxStart;
+uint32_t lastTxStartTime;
 
 void myEventCb(void *pUserData, ev_t ev) {
     eventQueue.putEvent(ev);
 
+    if (ev == EV_TXSTART) {
+        lastWasTxStart = true;
+        lastTxStartTime = millis();
+    } else if (ev == EV_RXSTART) {
+        lastWasTxStart = false;
+    }
     if (ev == EV_JOINING) {
         setupForNetwork(true);
     } else if (ev == EV_JOINED) {
@@ -163,6 +201,8 @@ void myEventCb(void *pUserData, ev_t ev) {
 }
 
 void eventPrint(cEventQueue::eventnode_t &e);
+void printFcnts(cEventQueue::eventnode_t &e);
+void printTxend(cEventQueue::eventnode_t &e);
 
 void eventPrintAll(void) {
     while (eventPrintOne())
@@ -202,172 +242,259 @@ const char *getCrcName(rps_t rps) {
     return getNocrc(rps) ? "NoCrc" : "Crc";
 }
 
+void printHex2(unsigned v) {
+    v &= 0xff;
+    if (v < 16)
+        Serial.print('0');
+    Serial.print(v, HEX);
+}
+
+void printHex4(unsigned v) {
+    printHex2(v >> 8u);
+    printHex2(v);
+}
+
+void printSpace(void) {
+    Serial.print(' ');
+}
+
 void printFreq(u4_t freq) {
+    Serial.print(F(": freq="));
     Serial.print(freq / 1000000);
-    Serial.print(F("."));
+    Serial.print('.');
     Serial.print((freq % 1000000) / 100000);
 }
 
 void printRps(rps_t rps) {
-    Serial.print(F(" rps=0x")); Serial.print(unsigned(rps), HEX);
+    Serial.print(F(" rps=0x")); printHex2(rps);
     Serial.print(F(" (")); Serial.print(getSfName(rps));
-    Serial.print(F(" ")); Serial.print(getBwName(rps));
-    Serial.print(F(" ")); Serial.print(getCrName(rps));
-    Serial.print(F(" ")); Serial.print(getCrcName(rps));
+    printSpace(); Serial.print(getBwName(rps));
+    printSpace(); Serial.print(getCrName(rps));
+    printSpace(); Serial.print(getCrcName(rps));
     Serial.print(F(" IH=")); Serial.print(unsigned(getIh(rps)));
-    Serial.print(F(")"));
+    Serial.print(')');
+}
+
+void printOpmode(uint16_t opmode, char sep = ',') {
+    if (sep != 0)
+        Serial.print(sep);
+    Serial.print(F(" opmode=")); Serial.print(opmode, HEX);
+}
+
+void printTxend(cEventQueue::eventnode_t &e) {
+    Serial.print(F(", txend=")); Serial.print(e.txend);
+    Serial.print(F(", avail=")); Serial.print(e.globalDutyAvail);
+}
+
+void printTxChnl(u1_t txChnl) {
+    Serial.print(F(": ch="));
+    Serial.print(unsigned(txChnl));
+}
+
+void printDatarate(u1_t datarate) {
+    Serial.print(F(", datarate=")); Serial.print(unsigned(datarate));
+}
+
+void printTxrxflags(u1_t txrxFlags) {
+    Serial.print(F(", txrxFlags=0x")); printHex2(txrxFlags);
+    if (txrxFlags & TXRX_ACK)
+        Serial.print(F("; Received ack"));
+}
+
+void printSaveIrqFlags(u1_t saveIrqFlags) {
+    Serial.print(F(", saveIrqFlags 0x"));
+    printHex2(saveIrqFlags);
+}
+
+void printFcnts(cEventQueue::eventnode_t &e) {
+    Serial.print(F(", FcntUp="));
+    printHex4(e.fcntUp);
+    Serial.print(F(", FcntDn="));
+    printHex4(e.fcntDn);
+}
+
+#if LMIC_ENABLE_event_logging
+// dump all the registers.
+void printAllRegisters(void) {
+    uint8_t regbuf[0x80];
+    regbuf[0] = 0;
+    hal_spi_read(1, regbuf + 1, sizeof(regbuf) - 1);
+
+    for (unsigned i = 0; i < sizeof(regbuf); ++i) {
+        if (i % 16 == 0) {
+            printNl();
+            printHex2(i);
+        }
+        Serial.print(((i % 8) == 0) ? F(" - ") : F(" "));
+        printHex2(regbuf[i]);
+    }
+
+    // reset the radio, just in case the register dump caused issues.
+    hal_pin_rst(0);
+    delay(2);
+    hal_pin_rst(2);
+    delay(6);
+
+    // restore the radio to idle.
+    const uint8_t opmode = 0x88;    // LoRa and sleep.
+    hal_spi_write(0x81, &opmode, 1);
+}
+#endif
+
+void printNl(void) {
+    Serial.println();
 }
 
 void eventPrint(cEventQueue::eventnode_t &e) {
     ev_t ev = e.event;
 
     Serial.print(e.time);
-    Serial.print(F(": "));
-    if (ev < sizeof(evNames) / sizeof(evNames[0])) {
-        Serial.print(evNames[ev]);
+    Serial.print(F(" ("));
+    Serial.print(osticks2ms(e.time));
+    Serial.print(F(" ms): "));
+
+    if (ev == ev_t(-1) || ev == ev_t(-2)) {
+        Serial.print(e.pMessage);
+        if (ev == ev_t(-2)) {
+            Serial.print(F(", datum=0x")); Serial.print(e.datum, HEX);
+        }
+        printOpmode(e.opmode, '.');
+    } else if (ev == ev_t(-3)) {
+        Serial.print(e.pMessage);
+        Serial.print(F(", line ")); Serial.print(e.datum);
+        printFreq(e.freq);
+        printTxend(e);
+        printTxChnl(e.txChnl);
+        printRps(e.rps);
+        printOpmode(e.opmode);
+        printTxrxflags(e.txrxFlags);
+        printSaveIrqFlags(e.saveIrqFlags);
+#if LMIC_ENABLE_event_logging
+        printAllRegisters();
+#endif
     } else {
-        Serial.print(F("Unknown event: "));
-        Serial.print((unsigned) ev);
-    }
+        if (ev < sizeof(evNames) / sizeof(evNames[0])) {
+            Serial.print(evNames[ev]);
+        } else {
+            Serial.print(F("Unknown event: "));
+            Serial.print((unsigned) ev);
+        }
+        switch(ev) {
+            case EV_SCAN_TIMEOUT:
+                break;
+            case EV_BEACON_FOUND:
+                break;
+            case EV_BEACON_MISSED:
+                break;
+            case EV_BEACON_TRACKED:
+                break;
+            case EV_JOINING:
+                break;
 
-    switch(ev) {
-        case EV_SCAN_TIMEOUT:
-            break;
-        case EV_BEACON_FOUND:
-            break;
-        case EV_BEACON_MISSED:
-            break;
-        case EV_BEACON_TRACKED:
-            break;
-        case EV_JOINING:
-            break;
-
-        case EV_JOINED:
-            Serial.print(F(": ch "));
-            Serial.println(unsigned(e.txChnl));
-            {
-              u4_t netid = 0;
-              devaddr_t devaddr = 0;
-              u1_t nwkKey[16];
-              u1_t artKey[16];
-              LMIC_getSessionKeys(&netid, &devaddr, nwkKey, artKey);
-              Serial.print("netid: ");
-              Serial.println(netid, DEC);
-              Serial.print("devaddr: ");
-              Serial.println(devaddr, HEX);
-              Serial.print("artKey: ");
-              for (int i=0; i<sizeof(artKey); ++i) {
-                if (i != 0)
-                  Serial.print("-");
-                Serial.print(artKey[i], HEX);
-              }
-              Serial.println("");
-              Serial.print("nwkKey: ");
-              for (int i=0; i<sizeof(nwkKey); ++i) {
-                      if (i != 0)
-                              Serial.print("-");
-                      Serial.print(nwkKey[i], HEX);
-              }
-            }
-            break;
-        /*
-        || This event is defined but not used in the code. No
-        || point in wasting codespace on it.
-        ||
-        || case EV_RFU1:
-        ||     Serial.println(F("EV_RFU1"));
-        ||     break;
-        */
-        case EV_JOIN_FAILED:
-            // print out rx info
-            Serial.print(F(":  freq=")); printFreq(e.freq);
-            printRps(e.rps);
-            Serial.print(F(" opmode=")); Serial.print(e.opmode, HEX);
-            printf(" irqLevel %u", hal_getIrqLevel());
-
-            do {
-                uint8_t regbuf[0x80];
-                regbuf[0] = 0;
-                hal_spi_read(1, regbuf + 1, sizeof(regbuf) - 1);
-
-                for (unsigned i = 0; i < sizeof(regbuf); ++i) {
-                    if (i % 16 == 0) {
-                        printf("\r\n%02x:", i);
+            case EV_JOINED:
+                printTxChnl(e.txChnl);
+                printNl();
+                do  {
+                    u4_t netid = 0;
+                    devaddr_t devaddr = 0;
+                    u1_t nwkKey[16];
+                    u1_t artKey[16];
+                    LMIC_getSessionKeys(&netid, &devaddr, nwkKey, artKey);
+                    Serial.print(F("netid: "));
+                    Serial.println(netid, DEC);
+                    Serial.print(F("devaddr: "));
+                    Serial.println(devaddr, HEX);
+                    Serial.print(F("artKey: "));
+                    for (size_t i=0; i<sizeof(artKey); ++i) {
+                        if (i != 0)
+                            Serial.print('-');
+                        printHex2(artKey[i]);
                     }
-                    printf("%s%02x", ((i % 16) == 8) ? " - " : " ", regbuf[i]);
-                }
+                    printNl();
+                    Serial.print(F("nwkKey: "));
+                    for (size_t i=0; i<sizeof(nwkKey); ++i) {
+                            if (i != 0)
+                                    Serial.print('-');
+                            printHex2(nwkKey[i]);
+                    }
+                } while (0);
+                break;
+            /*
+            || This event is defined but not used in the code. No
+            || point in wasting codespace on it.
+            ||
+            || case EV_RFU1:
+            ||     Serial.println(F("EV_RFU1"));
+            ||     break;
+            */
+            case EV_JOIN_FAILED:
+                // print out rx info
+                printFreq(e.freq);
+                printRps(e.rps);
+                printOpmode(e.opmode);
+#if LMIC_ENABLE_event_logging
+                printAllRegisters();
+#endif
+                break;
 
-            hal_pin_rst(0);
-            delay(2);
-            hal_pin_rst(2);
-            delay(6);
+            case EV_REJOIN_FAILED:
+                // this event means that someone tried a rejoin, and it failed.
+                // it doesn't really mean anything bad, it's just advisory.
+                break;
 
-            const uint8_t opmode = 0x88;    // LoRa and sleep.
-            hal_spi_write(0x81, &opmode, 1);
+            case EV_TXCOMPLETE:
+                printTxChnl(e.txChnl);
+                printRps(e.rps);
+                printTxrxflags(e.txrxFlags);
+                printFcnts(e);
+                printTxend(e);
+                break;
+            case EV_LOST_TSYNC:
+                break;
+            case EV_RESET:
+                break;
+            case EV_RXCOMPLETE:
+                break;
+            case EV_LINK_DEAD:
+                break;
+            case EV_LINK_ALIVE:
+                break;
+            /*
+            || This event is defined but not used in the code. No
+            || point in wasting codespace on it.
+            ||
+            || case EV_SCAN_FOUND:
+            ||    Serial.println(F("EV_SCAN_FOUND"));
+            ||    break;
+            */
+            case EV_TXSTART:
+                // this event tells us that a transmit is about to start.
+                // but printing here is bad for timing.
+                printTxChnl(e.txChnl);
+                printRps(e.rps);
+                printDatarate(e.datarate);
+                printOpmode(e.opmode);
+                printTxend(e);
+                break;
 
-            } while (0);
-            break;
+            case EV_RXSTART:
+                printFreq(e.freq);
+                printRps(e.rps);
+                printDatarate(e.datarate);
+                printOpmode(e.opmode);
+                printTxend(e);
+                Serial.print(F(", delta ms ")); Serial.print(osticks2ms(e.time - e.txend));
+                break;
 
-        case EV_REJOIN_FAILED:
-            // this event means that someone tried a rejoin, and it failed.
-            // it doesn't really mean anything bad, it's just advisory.
-            break;
+            case EV_JOIN_TXCOMPLETE:
+                printSaveIrqFlags(e.saveIrqFlags);
+                break;
 
-        case EV_TXCOMPLETE:
-            Serial.print(F(": ch "));
-            Serial.print(e.txChnl);
-            printRps(e.rps);
-            Serial.print(F(" txrxflags 0x")); Serial.print(e.txrxFlags, HEX);
-            if (e.txrxFlags & TXRX_ACK)
-                Serial.print(F("; Received ack"));
-            break;
-        case EV_LOST_TSYNC:
-            break;
-        case EV_RESET:
-            break;
-        case EV_RXCOMPLETE:
-            break;
-        case EV_LINK_DEAD:
-            break;
-        case EV_LINK_ALIVE:
-            break;
-        /*
-        || This event is defined but not used in the code. No
-        || point in wasting codespace on it.
-        ||
-        || case EV_SCAN_FOUND:
-        ||    Serial.println(F("EV_SCAN_FOUND"));
-        ||    break;
-        */
-        case EV_TXSTART:
-            // this event tells us that a transmit is about to start.
-            // but printing here is bad for timing.
-            Serial.print(F(": ch "));
-            Serial.print(unsigned(e.txChnl));
-            printRps(e.rps);
-            Serial.print(F(", datarate ")); Serial.print(unsigned(e.datarate));
-            Serial.print(F(", opmode ")); Serial.print(unsigned(e.opmode), HEX);
-            break;
-
-        case EV_RXSTART:
-            Serial.print(F(": freq="));
-            printFreq(e.freq);
-            printRps(e.rps);
-            Serial.print(F(", datarate ")); Serial.print(unsigned(e.datarate));
-            Serial.print(F(", opmode ")); Serial.print(unsigned(e.opmode), HEX);
-            Serial.print(F(", txend ")); Serial.print(e.txend); 
-            Serial.print(F(", delta ms ")); Serial.print(osticks2ms(e.time - e.txend));
-            break;
-
-        case EV_JOIN_TXCOMPLETE:
-            Serial.print(F(": saveIrqFlags 0x"));
-            Serial.print(unsigned(e.saveIrqFlags), HEX);
-            break;
-
-        default:
-            break;
+            default:
+                break;
+        }
     }
-    Serial.println("");
+    printNl();
 }
 
 /*
@@ -386,7 +513,7 @@ Definition:
                 uint8_t port,
                 const uint8_t *pMessage,
                 size_t nMessage
-                ); 
+                );
         }
 
 Description:
@@ -423,10 +550,10 @@ void myRxMessageCb(
         }
         case LMIC_COMPLIANCE_RX_ACTION_IGNORE: {
             if (port == LORAWAN_PORT_COMPLIANCE) {
-                Serial.print(F("Received test packet "));
+                Serial.print(F("Received test packet 0x"));
                 if (nMessage > 0)
-                    Serial.print(pMessage[0], HEX);
-                Serial.print(F(" length 0x"));
+                    printHex2(pMessage[0]);
+                Serial.print(F(" length "));
                 Serial.println((unsigned) nMessage);
             }
             return;
@@ -449,11 +576,12 @@ void do_send(osjob_t* j){
     // Check if there is not a current TX/RX job running
     if (LMIC.opmode & OP_TXRXPEND) {
         Serial.println(F("OP_TXRXPEND, not sending"));
+        sendComplete(j, 0);
     } else if (g_fTestMode) {
         Serial.println(F("test mode, not sending"));
     } else {
         // Prepare upstream data transmission at the next possible time.
-        if (LMIC_sendWithCallback(1, mydata, sizeof(mydata)-1, 0, sendComplete, j) == 0) {
+        if (LMIC_sendWithCallback_strict(1, mydata, sizeof(mydata), 0, sendComplete, j) == 0) {
             Serial.println(F("Packet queued"));
         } else {
             Serial.println(F("Packet queue failure; sleeping"));
@@ -474,7 +602,7 @@ void sendComplete(
     if (! g_fTestMode) {
             // Schedule next transmission
             os_setTimedCallback(j, os_getTime()+sec2osticks(TX_INTERVAL), do_send);
-    }        
+    }
 }
 
 void myFail(const char *pMessage) {
@@ -497,7 +625,8 @@ void setup() {
     while (! Serial)
         ;
     Serial.begin(115200);
-    Serial.println(F("Starting"));
+    setup_printSignOn();
+    setup_calibrateSystemClock();
 
     // LMIC init using the computed target
     const auto pPinMap = Arduino_LMIC::GetPinmap_ThisBoard();
@@ -508,10 +637,11 @@ void setup() {
     }
 
     // now that we have a pinmap, initalize the low levels accordingly.
+    hal_set_failure_handler(log_assertion);
     os_init_ex(pPinMap);
 
     // LMIC_reset() doesn't affect callbacks, so we can do this first.
-    if (! (LMIC_registerRxMessageCb(myRxMessageCb, /* userData */ nullptr) && 
+    if (! (LMIC_registerRxMessageCb(myRxMessageCb, /* userData */ nullptr) &&
            LMIC_registerEventCb(myEventCb, /* userData */ nullptr))) {
         myFail("couldn't register callbacks");
     }
@@ -519,7 +649,8 @@ void setup() {
     // Reset the MAC state. Session and pending data transfers will be discarded.
     LMIC_reset();
 
-    LMIC_setClockError(5 * MAX_CLOCK_ERROR / 100);
+    // set clock rate error to 0.1%
+    //LMIC_setClockError(1 * MAX_CLOCK_ERROR / 1000);
 
     // do the network-specific setup prior to join.
     setupForNetwork(false);
@@ -528,21 +659,524 @@ void setup() {
     do_send(&sendjob);
 }
 
-void setupForNetwork(bool preJoin) {
-#if defined(CFG_us915)
-    LMIC_selectSubBand(1);
+void setup_printSignOnDashLine(void)
+    {
+    for (unsigned i = 0; i < 78; ++i)
+        Serial.print('-');
 
-    if (! preJoin) {
-//        LMIC_setLinkCheckMode(0);
-//        LMIC_setDrTxpow(DR_SF7, 14);
+    printNl();
     }
+
+static constexpr const char *filebasename2(const char *s, const char *p) {
+    return p[0] == '\0'                     ? s                             :
+           (p[0] == '/' || p[0] == '\\')    ? filebasename2(p + 1, p + 1)   :
+                                              filebasename2(s, p + 1)       ;
+}
+
+static constexpr const char *filebasename(const char *s)
+    {
+    return filebasename2(s, s);
+    }
+
+void printVersionFragment(char sep, uint8_t v) {
+    if (sep != 0) {
+        Serial.print(sep);
+    }
+    Serial.print(unsigned(v));
+}
+
+void printVersion(uint32_t v) {
+    printVersionFragment(0, uint8_t(v >> 24u));
+    printVersionFragment('.', uint8_t(v >> 16u));
+    printVersionFragment('.', uint8_t(v >> 8u));
+    if (uint8_t(v) != 0) {
+        printVersionFragment('.', uint8_t(v));
+    }
+}
+
+void setup_printSignOn()
+    {
+    printNl();
+
+    setup_printSignOnDashLine();
+
+    Serial.println(filebasename(__FILE__));
+    Serial.print(F("LMIC version "));
+    printVersion(ARDUINO_LMIC_VERSION);
+    Serial.print(F(" configured for region "));
+    Serial.print(CFG_region);
+    Serial.println('.');
+    Serial.println(F("Remember to select 'Line Ending: Newline' at the bottom of the monitor window."));
+
+    setup_printSignOnDashLine();
+    printNl();
+    }
+
+void setupForNetwork(bool preJoin) {
+#if CFG_LMIC_US_like
+    LMIC_selectSubBand(0);
 #endif
 }
 
 void loop() {
     os_runloop_once();
-    while ((LMIC.opmode & OP_TXRXPEND) == 0 && 
-           ! os_queryTimeCriticalJobs(ms2osticks(1000)) &&
-           eventPrintOne())
-        ;
+
+    if (lastWasTxStart && millis() - lastTxStartTime > 10000) {
+        /* ugh. TX timed out */
+        Serial.println(F("Tx timed out"));
+#if LMIC_ENABLE_event_logging
+        printAllRegisters();
+#endif
+        LMIC_clrTxData();
+        lastWasTxStart = false;
+    }
+
+    if ((LMIC.opmode & OP_TXRXPEND) == 0 &&
+        !os_queryTimeCriticalJobs(ms2osticks(1000))) {
+           eventPrintAll();
+    }
 }
+
+#define NEED_USBD_LL_ConnectionState    0
+#ifdef ARDUINO_ARCH_STM32
+# ifdef _mcci_arduino_version
+#  if _mcci_arduino_version < _mcci_arduino_version_calc(2, 5, 0, 10)
+#   undef NEED_USBD_LL_ConnectionState
+#   define NEED_USBD_LL_ConnectionState 1
+#  endif // _mcci_arduino_version < _mcci_arduino_version_calc(2, 5, 0, 10)
+# endif // def _mcci_arduino_version
+#endif // def ARDUINO_ARCH_STM32
+
+#define NEED_STM32_ClockCalibration    0
+#ifdef ARDUINO_ARCH_STM32
+# ifdef _mcci_arduino_version
+#  if _mcci_arduino_version <= _mcci_arduino_version_calc(2, 5, 0, 10)
+#   undef NEED_STM32_ClockCalibration
+#   define NEED_STM32_ClockCalibration 1
+#  endif // _mcci_arduino_version <= _mcci_arduino_version_calc(2, 5, 0, 10)
+# endif // def _mcci_arduino_version
+#endif // def ARDUINO_ARCH_STM32
+
+
+// there's a problem with running 2.5 of the MCCI STM32 BSPs;
+// hack around it.
+#if NEED_USBD_LL_ConnectionState
+uint32_t USBD_LL_ConnectionState(void) {
+  return 1;
+}
+#endif // NEED_USBD_LL_ConnectionState
+
+#if NEED_STM32_ClockCalibration
+        static constexpr bool kUsesLSE = true;          // _mcci_arduino_version indicates that LSE clock is used.
+#else
+        static constexpr bool kUsesLSE = false;
+#endif
+
+
+void setup_calibrateSystemClock(void) {
+    if (kUsesLSE) {
+        Serial.println("need to calibrate clock");
+#if NEED_STM32_ClockCalibration
+        Stm32_CalibrateSystemClock();
+#endif // NEED_STM32_ClockCalibration
+    } else {
+        Serial.println("calibration not supported");
+    }
+}
+
+#if NEED_STM32_ClockCalibration
+
+// RTC needs to be initialized before we calibrate the clock.
+bool rtcbegin() {
+    RTC_TimeTypeDef	Time;
+    RTC_DateTypeDef	Date;
+    uint32_t RtcClock;
+    RTC_HandleTypeDef	hRtc;
+
+    memset(&hRtc, 0, sizeof(hRtc));
+
+    hRtc.Instance = RTC;
+    hRtc.Init.HourFormat = RTC_HOURFORMAT_24;
+    RtcClock = __HAL_RCC_GET_RTC_SOURCE();
+    if (RtcClock == RCC_RTCCLKSOURCE_LSI)
+        {
+        hRtc.Init.AsynchPrediv = 37 - 1; /* 37kHz / 37 = 1000Hz */
+        hRtc.Init.SynchPrediv = 1000 - 1; /* 1000Hz / 1000 = 1Hz */
+        }
+    else if (RtcClock == RCC_RTCCLKSOURCE_LSE)
+        {
+        hRtc.Init.AsynchPrediv = 128 - 1; /* 32768Hz / 128 = 256Hz */
+        hRtc.Init.SynchPrediv = 256 - 1; /* 256Hz / 256 = 1Hz */
+        }
+    else
+        {
+        /*
+        || use HSE clock --
+        || we don't support use of HSE as RTC because it's connected to
+        || TCXO_OUT, and that's controlled by the LoRaWAN software.
+        */
+        Serial.println(
+            " HSE can not be used for RTC clock!"
+            );
+        return false;
+        }
+
+
+    hRtc.Init.OutPut = RTC_OUTPUT_DISABLE;
+    hRtc.Init.OutPutRemap = RTC_OUTPUT_REMAP_NONE;
+    hRtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
+    hRtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
+
+    if (HAL_RTC_Init(&hRtc) != HAL_OK)
+        {
+        Serial.println(
+            "HAL_RTC_Init() failed"
+            );
+        return false;
+        }
+
+    /* Initialize RTC and set the Time and Date */
+    if (HAL_RTCEx_BKUPRead(&hRtc, RTC_BKP_DR0) != 0x32F2)
+        {
+        Time.Hours = 0x0;
+        Time.Minutes = 0x0;
+        Time.Seconds = 0x0;
+        Time.SubSeconds = 0x0;
+        Time.TimeFormat = RTC_HOURFORMAT12_AM;
+        Time.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
+        Time.StoreOperation = RTC_STOREOPERATION_RESET;
+
+        if (HAL_RTC_SetTime(
+            &hRtc,
+            &Time,
+            RTC_FORMAT_BIN
+            ) != HAL_OK)
+            {
+            Serial.print(
+                "HAL_RTC_SetTime() failed"
+                );
+            return false;
+            }
+
+        /* Sunday 1st January 2017 */
+        Date.WeekDay = RTC_WEEKDAY_SUNDAY;
+        Date.Month = RTC_MONTH_JANUARY;
+        Date.Date = 0x1;
+        Date.Year = 0x0;
+
+        if (HAL_RTC_SetDate(
+            &hRtc,
+            &Date,
+            RTC_FORMAT_BIN
+            ) != HAL_OK)
+            {
+            Serial.print(
+                "HAL_RTC_SetDate() failed"
+                );
+            return false;
+            }
+
+        HAL_RTCEx_BKUPWrite(&hRtc, RTC_BKP_DR0, 0x32F2);
+        }
+
+    /* Enable Direct Read of the calendar registers (not through Shadow) */
+    HAL_RTCEx_EnableBypassShadow(&hRtc);
+
+    HAL_RTC_DeactivateAlarm(&hRtc, RTC_ALARM_A);
+    return true;
+}
+
+extern "C" {
+
+static volatile uint32_t *gs_pAlarm;
+static RTC_HandleTypeDef *gs_phRtc;
+
+void RTC_IRQHandler(void)
+    {
+    HAL_RTC_AlarmIRQHandler(gs_phRtc);
+    }
+
+void HAL_RTC_AlarmAEventCallback(
+    RTC_HandleTypeDef *	hRtc
+    )
+    {
+    if (gs_pAlarm)
+        *gs_pAlarm = 1;
+    }
+
+void HAL_RTC_MspInit(
+    RTC_HandleTypeDef *	hRtc
+    )
+    {
+    if (hRtc->Instance == RTC)
+        {
+        /* USER CODE BEGIN RTC_MspInit 0 */
+
+        /* USER CODE END RTC_MspInit 0 */
+        /* Peripheral clock enable */
+        __HAL_RCC_RTC_ENABLE();
+        /* USER CODE BEGIN RTC_MspInit 1 */
+        HAL_NVIC_SetPriority(RTC_IRQn, TICK_INT_PRIORITY, 0U);
+        HAL_NVIC_EnableIRQ(RTC_IRQn);
+        /* USER CODE END RTC_MspInit 1 */
+        }
+    }
+
+void HAL_RTC_MspDeInit(
+    RTC_HandleTypeDef *	hRtc
+    )
+    {
+    if (hRtc->Instance == RTC)
+        {
+        /* USER CODE BEGIN RTC_MspDeInit 0 */
+        HAL_NVIC_DisableIRQ(RTC_IRQn);
+        /* USER CODE END RTC_MspDeInit 0 */
+        /* Peripheral clock disable */
+        __HAL_RCC_RTC_DISABLE();
+        /* USER CODE BEGIN RTC_MspDeInit 1 */
+
+        /* USER CODE END RTC_MspDeInit 1 */
+        }
+    }
+
+uint32_t HAL_AddTick(
+    uint32_t delta
+    )
+    {
+    extern __IO uint32_t uwTick;
+    // copy old interrupt-enable state to flags.
+    uint32_t const flags = __get_PRIMASK();
+
+    // disable interrupts
+    __set_PRIMASK(1);
+
+    // observe uwTick, and advance it.
+    uint32_t const tickCount = uwTick + delta;
+
+    // save uwTick
+    uwTick = tickCount;
+
+    // restore interrupts (does nothing if ints were disabled on entry)
+    __set_PRIMASK(flags);
+
+    // return the new value of uwTick.
+    return tickCount;
+    }
+
+} /* extern "C" */
+
+uint32_t Stm32_CalibrateSystemClock(void)
+    {
+    uint32_t Calib;
+    uint32_t CalibNew;
+    uint32_t CalibLow;
+    uint32_t CalibHigh;
+    uint32_t mSecond;
+    uint32_t mSecondNew;
+    uint32_t mSecondLow;
+    uint32_t mSecondHigh;
+    bool fHaveSeenLow;
+    bool fHaveSeenHigh;
+    const bool fCalibrateMSI =  HAL_RCC_GetHCLKFreq() < 16000000;
+
+    if (! rtcbegin()) {
+        return 0;
+    }
+
+    if (fCalibrateMSI)
+        {
+        Calib = (RCC->ICSCR & RCC_ICSCR_MSITRIM) >> 24;
+        }
+    else
+        {
+        Calib = (RCC->ICSCR & RCC_ICSCR_HSITRIM) >> 8;
+        }
+
+    /* preapre to loop, setting suitable defaults */
+    CalibNew = Calib;
+    CalibLow = 0;
+    CalibHigh = 0;
+    mSecondLow = 0;
+    mSecondHigh = 2000000;
+    fHaveSeenLow = fHaveSeenHigh = false;
+
+    /* loop until we have a new value */
+    do	{
+        /* meassure the # of millis per RTC second */
+        mSecond = MeasureMicrosPerRtcSecond();
+
+        /* invariant: */
+        if (Calib == CalibNew)
+            mSecondNew = mSecond;
+
+        /* if mSecond is low, this meaans we must increase the system clock */
+        if (mSecond <= 1000000)
+            {
+            Serial.print('-');
+            /*
+            || the following condition establishes that we're
+            || below the target frequency, but closer than we've been
+            || before (mSecondLow is the previous "low" limit). If
+            || so, we reduce the limit, and capture the "low" calibration
+            || value.
+            */
+            if (mSecond > mSecondLow)
+                {
+                mSecondLow = mSecond;
+                CalibLow = Calib; /* save previous calibration value */
+                fHaveSeenLow = true;
+                }
+
+            /*
+            || if we are low, and we have never exceeded the high limit,
+            || we can  increase the clock.
+            */
+            if (! fHaveSeenHigh)
+                {
+                if (fCalibrateMSI)
+                    {
+                    if (Calib < 0xFF)
+                        {
+                        ++Calib;
+                        __HAL_RCC_MSI_CALIBRATIONVALUE_ADJUST(Calib);
+                        }
+                    else
+                        break;
+                    }
+                else
+                    {
+                    if (Calib < 0x1F)
+                        {
+                        ++Calib;
+                        __HAL_RCC_HSI_CALIBRATIONVALUE_ADJUST(Calib);
+                        }
+                    else
+                        {
+                        break;
+                        }
+                    }
+
+                /* let the clock settle */
+                delay(500);
+                }
+            }
+
+        /* if mSecond is high, we must reduce the system clock */
+        else
+            {
+            Serial.print('+');
+            /*
+            || the following condition establishes that we're
+            || above the target frequency, but closer than we've been
+            || before (mSecondHigh is the previous "high" limit). If
+            || so, we reduce the limit, and capture the calibration
+            || value.
+            */
+            if (mSecond < mSecondHigh)
+                {
+                mSecondHigh = mSecond;
+                CalibHigh = Calib;
+                fHaveSeenHigh = true;
+                }
+
+            /*
+            || if we are above the target frequency, and we have
+            || never raised the frequence, we can lower the
+            || frequency
+            */
+            if (! fHaveSeenLow)
+                {
+                if (Calib == 0)
+                    break;
+
+                --Calib;
+                if (fCalibrateMSI)
+                    {
+                    __HAL_RCC_MSI_CALIBRATIONVALUE_ADJUST(Calib);
+                    }
+                else
+                    {
+                    __HAL_RCC_HSI_CALIBRATIONVALUE_ADJUST(Calib);
+                    }
+                delay(500);
+                }
+            }
+        } while ((Calib != CalibNew) &&
+                (! fHaveSeenLow || !fHaveSeenHigh));
+
+    //
+    // We are going to take higher calibration value first and
+    // it allows us not to call LMIC_setClockError().
+    //
+    if (fHaveSeenHigh)
+        {
+        mSecondNew = mSecondHigh;
+        CalibNew = CalibHigh;
+        }
+    else if (fHaveSeenLow)
+        {
+        mSecondNew = mSecondLow;
+        CalibNew = CalibLow;
+        }
+    else
+        {
+        // Use original value
+        Serial.println(
+            "?CalibrateSystemClock: can't calibrate"
+            );
+        }
+
+    if (CalibNew != Calib)
+        {
+        Serial.print(CalibNew < Calib ? '+' : '-');
+        if (fCalibrateMSI)
+            {
+            __HAL_RCC_MSI_CALIBRATIONVALUE_ADJUST(CalibNew);
+            }
+        else
+            {
+            __HAL_RCC_HSI_CALIBRATIONVALUE_ADJUST(CalibNew);
+            }
+        delay(500);
+        }
+
+    Serial.print(" 0x");
+    Serial.println(CalibNew, HEX);
+    return CalibNew;
+    }
+
+uint32_t
+MeasureMicrosPerRtcSecond(
+    void
+    )
+    {
+    uint32_t second;
+    uint32_t now;
+    uint32_t start;
+    uint32_t end;
+
+    /* get the starting time */
+    second = RTC->TR & (RTC_TR_ST | RTC_TR_SU);
+
+    /* wait for a new second to start, and capture millis() in start */
+    do	{
+        now = RTC->TR & (RTC_TR_ST | RTC_TR_SU);
+        start = micros();
+        } while (second == now);
+
+    /* update our second of interest */
+    second = now;
+
+    /* no point in watching the register until we get close */
+    delay(500);
+
+    /* wait for the next second to start, and capture millis() */
+    do	{
+        now = RTC->TR & (RTC_TR_ST | RTC_TR_SU);
+        end = micros();
+        } while (second == now);
+
+    /* return the delta */
+    return end - start;
+    }
+#endif // NEED_STM32_ClockCalibration
