@@ -505,6 +505,8 @@ struct lmic_t {
 
     u1_t        noRXIQinversion;
     u1_t        saveIrqFlags;   // last LoRa IRQ flags
+
+    u1_t        downlinkEnabled;
 };
 
 //! \var struct lmic_t LMIC
@@ -580,6 +582,12 @@ lmic_compliance_rx_action_t LMIC_complianceRxMessage(u1_t port, const u1_t *pMes
 #if LMIC_ENABLE_onEvent
 DECL_ON_LMIC_EVENT;
 #endif /* LMIC_ENABLE_onEvent */
+
+// Disable downlinks
+inline void LMIC_setDownlinks(bit_t enabled)
+{
+  LMIC.downlinkEnabled = enabled;
+}
 
 // Special APIs - for development or testing
 // !!!See implementation for caveats!!!

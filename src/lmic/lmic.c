@@ -38,7 +38,6 @@
 
 DEFINE_LMIC;
 
-
 // Fwd decls.
 static void reportEventNoUpdate(ev_t);
 static void reportEventAndUpdate(ev_t);
@@ -1514,12 +1513,13 @@ static void setupRx1DnData (xref2osjob_t osjob) {
 static void updataDone (xref2osjob_t osjob) {
     LMIC_API_PARAMETER(osjob);
 
-    #ifdef LMIC_DISABLE_DOWNLINK
-    LMIC.opmode &= ~(OP_TXDATA|OP_TXRXPEND);
-    reportEventAndUpdate(EV_TXCOMPLETE);
-    #else
-    txDone(sec2osticks(LMIC.rxDelay), FUNC_ADDR(setupRx1DnData));
-    #endif
+    if (LMIC.downlinkEnabled == 0)
+    {
+      LMIC.opmode &= ~(OP_TXDATA|OP_TXRXPEND);
+      reportEventAndUpdate(EV_TXCOMPLETE);
+    }
+    else
+      txDone(sec2osticks(LMIC.rxDelay), FUNC_ADDR(setupRx1DnData));
 }
 
 // ========================================
@@ -2290,6 +2290,8 @@ void LMIC_reset (void) {
     LMIC.netDeviceTime = 0;     // the "invalid" time.
     LMIC.netDeviceTimeFrac = 0;
 #endif // LMIC_ENABLE_DeviceTimeReq
+
+    LMIC.downlinkEnabled = 1;
 }
 
 
