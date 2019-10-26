@@ -56,7 +56,8 @@ LMICeulike_isValidBeacon1(const uint8_t *d) {
 #define LMICbandplan_isFSK()    (0)
 
 // provide a default LMICbandplan_txDoneDoFSK()
-#define LMICbandplan_txDoneFSK(delay, func)      do { } while (0)
+void LMICeulike_txDoneFSK(ostime_t delay, osjobcb_t func);
+#define LMICbandplan_txDoneFSK(delay, func)     LMICeulike_txDoneFSK(delay, func)
 
 #define LMICbandplan_joinAcceptChannelClear()   LMICbandplan_initDefaultChannels(/* normal, not join */ 0)
 
@@ -100,5 +101,15 @@ void LMICeulike_saveAdrState(lmic_saved_adr_state_t *pStateBuffer);
 
 bit_t LMICeulike_compareAdrState(const lmic_saved_adr_state_t *pStateBuffer);
 #define LMICbandplan_compareAdrState(pState) LMICeulike_compareAdrState(pState)
+
+void LMICeulike_restoreAdrState(const lmic_saved_adr_state_t *pStateBuffer);
+#define LMICbandplan_restoreAdrState(pState) LMICeulike_restoreAdrState(pState)
+
+// set Rx1 frequency (might be different than uplink).
+void LMICeulike_setRx1Freq(void);
+
+bit_t LMICeulike_isDataRateFeasible(dr_t dr);
+#define LMICbandplan_isDataRateFeasible(dr) LMICeulike_isDataRateFeasible(dr)
+
 
 #endif // _lmic_eu_like_h_
