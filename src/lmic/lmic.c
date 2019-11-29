@@ -1471,7 +1471,7 @@ static void schedRx12 (ostime_t delay, osjobcb_t func, u1_t dr) {
     // This also sets LMIC.rxsyms.
     LMIC.rxtime = LMIC.txend + LMICcore_adjustForDrift(delay + LMICcore_RxWindowOffset(hsym, LMICbandplan_MINRX_SYMS_LoRa_ClassA), hsym);
 
-    LMIC_X_DEBUG_PRINTF("%"LMIC_PRId_ostime_t": sched Rx12 %"LMIC_PRId_ostime_t"\n", os_getTime(), LMIC.rxtime - RX_RAMPUP);
+    LMIC_X_DEBUG_PRINTF("%" LMIC_PRId_ostime_t ": sched Rx12 %" LMIC_PRId_ostime_t "\n", os_getTime(), LMIC.rxtime - RX_RAMPUP);
     os_setTimedCallback(&LMIC.osjob, LMIC.rxtime - RX_RAMPUP, func);
 }
 
@@ -2646,7 +2646,7 @@ static void engineUpdate_inner (void) {
                        e_.eui    = MAIN::CDEV->getEui(),
                        e_.info   = osticks2ms(txbeg-now),
                        e_.info2  = LMIC.seqnoUp-1));
-    LMIC_X_DEBUG_PRINTF("%"LMIC_PRId_ostime_t": next engine update in %"LMIC_PRId_ostime_t"\n", now, txbeg-TX_RAMPUP);
+    LMIC_X_DEBUG_PRINTF("%" LMIC_PRId_ostime_t ": next engine update in %" LMIC_PRId_ostime_t "\n", now, txbeg-TX_RAMPUP);
     os_setTimedCallback(&LMIC.osjob, txbeg-TX_RAMPUP, FUNC_ADDR(runEngineUpdate));
 }
 

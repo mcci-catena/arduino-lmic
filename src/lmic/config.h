@@ -151,6 +151,12 @@
 # error "You may define at most one of USE_ORIGINAL_AES and USE_IDEETRON_AES"
 #endif
 
+// Force Original AES on RPI
+#if defined(RASPBERRY_PI) && defined(USE_IDEETRON_AES)
+#undef USE_IDEETRON_AES
+#define USE_ORIGINAL_AES
+#endif
+
 // LMIC_DISABLE_DR_LEGACY
 // turn off legacy DR_* symbols that vary by bandplan.
 // Older code uses these for configuration. EU868_DR_*, US915_DR_*
