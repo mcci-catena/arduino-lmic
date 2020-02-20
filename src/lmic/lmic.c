@@ -1939,6 +1939,9 @@ static bit_t buildDataFrame (void) {
     LMIC.frame[OFF_DAT_HDR] = HDR_FTYPE_DAUP | HDR_MAJOR_V1;
     LMIC.frame[OFF_DAT_FCT] = (LMIC.dnConf | LMIC.adrEnabled
                               | (sendAdrAckReq() ? FCT_ADRACKReq : 0)
+#if !defined(DISABLE_PING)
+                              | ((LMIC.opmode & OP_PINGABLE) ? FCT_CLASSB : 0)
+#endif // ndef DISABLE_PING
                               | (end-OFF_DAT_OPTS));
     os_wlsbf4(LMIC.frame+OFF_DAT_ADDR,  LMIC.devaddr);
 
