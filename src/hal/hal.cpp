@@ -109,14 +109,17 @@ static void hal_io_check() {
 // Interrupt handlers
 static ostime_t interrupt_time[NUM_DIO] = {0};
 
+LMIC_ISR_ATTR
 static void hal_isrPin0() {
     ostime_t now = os_getTime();
     interrupt_time[0] = now ? now : 1;
 }
+LMIC_ISR_ATTR
 static void hal_isrPin1() {
     ostime_t now = os_getTime();
     interrupt_time[1] = now ? now : 1;
 }
+LMIC_ISR_ATTR
 static void hal_isrPin2() {
     ostime_t now = os_getTime();
     interrupt_time[2] = now ? now : 1;
