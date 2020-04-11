@@ -943,7 +943,7 @@ scan_mac_cmds(
             // LMIC.snr is SNR times 4, convert to real SNR; rounding towards zero.
             const int snr = (LMIC.snr + 2) / 4;
             // per [1.02] 5.5. the margin is the SNR.
-            LMIC.devAnsMargin = (u1_t)(0b00111111 & (snr <= -32 ? -32 : snr >= 31 ? 31 : snr));
+            LMIC.devAnsMargin = (u1_t)(0x3F & (snr <= -32 ? -32 : snr >= 31 ? 31 : snr));
 
             response_fit = put_mac_uplink_byte3(MCMD_DevStatusAns, os_getBattLevel(), LMIC.devAnsMargin);
             break;
