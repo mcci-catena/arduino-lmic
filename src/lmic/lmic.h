@@ -353,6 +353,7 @@ enum {
 typedef void LMIC_ABI_STD lmic_rxmessage_cb_t(void *pUserData, uint8_t port, const uint8_t *pMessage, size_t nMessage);
 typedef void LMIC_ABI_STD lmic_txmessage_cb_t(void *pUserData, int fSuccess);
 typedef void LMIC_ABI_STD lmic_event_cb_t(void *pUserData, ev_t e);
+typedef u1_t LMIC_ABI_STD lmic_battlevel_cb_t(void *pUserData);
 
 // network time request callback function
 // defined unconditionally, because APIs and types can't change based on config.
@@ -425,6 +426,8 @@ struct lmic_client_data_s {
     void                *rxMessageUserData; //! data for rxMessageCb
     lmic_txmessage_cb_t *txMessageCb;       //! transmit-complete message handler; reset on each tx complete.
     void                *txMessageUserData; //! data for txMessageCb.
+    lmic_battlevel_cb_t *battLevelCb;       //! user-supplied callback function to get battery level for Dev
+    void                *battLevelUserData; //! data for battLevelCb.
 #endif // LMIC_ENABLE_user_events
 
     /* next we have things that are (u)int32_t */
@@ -600,6 +603,7 @@ struct lmic_t {
 
     u1_t        margin;
     s1_t        devAnsMargin; // SNR value between -32 and 31 (inclusive) for the last successfully received DevStatusReq command
+    u1_t        batteryLevel; // Battery level returned in devStatusAns messages
     u1_t        adrEnabled;
     u1_t        moreData;     // NWK has more data pending
 #if LMIC_ENABLE_TxParamSetupReq
@@ -694,6 +698,7 @@ void  LMIC_setPingable   (u1_t intvExp);
 void LMIC_setSession (u4_t netid, devaddr_t devaddr, xref2u1_t nwkKey, xref2u1_t artKey);
 void LMIC_setLinkCheckMode (bit_t enabled);
 void LMIC_setClockError(u2_t error);
+void LMIC_setBattLevel(u1_t battLevel);
 
 u4_t LMIC_getSeqnoUp    (void);
 u4_t LMIC_setSeqnoUp    (u4_t);
@@ -704,6 +709,7 @@ int LMIC_getNetworkTimeReference(lmic_time_reference_t *pReference);
 
 int LMIC_registerRxMessageCb(lmic_rxmessage_cb_t *pRxMessageCb, void *pUserData);
 int LMIC_registerEventCb(lmic_event_cb_t *pEventCb, void *pUserData);
+int LMIC_registerBattLevelCb(lmic_battlevel_cb_t *pBattLevelCb, void *pUserData);
 
 // APIs for client half of compliance.
 typedef u1_t lmic_compliance_rx_action_t;

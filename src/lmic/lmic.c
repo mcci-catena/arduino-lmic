@@ -119,6 +119,10 @@ void os_wmsbf4 (xref2u1_t buf, u4_t v) {
 
 #if !defined(os_getBattLevel)
 u1_t os_getBattLevel (void) {
+ #if LMIC_ENABLE_user_events
+    if (LMIC.client.battLevelCb != NULL)
+        return LMIC.client.battLevelCb(LMIC.client.battLevelUserData);
+ #endif
     return MCMD_DEVS_BATT_NOINFO;
 }
 #endif
@@ -558,6 +562,16 @@ int LMIC_registerEventCb(lmic_event_cb_t *pEventCb, void *pUserData) {
 #if LMIC_ENABLE_user_events
     LMIC.client.eventCb = pEventCb;
     LMIC.client.eventUserData = pUserData;
+    return 1;
+#else // ! LMIC_ENABLE_user_events
+    return 0;
+#endif // ! LMIC_ENABLE_user_events
+}
+
+int LMIC_registerBattLevelCb(lmic_battlevel_cb_t *pBattLevelCb, void *pUserData) {
+#if LMIC_ENABLE_user_events
+    LMIC.client.battLevelCb = pBattLevelCb;
+    LMIC.client.battLevelUserData = pUserData;
     return 1;
 #else // ! LMIC_ENABLE_user_events
     return 0;
@@ -2785,6 +2799,7 @@ void LMIC_reset (void) {
     LMIC.ping.dr      =  DR_PING;   // ditto
     LMIC.ping.intvExp =  0xFF;
 #endif // !DISABLE_PING
+    LMIC.batteryLevel = LMIC_MCMD_DEVS_BATT_DEFAULT;
 
     LMICbandplan_resetDefaultChannels();
     DO_DEVDB(LMIC.devaddr,      devaddr);
@@ -3022,6 +3037,18 @@ void LMIC_setLinkCheckMode (bit_t enabled) {
 // so e.g. for a +/-1% error you would pass MAX_CLOCK_ERROR * 1 / 100.
 void LMIC_setClockError(u2_t error) {
     LMIC.client.clockError = error;
+}
+
+// Sets the battery level returned in MAC Command DevStatusAns.
+// Available defines in lorabase.h:
+//   MCMD_DEVS_EXT_POWER   = 0x00, // external power supply
+//   MCMD_DEVS_BATT_MIN    = 0x01, // min battery value
+//   MCMD_DEVS_BATT_MAX    = 0xFE, // max battery value
+//   MCMD_DEVS_BATT_NOINFO = 0xFF, // unknown battery level
+// When setting the battery level calculate the applicable
+// value from MCMD_DEVS_BATT_MIN to MCMD_DEVS_BATT_MAX.
+void LMIC_setBattLevel(u1_t battLevel) {
+    LMIC.batteryLevel = battLevel;
 }
 
 // \brief return the uplink sequence number for the next transmission.

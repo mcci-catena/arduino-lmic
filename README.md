@@ -319,6 +319,16 @@ Disable or enable support for device network-time requests (LoRaWAN MAC request 
 
 If disabled, stub routines are provided that will return failure (so you don't need conditional compiles in client code).
 
+### Battery level report
+
+To support battery level indication in the MAC `DevStatusAns` messages you can either use an `int LMIC_registerBattLevelCb(lmic_battlevel_cb_t *pBattLevelCb, void *pUserData)` call to register a callback function of the form `typedef u1_t lmic_battlevel_cb_t(void *pUserData);`, if you have `LMIC_ENABLE_user_events` enabled, or call `LMIC_setBattLevel(u1_t battLevel)` periodically.
+
+By default, the value supplied in the `DevStatusAns` messages will be `MCMD_DEVS_BATT_NOINFO`, but you can change this behaviour for the externally powered devices by adding to your project config file the following line:
+
+```
+#define LMIC_MCMD_DEVS_BATT_DEFAULT MCMD_DEVS_EXT_POWER
+```
+
 ### Rarely changed variables
 
 The remaining variables are rarely used, but we list them here for completeness.
