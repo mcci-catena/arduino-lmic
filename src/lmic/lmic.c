@@ -123,7 +123,7 @@ u1_t os_getBattLevel (void) {
     if (LMIC.client.battLevelCb != NULL)
         return LMIC.client.battLevelCb(LMIC.client.battLevelUserData);
  #endif
-    return MCMD_DEVS_BATT_NOINFO;
+    return LMIC.batteryLevel;
 }
 #endif
 
