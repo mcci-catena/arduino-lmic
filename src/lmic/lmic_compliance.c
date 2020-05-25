@@ -659,6 +659,7 @@ void acSetTimer(ostime_t delay) {
 }
 
 static void timerExpiredCb(osjob_t *j) {
+    LMIC_API_PARAMETER(j);
     LMIC_Compliance.eventflags |= LMIC_COMPLIANCE_EVENT_TIMER_EXPIRED;
     fsmEval();
 }
@@ -726,7 +727,7 @@ static void acSendUplink(void) {
                 __func__,
                 eSend,
                 (unsigned) downlink & 0xFFFF,
-                LMIC.client.txMessageCb
+                (unsigned) sizeof(payload)
                 );
         LMIC_Compliance.eventflags |= LMIC_COMPLIANCE_EVENT_UPLINK_COMPLETE;
         fsmEval();
@@ -734,6 +735,8 @@ static void acSendUplink(void) {
 }
 
 static void sendUplinkCompleteCb(void *pUserData, int fSuccess) {
+    LMIC_API_PARAMETER(pUserData);
+    LMIC_API_PARAMETER(fSuccess);
     LMIC_Compliance.eventflags |= LMIC_COMPLIANCE_EVENT_UPLINK_COMPLETE;
     LMIC_COMPLIANCE_PRINTF("%s(%s)\n", __func__, LMICcompliance_txSuccessToString(fSuccess));
     fsmEvalDeferred();
@@ -753,6 +756,11 @@ static void acSendUplinkBuffer(void) {
         LMIC_COMPLIANCE_PRINTF("%s: queued %u bytes\n", __func__, LMIC_Compliance.uplinkSize);
     } else {
         LMIC_COMPLIANCE_PRINTF("%s: uplink %u bytes failed (error %d)\n", __func__, LMIC_Compliance.uplinkSize, eSend);
+        if (eSend == LMIC_ERROR_TX_NOT_FEASIBLE) {
+            // Reverse the increment of the downlink count. Needed for US compliance.
+            if (CFG_region == LMIC_REGION_us915)
+                --LMIC_Compliance.downlinkCount;
+        }
         LMIC_Compliance.eventflags |= LMIC_COMPLIANCE_EVENT_UPLINK_COMPLETE;
         fsmEval();
     }

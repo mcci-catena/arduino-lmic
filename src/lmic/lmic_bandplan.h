@@ -37,8 +37,8 @@
 # include "lmic_bandplan_eu868.h"
 #elif defined(CFG_us915)
 # include "lmic_bandplan_us915.h"
-#elif defined(CFG_au921)
-# include "lmic_bandplan_au921.h"
+#elif defined(CFG_au915)
+# include "lmic_bandplan_au915.h"
 #elif defined(CFG_as923)
 # include "lmic_bandplan_as923.h"
 #elif defined(CFG_kr920)
@@ -226,7 +226,6 @@
 // internal APIs
 ostime_t LMICcore_rndDelay(u1_t secSpan);
 void LMICcore_setDrJoin(u1_t reason, u1_t dr);
-ostime_t LMICcore_adjustForDrift(ostime_t delay, ostime_t hsym);
-ostime_t LMICcore_RxWindowOffset(ostime_t hsym, u1_t rxsyms_in);
+ostime_t LMICcore_adjustForDrift(ostime_t delay, ostime_t hsym, rxsyms_t rxsyms_in);
 
 #endif // _lmic_bandplan_h_

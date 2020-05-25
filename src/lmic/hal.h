@@ -110,9 +110,10 @@ void hal_sleep (void);
 u4_t hal_ticks (void);
 
 /*
- * busy-wait until specified timestamp (in ticks) is reached.
+ * busy-wait until specified timestamp (in ticks) is reached. If on-time, return 0,
+ * otherwise return the number of ticks we were late.
  */
-void hal_waitUntil (u4_t time);
+u4_t hal_waitUntil (u4_t time);
 
 /*
  * check and rewind timer for target time.
@@ -167,6 +168,17 @@ uint8_t hal_getTxPowerPolicy(
 	s1_t requestedPower,
 	u4_t freq
 	);
+
+void hal_pollPendingIRQs_helper();
+void hal_processPendingIRQs(void);
+
+/// \brief check for any pending interrupts: stub if interrupts are enabled.
+static void inline hal_pollPendingIRQs(void)
+	{
+#if !defined(LMIC_USE_INTERRUPTS)
+	hal_pollPendingIRQs_helper();
+#endif /* !defined(LMIC_USE_INTERRUPTS) */
+	}
 
 #ifdef __cplusplus
 } // extern "C"

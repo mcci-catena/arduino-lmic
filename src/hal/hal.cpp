@@ -81,6 +81,13 @@ s1_t hal_getRssiCal (void) {
     return plmic_pins->rssi_cal;
 }
 
+//--------------------
+// Interrupt handling
+//--------------------
+static constexpr unsigned NUM_DIO_INTERRUPT = 3;
+static_assert(NUM_DIO_INTERRUPT <= NUM_DIO, "Number of interrupt-sensitive lines must be less than number of GPIOs");
+static ostime_t interrupt_time[NUM_DIO_INTERRUPT] = {0};
+
 #if !defined(LMIC_USE_INTERRUPTS)
 static void hal_interrupt_init() {
     pinMode(plmic_pins->dio[0], INPUT);
@@ -88,45 +95,54 @@ static void hal_interrupt_init() {
         pinMode(plmic_pins->dio[1], INPUT);
     if (plmic_pins->dio[2] != LMIC_UNUSED_PIN)
         pinMode(plmic_pins->dio[2], INPUT);
+    static_assert(NUM_DIO_INTERRUPT == 3, "Number of interrupt lines must be set to 3");
 }
 
-static bool dio_states[NUM_DIO] = {0};
-static void hal_io_check() {
+static bool dio_states[NUM_DIO_INTERRUPT] = {0};
+void hal_pollPendingIRQs_helper() {
     uint8_t i;
-    for (i = 0; i < NUM_DIO; ++i) {
+    for (i = 0; i < NUM_DIO_INTERRUPT; ++i) {
         if (plmic_pins->dio[i] == LMIC_UNUSED_PIN)
             continue;
 
         if (dio_states[i] != digitalRead(plmic_pins->dio[i])) {
             dio_states[i] = !dio_states[i];
-            if (dio_states[i])
-                radio_irq_handler(i);
+            if (dio_states[i] && interrupt_time[i] == 0) {
+                ostime_t const now = os_getTime();
+                interrupt_time[i] = now ? now : 1;
+            }
         }
     }
 }
 
 #else
 // Interrupt handlers
-static ostime_t interrupt_time[NUM_DIO] = {0};
 
 static void hal_isrPin0() {
-    ostime_t now = os_getTime();
-    interrupt_time[0] = now ? now : 1;
+    if (interrupt_time[0] == 0) {
+        ostime_t now = os_getTime();
+        interrupt_time[0] = now ? now : 1;
+    }
 }
 static void hal_isrPin1() {
-    ostime_t now = os_getTime();
-    interrupt_time[1] = now ? now : 1;
+    if (interrupt_time[1] == 0) {
+        ostime_t now = os_getTime();
+        interrupt_time[1] = now ? now : 1;
+    }
 }
 static void hal_isrPin2() {
-    ostime_t now = os_getTime();
-    interrupt_time[2] = now ? now : 1;
+    if (interrupt_time[2] == 0) {
+        ostime_t now = os_getTime();
+        interrupt_time[2] = now ? now : 1;
+    }
 }
 
 typedef void (*isr_t)();
-static isr_t interrupt_fns[NUM_DIO] = {hal_isrPin0, hal_isrPin1, hal_isrPin2};
+static const isr_t interrupt_fns[NUM_DIO_INTERRUPT] = {hal_isrPin0, hal_isrPin1, hal_isrPin2};
+static_assert(NUM_DIO_INTERRUPT == 3, "number of interrupts must be 3 for initializing interrupt_fns[]");
 
 static void hal_interrupt_init() {
-  for (uint8_t i = 0; i < NUM_DIO; ++i) {
+  for (uint8_t i = 0; i < NUM_DIO_INTERRUPT; ++i) {
       if (plmic_pins->dio[i] == LMIC_UNUSED_PIN)
           continue;
 
@@ -134,14 +150,25 @@ static void hal_interrupt_init() {
       attachInterrupt(digitalPinToInterrupt(plmic_pins->dio[i]), interrupt_fns[i], RISING);
   }
 }
+#endif // LMIC_USE_INTERRUPTS
 
-static void hal_io_check() {
+void hal_processPendingIRQs() {
     uint8_t i;
-    for (i = 0; i < NUM_DIO; ++i) {
+    for (i = 0; i < NUM_DIO_INTERRUPT; ++i) {
         ostime_t iTime;
         if (plmic_pins->dio[i] == LMIC_UNUSED_PIN)
             continue;
 
+        // NOTE(tmm@mcci.com): if using interrupts, this next step
+        // assumes uniprocessor and fairly strict memory ordering
+        // semantics relative to ISRs. It would be better to use
+        // interlocked-exchange, but that's really far beyond
+        // Arduino semantics. Because our ISRs use "first time
+        // stamp" semantics, we don't have a value-race. But if
+        // we were to disable ints here, we might observe a second
+        // edge that we'll otherwise miss. Not a problem in this
+        // use case, as the radio won't release IRQs until we
+        // explicitly clear them.
         iTime = interrupt_time[i];
         if (iTime) {
             interrupt_time[i] = 0;
@@ -149,7 +176,6 @@ static void hal_io_check() {
         }
     }
 }
-#endif // LMIC_USE_INTERRUPTS
 
 // -----------------------------------------------------------------------------
 // SPI
@@ -248,16 +274,58 @@ static s4_t delta_time(u4_t time) {
     return (s4_t)(time - hal_ticks());
 }
 
-void hal_waitUntil (u4_t time) {
+// deal with boards that are stressed by no-interrupt delays #529, etc.
+#if defined(ARDUINO_DISCO_L072CZ_LRWAN1)
+# define HAL_WAITUNTIL_DOWNCOUNT_MS 16      // on this board, 16 ms works better
+# define HAL_WAITUNTIL_DOWNCOUNT_THRESH ms2osticks(16)  // as does this threashold.
+#else
+# define HAL_WAITUNTIL_DOWNCOUNT_MS 8       // on most boards, delay for 8 ms
+# define HAL_WAITUNTIL_DOWNCOUNT_THRESH ms2osticks(9) // but try to leave a little slack for final timing.
+#endif
+
+u4_t hal_waitUntil (u4_t time) {
     s4_t delta = delta_time(time);
+    // check for already too late.
+    if (delta < 0)
+        return -delta;
+
     // From delayMicroseconds docs: Currently, the largest value that
-    // will produce an accurate delay is 16383.
-    while (delta > (16000 / US_PER_OSTICK)) {
-        delay(16);
-        delta -= (16000 / US_PER_OSTICK);
+    // will produce an accurate delay is 16383. Also, STM32 does a better
+    // job with delay is less than 10,000 us; so reduce in steps.
+    // It's nice to use delay() for the longer times.
+    while (delta > HAL_WAITUNTIL_DOWNCOUNT_THRESH) {
+        // deliberately delay 8ms rather than 9ms, so we
+        // will exit loop with delta typically positive.
+        // Depends on BSP keeping time accurately even if interrupts
+        // are disabled.
+        delay(HAL_WAITUNTIL_DOWNCOUNT_MS);
+        // re-synchronize.
+        delta = delta_time(time);
     }
+
+    // The radio driver runs with interrupt disabled, and this can
+    // mess up timing APIs on some platforms. If we know the BSP feature
+    // set, we can decide whether to use delta_time() [more exact, 
+    // but not always possible with interrupts off], or fall back to
+    // delay_microseconds() [less exact, but more universal]
+
+#if defined(_mcci_arduino_version)
+    // unluckily, delayMicroseconds() isn't very accurate.
+    // but delta_time() works with interrupts disabled.
+    // so spin using delta_time().
+    while (delta_time(time) > 0)
+        /* loop */;
+#else // ! defined(_mcci_arduino_version)
+    // on other BSPs, we need to stick with the older way,
+    // until we fix the radio driver to run with interrupts
+    // enabled.
     if (delta > 0)
         delayMicroseconds(delta * US_PER_OSTICK);
+#endif // ! defined(_mcci_arduino_version)
+
+    // we aren't "late". Callers are interested in gross delays, not
+    // necessarily delays due to poor timekeeping here.
+    return 0;
 }
 
 // check and rewind for target time
@@ -277,6 +345,7 @@ void hal_enableIRQs () {
     if(--irqlevel == 0) {
         interrupts();
 
+#if !defined(LMIC_USE_INTERRUPTS)
         // Instead of using proper interrupts (which are a bit tricky
         // and/or not available on all pins on AVR), just poll the pin
         // values. Since os_runloop disables and re-enables interrupts,
@@ -284,8 +353,11 @@ void hal_enableIRQs () {
         // loop.
         //
         // As an additional bonus, this prevents the can of worms that
-        // we would otherwise get for running SPI transfers inside ISRs
-        hal_io_check();
+        // we would otherwise get for running SPI transfers inside ISRs.
+        // We merely collect the edges and timestamps here; we wait for
+        // a call to hal_processPendingIRQs() before dispatching.
+        hal_pollPendingIRQs_helper();
+#endif /* !defined(LMIC_USE_INTERRUPTS) */
     }
 }
 
