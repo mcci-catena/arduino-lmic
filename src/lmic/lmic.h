@@ -231,34 +231,34 @@ enum { RADIO_RST=0, RADIO_TX=1, RADIO_RX=2, RADIO_RXON=3, RADIO_TX_AT=4, };
 enum { NETID_NONE=(int)~0U, NETID_MASK=(int)0xFFFFFF };
 // MAC operation modes (lmic_t.opmode).
 enum { OP_NONE     = 0x0000,
-       OP_SCAN     = 0x0001, // radio scan to find a beacon
-       OP_TRACK    = 0x0002, // track my networks beacon (netid)
-       OP_JOINING  = 0x0004, // device joining in progress (blocks other activities)
-       OP_TXDATA   = 0x0008, // TX user data (buffered in pendTxData)
-       OP_POLL     = 0x0010, // send empty UP frame to ACK confirmed DN/fetch more DN data
-       OP_REJOIN   = 0x0020, // occasionally send JOIN REQUEST
-       OP_SHUTDOWN = 0x0040, // prevent MAC from doing anything
-       OP_TXRXPEND = 0x0080, // TX/RX transaction pending
-       OP_RNDTX    = 0x0100, // prevent TX lining up after a beacon
-       OP_PINGINI  = 0x0200, // pingable is initialized and scheduling active
-       OP_PINGABLE = 0x0400, // we're pingable
-       OP_NEXTCHNL = 0x0800, // find a new channel
-       OP_LINKDEAD = 0x1000, // link was reported as dead
-       OP_TESTMODE = 0x2000, // developer test mode
-       OP_UNJOIN   = 0x4000, // unjoin and rejoin on next engineUpdate().
+       OP_SCAN     = 0x0001, //!< radio scan to find a beacon
+       OP_TRACK    = 0x0002, //!< track my networks beacon (netid)
+       OP_JOINING  = 0x0004, //!< device joining in progress (blocks other activities)
+       OP_TXDATA   = 0x0008, //!< TX user data (buffered in pendTxData)
+       OP_POLL     = 0x0010, //!< send empty UP frame to ACK confirmed DN/fetch more DN data
+       OP_REJOIN   = 0x0020, //!< occasionally send JOIN REQUEST
+       OP_SHUTDOWN = 0x0040, //!< prevent MAC from doing anything
+       OP_TXRXPEND = 0x0080, //!< TX/RX transaction pending
+       OP_RNDTX    = 0x0100, //!< prevent TX lining up after a beacon
+       OP_PINGINI  = 0x0200, //!< pingable is initialized and scheduling active
+       OP_PINGABLE = 0x0400, //!< we're pingable
+       OP_NEXTCHNL = 0x0800, //!< find a new channel
+       OP_LINKDEAD = 0x1000, //!< link was reported as dead
+       OP_TESTMODE = 0x2000, //!< developer test mode
+       OP_UNJOIN   = 0x4000, //!< unjoin and rejoin on next engineUpdate().
 };
 // TX-RX transaction flags - report back to user
-enum { TXRX_ACK    = 0x80,   // confirmed UP frame was acked
-       TXRX_NACK   = 0x40,   // confirmed UP frame was not acked
-       TXRX_NOPORT = 0x20,   // set if a frame with a port was RXed, clr if no frame/no port
-       TXRX_PORT   = 0x10,   // set if a frame with a port was RXed, LMIC.frame[LMIC.dataBeg-1] => port
-       TXRX_LENERR = 0x08,   // set if frame was discarded due to length error.
-       TXRX_PING   = 0x04,   // received in a scheduled RX slot
-       TXRX_DNW2   = 0x02,   // received in 2dn DN slot
-       TXRX_DNW1   = 0x01,   // received in 1st DN slot
+enum { TXRX_ACK    = 0x80,   //<! confirmed UP frame was acked
+       TXRX_NACK   = 0x40,   //<! confirmed UP frame was not acked
+       TXRX_NOPORT = 0x20,   //<! set if a frame with a port was RXed, clr if no frame/no port
+       TXRX_PORT   = 0x10,   //<! set if a frame with a port was RXed, LMIC.frame[LMIC.dataBeg-1] => port
+       TXRX_LENERR = 0x08,   //<! set if frame was discarded due to length error.
+       TXRX_PING   = 0x04,   //<! received in a scheduled RX slot
+       TXRX_DNW2   = 0x02,   //<! received in 2dn DN slot
+       TXRX_DNW1   = 0x01,   //<! received in 1st DN slot
 };
 
-// Event types for event callback
+/// \brief Event codes for event callback
 enum _ev_t { EV_SCAN_TIMEOUT=1, EV_BEACON_FOUND,
              EV_BEACON_MISSED, EV_BEACON_TRACKED, EV_JOINING,
              EV_JOINED, EV_RFU1, EV_JOIN_FAILED, EV_REJOIN_FAILED,
@@ -267,7 +267,7 @@ enum _ev_t { EV_SCAN_TIMEOUT=1, EV_BEACON_FOUND,
              EV_TXSTART, EV_TXCANCELED, EV_RXSTART, EV_JOIN_TXCOMPLETE };
 typedef enum _ev_t ev_t;
 
-// this macro can be used to initalize a normal table of event strings
+/// \brief Macro to initalize a normal table of event strings
 #define LMIC_EVENT_NAME_TABLE__INIT                                         \
     "<<zero>>",                                                             \
     "EV_SCAN_TIMEOUT", "EV_BEACON_FOUND",                                   \
@@ -277,10 +277,12 @@ typedef enum _ev_t ev_t;
     "EV_RXCOMPLETE", "EV_LINK_DEAD", "EV_LINK_ALIVE", "EV_SCAN_FOUND",      \
     "EV_TXSTART", "EV_TXCANCELED", "EV_RXSTART", "EV_JOIN_TXCOMPLETE"
 
-// if working on an AVR (or worried about it), you can use this multi-zero
-// string and put this in a single const F() string.  Index through this
-// counting up from 0, until you get to the entry you want or to an
-// entry that begins with a \0.
+/// \brief Macro to initialize a compressed string of event strings
+/// \details
+/// iIf compiling for an AVR (or worried about it), you can use this multi-zero
+/// string and put this in a single const F() string.  Index through this
+/// counting up from 0, until you get to the entry you want or to an
+// /entry that begins with a \0.
 #define LMIC_EVENT_NAME_MULTISZ__INIT                                       \
     "<<zero>>\0"                                                            \
     "EV_SCAN_TIMEOUT\0" "EV_BEACON_FOUND\0"                                 \
@@ -290,16 +292,20 @@ typedef enum _ev_t ev_t;
     "EV_RXCOMPLETE\0" "EV_LINK_DEAD\0" "EV_LINK_ALIVE\0" "EV_SCAN_FOUND\0"  \
     "EV_TXSTART\0" "EV_TXCANCELED\0" "EV_RXSTART\0" "EV_JOIN_TXCOMPLETE\0"
 
-enum {
-    LMIC_ERROR_SUCCESS = 0,
-    LMIC_ERROR_TX_BUSY = -1,
-    LMIC_ERROR_TX_TOO_LARGE = -2,
-    LMIC_ERROR_TX_NOT_FEASIBLE = -3,
-    LMIC_ERROR_TX_FAILED = -4,
+/// \brief LMIC error codes
+enum lmic_tx_error_e {
+    LMIC_ERROR_SUCCESS = 0,             ///< No error.
+    LMIC_ERROR_TX_BUSY = -1,            ///< Transmit path was busy, mesage rejected.
+    LMIC_ERROR_TX_TOO_LARGE = -2,       ///< Message was too long for configured LMIC buffers.
+    LMIC_ERROR_TX_NOT_FEASIBLE = -3,    ///< Message was too long given region, spreading factor, and network settings.
+    LMIC_ERROR_TX_FAILED = -4,          ///< Transmit failed for unspecified reason.
 };
 
+/// \brief LMIC result codes, as an integer type.
+/// \sa lmic_tx_error_e
 typedef int lmic_tx_error_t;
 
+/// \brief Macro to initalize a normal table of error name strings
 #define LMIC_ERROR_NAME__INIT                                               \
     "LMIC_ERROR_SUCCESS",                                                   \
     "LMIC_ERROR_TX_BUSY",                                                   \
@@ -307,6 +313,13 @@ typedef int lmic_tx_error_t;
     "LMIC_ERROR_TX_NOT_FEASIBLE",                                           \
     "LMIC_ERROR_TX_FAILED"
 
+/// \brief Macro to initialize a compressed string of error name strings
+/// \details
+/// If compling for an AVR (or worried about it), you can use this multi-zero
+/// string and put this in a single const F() string.  Index through this
+/// counting up from 0, until you get to the entry you want or to an
+/// entry that begins with a \0.
+/// \sa LMIC_ERROR_NAME__INIT
 #define LMIC_ERROR_NAME_MULTISZ__INIT                                       \
     "LMIC_ERROR_SUCCESS\0"                                                  \
     "LMIC_ERROR_TX_BUSY\0"                                                  \
@@ -314,13 +327,16 @@ typedef int lmic_tx_error_t;
     "LMIC_ERROR_TX_NOT_FEASIBLE\0"                                          \
     "LMIC_ERROR_TX_FAILED"
 
-enum {
-    LMIC_BEACON_ERROR_INVALID   = -2,
-    LMIC_BEACON_ERROR_WRONG_NETWORK = -1,
-    LMIC_BEACON_ERROR_SUCCESS_PARTIAL = 0,
-    LMIC_BEACON_ERROR_SUCCESS_FULL = 1,
+/// \brief Error codes returned for beacon operations.
+enum lmic_beacon_error_e {
+    LMIC_BEACON_ERROR_INVALID   = -2,       ///< Invalid beacon received.
+    LMIC_BEACON_ERROR_WRONG_NETWORK = -1,   ///< Beacon received for wrong network.
+    LMIC_BEACON_ERROR_SUCCESS_PARTIAL = 0,  ///< Partial success; first set of fields are OK.
+    LMIC_BEACON_ERROR_SUCCESS_FULL = 1,     ///< Full beacon successfuly received.
 };
 
+/// \brief Error codes returned for beacon operations.
+/// \sa lmic_beacon_error_e
 typedef s1_t lmic_beacon_error_t;
 
 static inline bit_t LMIC_BEACON_SUCCESSFUL(lmic_beacon_error_t e) {
@@ -414,17 +430,17 @@ struct lmic_client_data_s {
 
     /* pointer-width things come first */
 #if LMIC_ENABLE_DeviceTimeReq
-    lmic_request_network_time_cb_t *pNetworkTimeCb; //! call-back routine for network time
-    void        *pNetworkTimeUserData;              //! call-back data for network time.
+    lmic_request_network_time_cb_t *pNetworkTimeCb; //!< call-back routine for network time
+    void        *pNetworkTimeUserData;              //!< call-back data for network time.
 #endif
 
 #if LMIC_ENABLE_user_events
-    lmic_event_cb_t     *eventCb;           //! user-supplied callback function for events.
-    void                *eventUserData;     //! data for eventCb
-    lmic_rxmessage_cb_t *rxMessageCb;       //! user-supplied message-received callback
-    void                *rxMessageUserData; //! data for rxMessageCb
-    lmic_txmessage_cb_t *txMessageCb;       //! transmit-complete message handler; reset on each tx complete.
-    void                *txMessageUserData; //! data for txMessageCb.
+    lmic_event_cb_t     *eventCb;           //!< user-supplied callback function for events.
+    void                *eventUserData;     //!< data for eventCb
+    lmic_rxmessage_cb_t *rxMessageCb;       //!< user-supplied message-received callback
+    void                *rxMessageUserData; //!< data for rxMessageCb
+    lmic_txmessage_cb_t *txMessageCb;       //!< transmit-complete message handler; reset on each tx complete.
+    void                *txMessageUserData; //!< data for txMessageCb.
 #endif // LMIC_ENABLE_user_events
 
     /* next we have things that are (u)int32_t */
@@ -432,7 +448,7 @@ struct lmic_client_data_s {
 
     /* next we have things that are (u)int16_t */
 
-    u2_t        clockError;                 //! Inaccuracy in the clock. CLOCK_ERROR_MAX represents +/-100% error
+    u2_t        clockError;                 //!< Inaccuracy in the clock. CLOCK_ERROR_MAX represents +/-100% error
 
     /* finally, things that are (u)int8_t */
     /* none at the moment */
@@ -451,16 +467,16 @@ Description:
 
 */
 
-typedef struct lmic_radio_data_s lmic_radio_data_t;
+typedef struct lmic_radio_data_s lmic_radio_data_t; ///< Radio-specific data
 
 struct lmic_radio_data_s {
-    // total os ticks of accumulated delay error. Can overflow!
+    /// Total os ticks of accumulated delay error. Can overflow!
     ostime_t    rxlate_ticks;
-    // number of rx late launches.
+    /// Count of rx late launches.
     unsigned    rxlate_count;
-    // total os ticks of accumulated tx delay error. Can overflow!
+    /// Total os ticks of accumulated tx delay error. Can overflow!
     ostime_t    txlate_ticks;
-    // number of tx late launches.
+    /// Count of tx late launches.
     unsigned    txlate_count;
 };
 
@@ -473,42 +489,43 @@ Function:
 
 */
 
+/// \brief Instance data for the LMIC.
 struct lmic_t {
-    // client setup data, survives LMIC_reset().
+    /// client setup data, survives LMIC_reset().
     lmic_client_data_t  client;
 
-    // the OS job object. pointer alignment.
+    /// the OS job object. pointer alignment.
     osjob_t     osjob;
 
 #if !defined(DISABLE_BEACONS)
-    bcninfo_t   bcninfo;      // Last received beacon info
+    bcninfo_t   bcninfo;      ///< Last received beacon info
 #endif
 
 #if !defined(DISABLE_PING)
-    rxsched_t   ping;         // pingable setup
+    rxsched_t   ping;         ///< Data for handling ping scheduling.
 #endif
 
-    // the radio driver portable context
+    /// the radio driver portable context
     lmic_radio_data_t   radio;
 
     /* (u)int32_t things */
 
     // Radio settings TX/RX (also accessed by HAL)
-    ostime_t    txend;
-    ostime_t    rxtime;
+    ostime_t    txend;      ///< time of end of last transmit
+    ostime_t    rxtime;     ///< time of end of last receive
 
     // LBT info
-    ostime_t    lbt_ticks;      // ticks to listen
+    ostime_t    lbt_ticks;      ///< ticks to listen for interference before transmitting.
 
-    u4_t        freq;
+    u4_t        freq;           ///< most recent frequency, Hz.
 
-    ostime_t    globalDutyAvail; // time device can send again
+    ostime_t    globalDutyAvail; ///< time when device can send again
 
-    u4_t        netid;        // current network id (~0 - none)
-    devaddr_t   devaddr;
-    u4_t        seqnoDn;      // device level down stream seqno
-    u4_t        seqnoUp;
-    u4_t        dn2Freq;
+    u4_t        netid;        ///< current network id (~0 - none)
+    devaddr_t   devaddr;      ///< current device address. Zero means not joined.
+    u4_t        seqnoDn;      ///< FCntDown (downlink seqno)
+    u4_t        seqnoUp;      ///< FCntUp (uplink seqno)
+    u4_t        dn2Freq;      ///< the frequency to use for RX2.
 
 #if !defined(DISABLE_BEACONS)
     ostime_t    bcnRxtime;

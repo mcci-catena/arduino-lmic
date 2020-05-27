@@ -2,7 +2,7 @@
  * Copyright (c) 2014-2016 IBM Corporation.
  * All rights reserved.
  *
- * Copyright (c) 2016-2019 MCCI Corporation.
+ * Copyright (c) 2016-2020 MCCI Corporation.
  * All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -31,6 +31,8 @@
 //! \file
 #define LMIC_DR_LEGACY 0
 #include "lmic_bandplan.h"
+
+#include "../se/i/lmic_secure_element_api.h"
 
 #if defined(DISABLE_BEACONS) && !defined(DISABLE_PING)
 #error Ping needs beacon tracking
@@ -144,82 +146,6 @@ u2_t os_crc16 (xref2cu1_t data, uint len) {
 #endif // !HAS_os_calls
 
 // END OS - default implementations for certain OS suport functions
-// ================================================================================
-
-// ================================================================================
-// BEG AES
-
-static void micB0 (u4_t devaddr, u4_t seqno, int dndir, int len) {
-    os_clearMem(AESaux,16);
-    AESaux[0]  = 0x49;
-    AESaux[5]  = dndir?1:0;
-    AESaux[15] = len;
-    os_wlsbf4(AESaux+ 6,devaddr);
-    os_wlsbf4(AESaux+10,seqno);
-}
-
-
-static int aes_verifyMic (xref2cu1_t key, u4_t devaddr, u4_t seqno, int dndir, xref2u1_t pdu, int len) {
-    micB0(devaddr, seqno, dndir, len);
-    os_copyMem(AESkey,key,16);
-    return os_aes(AES_MIC, pdu, len) == os_rmsbf4(pdu+len);
-}
-
-
-static void aes_appendMic (xref2cu1_t key, u4_t devaddr, u4_t seqno, int dndir, xref2u1_t pdu, int len) {
-    micB0(devaddr, seqno, dndir, len);
-    os_copyMem(AESkey,key,16);
-    // MSB because of internal structure of AES
-    os_wmsbf4(pdu+len, os_aes(AES_MIC, pdu, len));
-}
-
-
-static void aes_appendMic0 (xref2u1_t pdu, int len) {
-    os_getDevKey(AESkey);
-    os_wmsbf4(pdu+len, os_aes(AES_MIC|AES_MICNOAUX, pdu, len));  // MSB because of internal structure of AES
-}
-
-
-static int aes_verifyMic0 (xref2u1_t pdu, int len) {
-    os_getDevKey(AESkey);
-    return os_aes(AES_MIC|AES_MICNOAUX, pdu, len) == os_rmsbf4(pdu+len);
-}
-
-
-static void aes_encrypt (xref2u1_t pdu, int len) {
-    os_getDevKey(AESkey);
-    os_aes(AES_ENC, pdu, len);
-}
-
-
-static void aes_cipher (xref2cu1_t key, u4_t devaddr, u4_t seqno, int dndir, xref2u1_t payload, int len) {
-    if( len <= 0 )
-        return;
-    os_clearMem(AESaux, 16);
-    AESaux[0] = AESaux[15] = 1; // mode=cipher / dir=down / block counter=1
-    AESaux[5] = dndir?1:0;
-    os_wlsbf4(AESaux+ 6,devaddr);
-    os_wlsbf4(AESaux+10,seqno);
-    os_copyMem(AESkey,key,16);
-    os_aes(AES_CTR, payload, len);
-}
-
-
-static void aes_sessKeys (u2_t devnonce, xref2cu1_t artnonce, xref2u1_t nwkkey, xref2u1_t artkey) {
-    os_clearMem(nwkkey, 16);
-    nwkkey[0] = 0x01;
-    os_copyMem(nwkkey+1, artnonce, LEN_ARTNONCE+LEN_NETID);
-    os_wlsbf2(nwkkey+1+LEN_ARTNONCE+LEN_NETID, devnonce);
-    os_copyMem(artkey, nwkkey, 16);
-    artkey[0] = 0x02;
-
-    os_getDevKey(AESkey);
-    os_aes(AES_ENC, nwkkey, 16);
-    os_getDevKey(AESkey);
-    os_aes(AES_ENC, artkey, 16);
-}
-
-// END AES
 // ================================================================================
 
 
@@ -342,11 +268,13 @@ static void calcBcnRxWindowFromMillis (u1_t ms, bit_t ini) {
 #if !defined(DISABLE_PING)
 // Setup scheduled RX window (ping/multicast slot)
 static void rxschedInit (xref2rxsched_t rxsched) {
-    os_clearMem(AESkey,16);
+    uint8_t key[16];
+    LMIC_SecureElement_Error_t seErr;
+    os_clearMem(key,16);
     os_clearMem(LMIC.frame+8,8);
     os_wlsbf4(LMIC.frame, LMIC.bcninfo.time);
     os_wlsbf4(LMIC.frame+4, LMIC.devaddr);
-    os_aes(AES_ENC,LMIC.frame,16);
+    LMIC_SecureElement_aes128Encrypt(key, LMIC.frame, LMIC.frame);
     u1_t intvExp = rxsched->intvExp;
     ostime_t off = os_rlsbf2(LMIC.frame) & (0x0FFF >> (7 - intvExp)); // random offset (slot units)
     rxsched->rxbase = (LMIC.bcninfo.txtime +
@@ -1252,13 +1180,18 @@ static bit_t decodeFrame (void) {
         seqno = LMIC.seqnoDn + seqnoDiff;
     }
 
-    if( !aes_verifyMic(LMIC.nwkKey, LMIC.devaddr, seqno, /*dn*/1, d, pend) ) {
+    LMIC_SecureElement_Error_t seErr;
+
+    // we use addr here rather than LMIC.devaddr to accomodate multicast.
+    seErr = LMIC_SecureElement_verifyMIC(d, dlen, addr, seqno, LMIC_SecureElement_KeySelector_Unicast);
+
+    if (seErr != LMIC_SecureElement_Error_OK) {
         LMICOS_logEventUint32("decodeFrame: bad MIC", os_rlsbf4(&d[pend]));
         EV(spe3Cond, ERR, (e_.reason = EV::spe3Cond_t::CORRUPTED_MIC,
                            e_.eui1   = MAIN::CDEV->getEui(),
                            e_.info1  = Base::lsbf4(&d[pend]),
                            e_.info2  = seqno,
-                           e_.info3  = LMIC.devaddr));
+                           e_.info3  = addr));
         goto norx;
     }
     if( seqno < LMIC.seqnoDn ) {
@@ -1350,7 +1283,12 @@ static bit_t decodeFrame (void) {
         // Handle payload only if not a replay
         // Decrypt payload - if any
         if( port >= 0  &&  pend-poff > 0 ) {
-            aes_cipher(port <= 0 ? LMIC.nwkKey : LMIC.artKey, LMIC.devaddr, seqno, /*dn*/1, d+poff, pend-poff);
+            // use addr here rather than LMIC.devaddr to accomodate muliticast.
+            seErr = LMIC_SecureElement_decodeMessage(d, dlen, addr, seqno, LMIC_SecureElement_KeySelector_Unicast, d);
+            if (seErr != LMIC_SecureElement_Error_OK) {
+                LMICOS_logEventUint32("decodeFrame: decode failed", ((u4_t)seqno << 16) | (seErr & 0xFFFFu));
+                goto norx;
+            }
             if (port == 0) {
                 // this is a mac command. scan the options.
 #if LMIC_DEBUG_LEVEL > 0
@@ -1370,7 +1308,7 @@ static bit_t decodeFrame (void) {
             }
         } // end decrypt payload
         EV(dfinfo, DEBUG, (e_.deveui  = MAIN::CDEV->getEui(),
-                           e_.devaddr = LMIC.devaddr,
+                           e_.devaddr = addr,
                            e_.seqno   = seqno,
                            e_.flags   = (port < 0 ? EV::dfinfo_t::NOPORT : 0) | EV::dfinfo_t::DN,
                            e_.mic     = Base::lsbf4(&d[pend]),
@@ -1602,12 +1540,17 @@ static bit_t processJoinAccept (void) {
                            e_.info2  = hdr + (dlen<<8)));
         return processJoinAccept_badframe();
     }
-    aes_encrypt(LMIC.frame+1, dlen-1);
-    if( !aes_verifyMic0(LMIC.frame, dlen-4) ) {
-        EV(specCond, ERR, (e_.reason = EV::specCond_t::JOIN_BAD_MIC,
-                           e_.info   = mic));
+
+    LMIC_SecureElement_Error_t seErr;
+    
+    seErr = LMIC_SecureElement_Default_decodeJoinAccept(
+        LMIC.frame, dlen,
+        LMIC.frame,
+        LMIC_SecureElement_JoinFormat_JoinRequest10
+        );
+
+    if (seErr != LMIC_SecureElement_Error_OK)
         return processJoinAccept_badframe();
-    }
 
     u4_t addr = os_rlsbf4(LMIC.frame+OFF_JA_DEVADDR);
     LMIC.devaddr = addr;
@@ -1633,22 +1576,6 @@ static bit_t processJoinAccept (void) {
         }
     }
 
-    // already incremented when JOIN REQ got sent off
-    aes_sessKeys(LMIC.devNonce-1, &LMIC.frame[OFF_JA_ARTNONCE], LMIC.nwkKey, LMIC.artKey);
-    DO_DEVDB(LMIC.netid,   netid);
-    DO_DEVDB(LMIC.devaddr, devaddr);
-    DO_DEVDB(LMIC.nwkKey,  nwkkey);
-    DO_DEVDB(LMIC.artKey,  artkey);
-
-    EV(joininfo, INFO, (e_.arteui  = MAIN::CDEV->getArtEui(),
-                        e_.deveui  = MAIN::CDEV->getEui(),
-                        e_.devaddr = LMIC.devaddr,
-                        e_.oldaddr = oldaddr,
-                        e_.nonce   = LMIC.devNonce-1,
-                        e_.mic     = mic,
-                        e_.reason  = ((LMIC.opmode & OP_REJOIN) != 0
-                                      ? EV::joininfo_t::REJOIN_ACCEPT
-                                      : EV::joininfo_t::ACCEPT)));
 
     //
     // XXX(tmm@mcci.com) OP_REJOIN confuses me, and I'm not sure why we're
@@ -1983,11 +1910,15 @@ static bit_t buildDataFrame (void) {
         }
         LMIC.frame[end] = LMIC.pendTxPort;
         os_copyMem(LMIC.frame+end+1, LMIC.pendTxData, dlen);
-        aes_cipher(LMIC.pendTxPort==0 ? LMIC.nwkKey : LMIC.artKey,
-                   LMIC.devaddr, LMIC.seqnoUp-1,
-                   /*up*/0, LMIC.frame+end+1, dlen);
     }
-    aes_appendMic(LMIC.nwkKey, LMIC.devaddr, LMIC.seqnoUp-1, /*up*/0, LMIC.frame, flen-4);
+
+    LMIC_SecureElement_encodeMessage(
+        LMIC.frame,
+        flen,
+        end,
+        LMIC.frame,
+        LMIC_SecureElement_KeySelector_Unicast
+        );
 
     EV(dfinfo, DEBUG, (e_.deveui  = MAIN::CDEV->getEui(),
                        e_.devaddr = LMIC.devaddr,
@@ -2108,27 +2039,13 @@ void LMIC_disableTracking (void) {
 // ================================================================================
 
 #if !defined(DISABLE_JOIN)
-static void buildJoinRequest (u1_t ftype) {
+static void buildJoinRequest (void) {
     // Do not use pendTxData since we might have a pending
     // user level frame in there. Use RX holding area instead.
-    xref2u1_t d = LMIC.frame;
-    d[OFF_JR_HDR] = ftype;
-    os_getArtEui(d + OFF_JR_ARTEUI);
-    os_getDevEui(d + OFF_JR_DEVEUI);
-    os_wlsbf2(d + OFF_JR_DEVNONCE, LMIC.devNonce);
-    aes_appendMic0(d, OFF_JR_MIC);
-
-    EV(joininfo,INFO,(e_.deveui  = MAIN::CDEV->getEui(),
-                      e_.arteui  = MAIN::CDEV->getArtEui(),
-                      e_.nonce   = LMIC.devNonce,
-                      e_.oldaddr = LMIC.devaddr,
-                      e_.mic     = Base::lsbf4(&d[LORA::OFF_JR_MIC]),
-                      e_.reason  = ((LMIC.opmode & OP_REJOIN) != 0
-                                    ? EV::joininfo_t::REJOIN_REQUEST
-                                    : EV::joininfo_t::REQUEST)));
+    // On the other hand, by using LMIC.frame[] we overwrite
+    // any encrypted uplink data. No free lunches.
+    LMIC_SecureElement_createJoinRequest(LMIC.frame, LMIC_SecureElement_JoinFormat_JoinRequest10);
     LMIC.dataLen = LEN_JR;
-    LMIC.devNonce++;
-    DO_DEVDB(LMIC.devNonce,devNonce);
 }
 
 static void startJoining (xref2osjob_t osjob) {
@@ -2605,7 +2522,6 @@ static void engineUpdate_inner (void) {
             dr_t txdr = (dr_t)LMIC.datarate;
 #if !defined(DISABLE_JOIN)
             if( jacc ) {
-                u1_t ftype;
                 if( (LMIC.opmode & OP_REJOIN) != 0 ) {
 #if CFG_region != LMIC_REGION_as923
                     // in AS923 v1.1 or older, no need to change the datarate.
@@ -2613,8 +2529,7 @@ static void engineUpdate_inner (void) {
                     txdr = lowerDR(txdr, LMIC.rejoinCnt);
 #endif
                 }
-                ftype = HDR_FTYPE_JREQ;
-                buildJoinRequest(ftype);
+                buildJoinRequest();
                 LMIC.osjob.func = FUNC_ADDR(jreqDone);
             } else
 #endif // !DISABLE_JOIN
@@ -2979,20 +2894,26 @@ void LMIC_tryRejoin (void) {
     engineUpdate();
 }
 
-//! \brief Setup given session keys
-//! and put the MAC in a state as if
-//! a join request/accept would have negotiated just these keys.
-//! It is crucial that the combinations `devaddr/nwkkey` and `devaddr/artkey`
-//! are unique within the network identified by `netid`.
-//! NOTE: on Harvard architectures when session keys are in flash:
-//!  Caller has to fill in LMIC.{nwk,art}Key  before and pass {nwk,art}Key are NULL
-//! \param netid a 24 bit number describing the network id this device is using
-//! \param devaddr the 32 bit session address of the device. It is strongly recommended
+//! \brief Set up keys for ABP.
+//!
+//! \details
+//!     The LMIC stores the given session keys
+//!     and put thes MAC in a state as if
+//!     a join request/accept had just negotiated these keys.
+//!
+//! \param netid a 24-bit number describing the network id this device is using
+//! \param devaddr the 32-bit session address of the device. It is strongly recommended
 //!    to ensure that different devices use different numbers with high probability.
-//! \param nwkKey  the 16 byte network session key used for message integrity.
+//! \param nwkKey  the 16-byte network session key used for message integrity.
 //!     If NULL the caller has copied the key into `LMIC.nwkKey` before.
-//! \param artKey  the 16 byte application router session key used for message confidentiality.
+//! \param artKey  the 16-byte application router session key used for message confidentiality.
 //!     If NULL the caller has copied the key into `LMIC.artKey` before.
+//!
+//! \note On Harvard architectures, if session keys are in flash and
+//! not accessible via normal C pointers,
+//! caller must fill in LMIC.{nwk,art}Key separately and pass {nwk,art}Key as NULL.
+//! \note It is crucial that the combinations `devaddr/nwkkey` and `devaddr/artkey`
+//! are unique within the network identified by `netid`.
 
 // TODO(tmm@mcci.com) we ought to also save the channels that were returned by the
 // join accept; right now this has to be done by the caller (or it doesn't get done).

@@ -245,7 +245,7 @@ static void aesroundkeys () {
     }
 }
 
-u4_t os_aes (u1_t mode, xref2u1_t buf, u2_t len) {
+u4_t os_aes_original (u1_t mode, xref2u1_t buf, u2_t len) {
 
         aesroundkeys();
 

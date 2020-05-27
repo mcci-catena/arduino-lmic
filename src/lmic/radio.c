@@ -26,11 +26,13 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-//! \file
+/// \file
+/// \brief Radio driver for radios based on SX1272/SX1276 chips
 
 #define LMIC_DR_LEGACY 0
-
 #include "lmic.h"
+
+#include "../se/i/lmic_secure_element_api.h"
 
 // ----------------------------------------
 // Registers Mapping
@@ -376,6 +378,8 @@
 // RADIO STATE
 // (initialized by radio_init(), used by radio_rand1())
 static u1_t randbuf[16];
+static u4_t randround;
+static u1_t randseed[16];
 
 
 static void writeReg (u1_t addr, u1_t data ) {
@@ -904,11 +908,11 @@ static CONST_TABLE(u1_t, rxlorairqmask)[] = {
     [RXMODE_RSSI]   = 0x00,
 };
 
-//! \brief handle late RX events.
-//! \param nLate is the number of `ostime_t` ticks that the event was late.
-//! \details If nLate is non-zero, increment the count of events, totalize
-//! the number of ticks late, and (if implemented) adjust the estimate of
-//! what would be best to return from `os_getRadioRxRampup()`.
+/// \brief handle late RX events.
+/// \param nLate is the number of `ostime_t` ticks that the event was late.
+/// \details If nLate is non-zero, increment the count of events, totalize
+/// the number of ticks late, and (if implemented) adjust the estimate of
+/// what would be best to return from `os_getRadioRxRampup()`.
 static void rxlate (u4_t nLate) {
     if (nLate) {
             LMIC.radio.rxlate_ticks += nLate;
@@ -1081,16 +1085,16 @@ static void startrx (u1_t rxmode) {
 //!
 //! \result True if successful, false if it doesn't look like the right radio is attached.
 //!
-//! \pre
+//! \pre \parblock
 //! Preconditions must be observed, or you'll get hangs during initialization.
 //!
 //! - The `hal_pin_..()` functions must be ready for use.
-//! - The `hal_waitUntl()` function must be ready for use. This may mean that interrupts
+//! - The `hal_waitUntil()` function must be ready for use. This may mean that interrupts
 //!   are enabled.
 //! - The `hal_spi_..()` functions must be ready for use.
 //!
 //! Generally, all these are satisfied by a call to `hal_init_with_pinmap()`.
-//!
+//! \endparblock
 int radio_init () {
     requestModuleActive(1);
 
@@ -1121,17 +1125,18 @@ int radio_init () {
     if (hal_queryUsingTcxo())
         writeReg(RegTcxo, readReg(RegTcxo) | RegTcxo_TcxoInputOn);
 
-    // seed 15-byte randomness via noise rssi
+    // seed 16-byte randomness via noise rssi
     rxlora(RXMODE_RSSI);
     while( (readReg(RegOpMode) & OPMODE_MASK) != OPMODE_RX ); // continuous rx
-    for(int i=1; i<16; i++) {
+    for(int i=0; i<16; i++) {
         for(int j=0; j<8; j++) {
             u1_t b; // wait for two non-identical subsequent least-significant bits
             while( (b = readReg(LORARegRssiWideband) & 0x01) == (readReg(LORARegRssiWideband) & 0x01) );
-            randbuf[i] = (randbuf[i] << 1) | b;
+            randseed[i] = (randseed[i] << 1) | b;
         }
     }
     randbuf[0] = 16; // set initial index
+    randround = 0;
 
 #ifdef CFG_sx1276mb1_board
     // chain calibration
@@ -1157,13 +1162,33 @@ int radio_init () {
     return 1;
 }
 
-// return next random byte derived from seed buffer
-// (buf[0] holds index of next byte to be returned)
+/// \brief Generate an 8-bit uniformly-distributed integer.
+///
+/// \details
+///     If there are any bytes remaining in the random buffer,
+///     the next byte is returned. Otherwise, sixteen new random
+///     bytes are generated, and the first is returned.
+///
+/// \par "Implmementation Notes:"
+///     Originaly, the seed buffer was held in the static `randbuf[]`,
+///     which is initialized with RSSI noise measurements during
+///     initialization. Each time we run out of data, the buffer
+///     is used to generate a new key. Formerly we used "any key"
+///     but with the reorganization of the code, there's no dedicated
+///     key buffer. So instead, we save the seed, and do a
+///     [CSPRNG](https://en.wikipedia.org/wiki/Cryptographically_secure_pseudorandom_number_generator) using
+///     AES in counter mode. Since (in any case) we immediately
+///     return the first byte of the buffer, we can replace
+///     the first byte with a buffer index, ranging from 1 to
+///     16, which helps us to dole out the data.
+///
 u1_t radio_rand1 () {
     u1_t i = randbuf[0];
     ASSERT( i != 0 );
     if( i==16 ) {
-        os_aes(AES_ENC, randbuf, 16); // encrypt seed with any key
+        os_wlsbf4(randbuf, randround);
+        ++randround;
+        LMIC_SecureElement_aes128Encrypt(randseed, randbuf, randbuf); // encrypt seed with any key
         i = 0;
     }
     u1_t v = randbuf[i++];
@@ -1176,14 +1201,15 @@ u1_t radio_rssi () {
     return r;
 }
 
-/// \brief get the current RSSI on the current channel.
+/// \brief Measure the current broadband RSSI for the current channel.
 ///
-/// monitor rssi for specified number of ostime_t ticks, and return statistics
-/// This puts the radio into RX continuous mode, waits long enough for the
+/// \details
+/// This funtion monitors RSSI for specified number of `ostime_t` ticks, and return statistics.
+/// It first puts the radio into RX continuous mode, waits long enough for the
 /// oscillators to start and the PLL to lock, and then measures for the specified
 /// period of time.  The radio is then returned to idle.
 ///
-/// RSSI returned is expressed in units of dB, and is offset according to the
+/// \returns RSSI expressed in units of dB, offset according to the
 /// current radio setting per section 5.5.5 of Semtech 1276 datasheet.
 ///
 /// \param nTicks How long to monitor
@@ -1386,8 +1412,9 @@ void radio_irq_handler_v2 (u1_t dio, ostime_t now) {
 
 \brief Initiate a radio operation.
 
-\param mode Selects the operation to be performed.
+\param mode [in] Selects the operation to be performed.
 
+\details
 The requested radio operation is initiated. Some operations complete
 immediately; others require hardware to do work, and don't complete until
 an interrupt occurs. In that case, `LMIC.osjob` is scheduled. Because the

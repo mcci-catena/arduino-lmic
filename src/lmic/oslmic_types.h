@@ -36,6 +36,9 @@ typedef int32_t            s4_t;
 typedef unsigned int       uint;
 typedef const char*        str_t;
 
+typedef        const u1_t* xref2cu1_t;
+typedef              u1_t* xref2u1_t;
+
 // the HAL needs to give us ticks, so it ought to know the right type.
 typedef              s4_t  ostime_t;
 
