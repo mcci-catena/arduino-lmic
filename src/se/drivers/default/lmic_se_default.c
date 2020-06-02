@@ -97,8 +97,8 @@ static int aes_verifyMic (const u1_t *key, u4_t devaddr, u4_t seqno, int dndir, 
 \par "Implementation Details" 
     This implementation requires that \p iKey be \ref LMIC_SecureElement_KeySelector_Unicast.
 
-\retval     \ref LMIC_SecureElement_Error_OK means that the MIC was valid.
-\retval     \ref LMIC_SecureElement_Error_InvalidMIC means that the MIC was not valid.
+\retval     LMIC_SecureElement_Error_OK means that the MIC was valid.
+\retval     LMIC_SecureElement_Error_InvalidMIC means that the MIC was not valid.
 
 */
 
@@ -152,8 +152,8 @@ static void aes_cipher (xref2cu1_t key, u4_t devaddr, u4_t seqno, int dndir, xre
     the port number. This is used to select either \c AppSKey or \c NwkSKey to
     encode and MIC the message.
 
-\retval     \ref LMIC_SecureElement_Error_OK means that the MIC was valid.
-\retval     \ref LMIC_SecureElement_Error_InvalidMIC means that the MIC was not valid.
+\retval     LMIC_SecureElement_Error_OK means that the MIC was valid.
+\retval     LMIC_SecureElement_Error_InvalidMIC means that the MIC was not valid.
 
 */
 
@@ -380,6 +380,7 @@ LMIC_SecureElement_Default_decodeJoinAccept(
 
 \post
     \ref AESKey is set to the contents of \p pKey.
+
 */
 
 LMIC_SecureElement_Error_t

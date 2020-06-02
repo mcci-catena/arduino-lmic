@@ -28,7 +28,7 @@ Author:
 
 /*! \defgroup lmic_se LMIC Secure Element Interface
 
-\brief Tnis abstract interface represents the Secure Element to the body of the LMIC.
+\brief This abstract interface represents the Secure Element to the body of the LMIC.
 
 \details
     The LMIC implementation attempts to separate the network protocol implementation
@@ -38,7 +38,7 @@ Author:
 
     - Storage for keys.
     - Encryption primitives that can use the keys to secure, reveal, sign or check
-      messages without requiring that the key values be availalbe to the LMIC.
+      messages without requiring that the key values be available to the LMIC.
     - Miscellaneous services to minimize duplication of function between
       the Secure Element and the LMIC.
 
@@ -51,17 +51,18 @@ Author:
        concrete function from the configured secure element.
 
     This structure allows the C compiler to optimize out the static-inline
-    wrapper, and avoides adding conditional compiles or macros directly
+    wrapper, and avoids adding conditional compiles or macros directly
     to the LMIC codebase.
 
     The \ref lmic_se_default "default Secure Element" implementation is
-    software-only and uses the code from the IBM LMIC. 
+    software-only and uses the code from the IBM LMIC.
+
 */
 /// \{
 
 LMIC_BEGIN_DECLS
 
-/// \brief Errors returned by the Secure Element APIs
+/// \brief Values of type and \ref LMIC_SecureElement_Error_t enumerate errors returned by the Secure Element APIs.
 enum LMIC_SecureElement_Error_e {
     LMIC_SecureElement_Error_OK = 0,            ///< The operation completed successfully.
     LMIC_SecureElement_Error_InvalidParameter,  ///< Invalid parameter detected.
@@ -70,24 +71,25 @@ enum LMIC_SecureElement_Error_e {
     LMIC_SecureElement_Error_InvalidMIC,        ///< The computed MIC was not valid.
     LMIC_SecureElement_Error_Implementation,    ///< Implementation-defined error.
 };
+/// \brief Controlled-width type for \ref LMIC_SecureElement_Error_e.
 typedef enum LMIC_SecureElement_Error_e LMIC_SecureElement_Error_t;
 
 /// \brief an object to carry an AES128 (16-byte) key.
 typedef struct LMIC_SecureElement_Aes128Key_s {
-    uint8_t bytes[16];
+    uint8_t bytes[16];  ///< Key data, normally stored in big-endian order.
 } LMIC_SecureElement_Aes128Key_t;
 
 /// \brief an object to carry a 64-bit EUI.
 typedef struct LMIC_SecureElement_EUI_s {
-    uint8_t bytes[8];
+    uint8_t bytes[8];   ///< EUI-64 data. Normally stored in little-endian order.
 } LMIC_SecureElement_EUI_t;
 
+/// \brief an object to carry a LoRaWAN Join Request message.
 typedef struct LMIC_SecureLElement_JoinRequest_s {
-    uint8_t bytes[23];
+    uint8_t bytes[23];  ///< Join request data, in network byte order.
 } LMIC_SecureElement_JoinRequest_t;
 
-/// \enum LMIC_SecureElement_KeySelector_t
-/// \brief Values of this type select specific keys for encryption/decryption operations.
+/// \brief Values of this type and \ref LMIC_SecureElement_KeySelector_t select specific keys for encryption/decryption operations.
 ///
 /// \details
 ///     LoRaWAN 1.0.3 crypto operations use network session keys and application session
@@ -111,17 +113,26 @@ enum LMIC_SecureElement_KeySelector_e {
     LMIC_SecureElement_KeySelector_AppKey,      //!< The operation should use the (LoRaWAN 1.0.3) Application Key
     LMIC_SecureElement_KeySelector_SIZE         //!< One greater than maximum value in this `enum`.
 };
+/// \brief Controlled-width type for \ref LMIC_SecureElement_KeySelector_e.
 typedef uint8_t LMIC_SecureElement_KeySelector_t;
 
 /// \brief  Names for values of \ref LMIC_SecureElement_KeySelector_t
 ///
 /// \details
-///     This is a single string initializer of type `char []` (or 
+///     This is a single string initializer of type `char []` (or
 ///     `const char []`). It can be used to initialize a string
 ///     containing names of each of the values of \ref LMIC_SecureElement_KeySelector_t.
 ///     It saves space by combining the values without requiring pointers to
 ///     each value, at the cost of run-time indexing into the string
 ///     in order to extract the value.
+///
+/// \par Example
+///     \code
+///     const char KeyNames[] = LMIC_SecureElement_KeySelector_NAME_MULTISZ_INIT;
+///     \endcode
+///
+/// \hideinitializer
+///
 #define LMIC_SecureElement_KeySelector_NAME_MULTISZ_INIT    \
     "Unicast\0"                                             \
     "Mc0\0"                                                 \
@@ -129,25 +140,26 @@ typedef uint8_t LMIC_SecureElement_KeySelector_t;
     "Mc2\0"                                                 \
     "Mc3\0"
 
-/// \enum LMIC_SecureElement_JoinFormat_t
-/// \brief Values of this type select specific formats of Join Request.
+/// \brief Values of this type and \ref LMIC_SecureElement_JoinFormat_t select specific formats of Join Request.
 ///
 /// \details
 ///     LoRaWAN 1.1 defines 4 formats of (re)join request messages. Values of this
 ///     type are used to select the appropriate message format.  LoRaWAN 1.0.3 Devices
 ///     only use LMIC_SecureElement_JoinFormat_JoinRequest.
 ///
-///     Because C doesn't specify the underlying type used for a given enum, we define
-///     a separate type to carry numbers of this value, forcing it to \c uint8_t.
+///     Because C doesn't specify the underlying type used for a given enum, we normally
+///     use a separate type \ref \ref LMIC_SecureElement_JoinFormat_t to carry numbers of
+///     this value, forcing it to \c uint8_t.
 
 enum LMIC_SecureElement_JoinFormat_e {
-    LMIC_SecureElement_JoinFormat_JoinRequest10,        //!< Basic (1.0.3) 
-    LMIC_SecureElement_JoinFormat_JoinRequest11,        //!< Basic (1.1) -- no difference on encode, enables 1.1 features on decode. \sa LMIC_SecureElement_decodeJoinAccept_t.
+    LMIC_SecureElement_JoinFormat_JoinRequest10,        //!< Basic Join Request (1.0.3)
+    LMIC_SecureElement_JoinFormat_JoinRequest11,        //!< Basic Join Request (1.1) -- no difference on encode, enables 1.1 features on decode. See \ref LMIC_SecureElement_decodeJoinAccept_t.
     LMIC_SecureElement_JoinFormat_RejoinRequest0,       //!< Rejoin-request type 0
     LMIC_SecureElement_JoinFormat_RejoinRequest1,       //!< Rejoin-request type 1
     LMIC_SecureElement_JoinFormat_RejoinRequest2,       //!< Rejoin-request type 2
     LMIC_SecureElement_JoinFormat_SIZE                  //!< One greater than maximum value in this `enum`.
 };
+/// \brief Controlled-width type for \ref LMIC_SecureElement_JoinFormat_e.
 typedef uint8_t LMIC_SecureElement_JoinFormat_t;
 
 
@@ -155,7 +167,35 @@ typedef uint8_t LMIC_SecureElement_JoinFormat_t;
 |       The API function signatures.
 \****************************************************************************/
 
+/*!
+
+\defgroup lmic_se_driver APIs for secure-element drivers
+
+\brief  Linkage to secure element implementations
+
+\details
+    Function types are used to enforce consistency between the API wrappers
+    and driver implementations. We follow MCCI's convention of declaring
+    function types rather than pointer-to-function types; this lets one type
+    name be used both for declaring pointers to functions and for declaring
+    that a given function implements a given API.
+
+    Given that consistency, we further define macros that will generate all
+    prototypes for a given driver's methods using consistent names
+    (\ref LMIC_SecureElement_DECLARE_DRIVER_FNS).
+
+    The framework implementation currently requires that the secure element
+    driver be selected at compile time. However, the architecture allows
+    an alternate implementation using pointers and dynamic linkage.
+
+*/
+
+/// \{
+
 /// \brief Initialize the Secure Element
+///
+/// \returns \ref LMIC_SecureElement_Error_OK for success, some other code for failure.
+///
 typedef LMIC_SecureElement_Error_t LMIC_ABI_STD
 LMIC_SecureElement_initialize_t(void);
 
@@ -163,45 +203,67 @@ LMIC_SecureElement_initialize_t(void);
 typedef uint8_t LMIC_ABI_STD
 LMIC_SecureElement_getRandomU1_t(void);
 
-/// \brief return a random integer uniformly distributed in [0..65535].
+/// \brief Return a random integer uniformly distributed in [0..65535].
 typedef uint16_t LMIC_ABI_STD
 LMIC_SecureElement_getRandomU2_t(void);
 
-/// \brief fill buffer with random independently distributed integers, each in [0..255].
-/// \param nBuffer is limited to 255, for maximum implementation flextibilty.
+/// \brief Fill buffer with random independently distributed integers, each in [0..255].
+/// \param buffer [out] Pointer to buffer to be filled.
+/// \param nBuffer [in] Number of bytes to be filled.
+///
+/// \p nBuffer is limited to 255, for maximum implementation flexibility.
+///
+/// \returns \ref LMIC_SecureElement_Error_OK for success, some other code for failure.
+///
 typedef LMIC_SecureElement_Error_t LMIC_ABI_STD
 LMIC_SecureElement_fillRandomBuffer_t(uint8_t *buffer, uint8_t nBuffer);
 
-/// \brief set application key
+/// \brief Set application key.
+/// \param pAppKey [in] Points to 16-byte application key.
+///
+/// \returns \ref LMIC_SecureElement_Error_OK for success, some other code for failure.
+///
 typedef LMIC_SecureElement_Error_t LMIC_ABI_STD
 LMIC_SecureElement_setAppKey_t(const LMIC_SecureElement_Aes128Key_t *pAppKey);
 
-/// \brief get application key. Many secure elements will fail this request.
+/// \brief Get application key.
+/// \param pAppKey [out]    Points to buffer to be filled with application key.
+///
+/// \returns \ref LMIC_SecureElement_Error_OK for success, some other code for failure.
+///     Many secure elements will fail this request, because their purpose in life
+///     is guarding the application key and preventing tampering.
+///
 typedef LMIC_SecureElement_Error_t LMIC_ABI_STD
 LMIC_SecureElement_getAppKey_t(LMIC_SecureElement_Aes128Key_t *pAppKey);
 
-///\brief Set network session key. 
+///\brief Set network session key.
 ///
-///\param  pNwkSKey [in]   session key to be associated with iKey.
+///\param  pNwkSKey [in]   session key to be associated with \p iKey.
 ///\param  iKey [in]       key discriminator.
+///
+/// \returns \ref LMIC_SecureElement_Error_OK for success, some other code for failure.
 ///
 typedef LMIC_SecureElement_Error_t LMIC_ABI_STD
 LMIC_SecureElement_setNwkSKey_t(const LMIC_SecureElement_Aes128Key_t *pNwkSKey, LMIC_SecureElement_KeySelector_t iKey);
 
-/// \brief Get network session key
+/// \brief Get network session key.
 ///
-/// \param  pAppSKey [in]   provides the value of the netork session key.
+/// \param  pNwkSKey [in]   provides the value of the network session key.
 /// \param  iKey [in]       key discriminator.
 ///
-/// \note Many secure elements will decline this request for security reasons.
+/// \returns \ref LMIC_SecureElement_Error_OK for success, some other code for failure.
+///     Many secure elements will fail this request, because their purpose in life
+///     is guarding keys and preventing tampering.
 ///
 typedef LMIC_SecureElement_Error_t LMIC_ABI_STD
 LMIC_SecureElement_getNwkSKey_t(LMIC_SecureElement_Aes128Key_t *pNwkSKey, LMIC_SecureElement_KeySelector_t iKey);
 
 /// \brief Set application session key
 ///
-/// \param  pAppSKey [in]   session key to be associated with iKey.
+/// \param  pAppSKey [in]   session key to be associated with \p iKey.
 /// \param  iKey [in]       key discriminator.
+///
+/// \returns \ref LMIC_SecureElement_Error_OK for success, some other code for failure.
 ///
 typedef LMIC_SecureElement_Error_t LMIC_ABI_STD
 LMIC_SecureElement_setAppSKey_t(const LMIC_SecureElement_Aes128Key_t *pAppSKey, LMIC_SecureElement_KeySelector_t iKey);
@@ -211,7 +273,9 @@ LMIC_SecureElement_setAppSKey_t(const LMIC_SecureElement_Aes128Key_t *pAppSKey, 
 /// \param  pAppSKey [out]  set to the value of the application session key.
 /// \param  iKey [in]       key discriminator.
 ///
-/// \note Many secure elements will decline this request for security reasons.
+/// \returns \ref LMIC_SecureElement_Error_OK for success, some other code for failure.
+///     Many secure elements will fail this request, because their purpose in life
+///     is guarding keys and preventing tampering.
 ///
 typedef LMIC_SecureElement_Error_t LMIC_ABI_STD
 LMIC_SecureElement_getAppSKey_t(LMIC_SecureElement_Aes128Key_t *pAppSKey, LMIC_SecureElement_KeySelector_t iKey);
@@ -222,18 +286,19 @@ LMIC_SecureElement_getAppSKey_t(LMIC_SecureElement_Aes128Key_t *pAppSKey, LMIC_S
 /// \param joinFormat [in]          Join type selector.
 ///
 /// \details
-///     The buffer at *pJoinRequestBytes must be at least
-///     sizeof(LMIC_SecureElement_JoinRequest_t::bytes) long; it is filled with
+///     The buffer at * \p pJoinRequestBytes must be at least
+///     sizeof(\ref LMIC_SecureElement_JoinRequest_t::bytes) long; it is filled with
 ///     a \c JoinRequest message, encrypted with the keys suitable to the specified
 ///     context. \p joinFormat is provided for future use in LoRaWAN 1.1 systems; it selects
-///     the keys to be used and the format of the message.  It shall be set to 
+///     the keys to be used and the format of the message.  It shall be set to
 ///     \ref LMIC_SecureElement_JoinFormat_JoinRequest10.
 ///
 /// \returns
 ///     The result is \ref LMIC_SecureElement_Error_OK for success, some other value for failure.
 ///
-/// \retval LMIC_SecureElement_Error_InvalidParameter indicates that iKey was not
+/// \retval LMIC_SecureElement_Error_InvalidParameter indicates that \p iKey was not
 ///         valid.
+///
 typedef LMIC_SecureElement_Error_t LMIC_ABI_STD
 LMIC_SecureElement_createJoinRequest_t(
     uint8_t *pJoinRequestBytes, LMIC_SecureElement_JoinFormat_t joinFormat
@@ -250,14 +315,14 @@ LMIC_SecureElement_createJoinRequest_t(
 ///     The Join-Accept message is decoded using the keys designated by the \p joinFormat, and
 ///     the clear text is placed in \p pJoinAcceptClearText.
 ///
-/// \note
-///     The LMIC presently only supports LoRaWAN 1.0.3, so \p joinFormat must be 
+///     The LMIC presently only supports LoRaWAN 1.0.3, so \p joinFormat must be
 ///     \ref LMIC_SecureElement_JoinFormat_JoinRequest10.
 ///
 /// \returns
 ///     The result is \ref LMIC_SecureElement_Error_OK for success, some other value for
 ///     failure. If successful, the appropriate session keys are generated and stored in
 ///     the secure element.
+///
 typedef LMIC_SecureElement_Error_t LMIC_ABI_STD
 LMIC_SecureElement_decodeJoinAccept_t(
     const uint8_t *pJoinAcceptBytes, uint8_t nJoinAcceptBytes,
@@ -276,26 +341,27 @@ LMIC_SecureElement_decodeJoinAccept_t(
 /// \details
 ///     The output buffer must be \p nBuffer + 4 bytes long.
 ///     \c FCntUp in the message may be ignored by the Secure Element and replaced by SE's idea of
-///     the uplink frame count. SE will increment its internal FCntUp. To implement \c NbTrans > 1,
+///     the uplink frame count. SE will increment its internal \c FCntUp. To implement \c NbTrans > 1,
 ///     caller shall cache the encoded message and retransmit it, rather than re-encoding it.
 ///     \p pCipherTextBuffer may be the same as \p pMessage; in this case the update is done in-place
 ///     if possible. Otherwise the blocks shall be strictly non-overlapping.
 ///
 /// \returns
-///     The result is LMIC_SecureElement_Error_OK for success, some other value for failure.
+///     The result is \ref LMIC_SecureElement_Error_OK for success, some other value for failure.
+///
 typedef LMIC_SecureElement_Error_t LMIC_ABI_STD
 LMIC_SecureElement_encodeMessage_t(const uint8_t *pMessage, uint8_t nMessage, uint8_t iPayload, uint8_t *pCipherTextBuffer, LMIC_SecureElement_KeySelector_t iKey);
 
 /// \brief Verify the MIC of a downlink message.
 ///
-/// \param  pPhyPayload [in]    Pointer to `MHDR` byte of received phy message.
+/// \param  pPhyPayload [in]    Pointer to `MHDR` byte of received PHY message.
 /// \param  nPhyPayload [in]    Number of bytes, including the MIC.
 /// \param  devAddr [in]        Device address
 /// \param  FCntDown [in]       The downlink frame counter to be used with this message
 /// \param  iKey [in]           Key discriminator.
 ///
 /// \details
-///     The MIC code for the message is calculated using the appropriate key and algorigthm.
+///     The MIC code for the message is calculated using the appropriate key and algorithm.
 ///
 /// \returns
 ///     Returns \ref LMIC_SecureElement_Error_OK if the MIC matched, or an error code related to
@@ -314,7 +380,7 @@ LMIC_SecureElement_verifyMIC_t(
 
 /// \brief Decode an application message.
 ///
-/// \param  pPhyPayload [in]    Pointer to `MHDR` byte of received phy message.
+/// \param  pPhyPayload [in]    Pointer to `MHDR` byte of received PHY message.
 /// \param  nPhyPayload [in]    Number of bytes, including the MIC.
 /// \param  devAddr [in]        Device address
 /// \param  FCntDown [in]       The downlink frame counter to be used with this message
@@ -323,17 +389,20 @@ LMIC_SecureElement_verifyMIC_t(
 ///                             nPhyPayload - 4 bytes long.
 ///
 /// \details
-///     The payload is decrypted and placed in `pClearTextBuffer`. The MIC is assumed to be
-///     valid. The output buffer must be `nBuffer - 4` bytes long (the MIC is not appended).
-///     pClearTextdBuffer may be the same as pPhyPayload, in which
+///     The payload is decrypted and placed in \p pClearTextBuffer. The MIC is assumed to be
+///     valid. The output buffer must be \p nBuffer - 4 bytes long (the MIC is not appended).
+///     \p ClearTextdBuffer may be the same as pPhyPayload, in which
 ///     case the update is done in-place if possible. Otherwise the input and output blocks shall
 ///     be strictly non-overlapping.
+///
+/// \returns
+///     Returns \ref LMIC_SecureElement_Error_OK for success, some other value for failure.
 ///
 typedef LMIC_SecureElement_Error_t LMIC_ABI_STD
 LMIC_SecureElement_decodeMessage_t(
     const uint8_t *pPhyPayload, uint8_t nPhyPayload,
     uint32_t devAddr, uint32_t FCntDown,
-    LMIC_SecureElement_KeySelector_t iKey, 
+    LMIC_SecureElement_KeySelector_t iKey,
     uint8_t *pClearTextBuffer
     );
 
@@ -343,14 +412,14 @@ LMIC_SecureElement_decodeMessage_t(
 /// \param  pOutput [out]   Cipher text (16 bytes).
 ///
 /// \details
-///     This API is used for beacon calculations and other 
+///     This API is used for beacon calculations and other
 ///     pseudo-random operations. Key, input buffer, output buffer are all 16 bytes long.
 ///     pOutput and pInput may be the same buffer; otherwise they must point to non-overlapping
 ///     regions of memory.  pKey must not overlap pOutput.  None of pKey, pInput, pOutput
 ///     may be NULL.
 ///
-/// \retval #LMIC_SecureElement_Error_OK if the encryption was performed
-/// \retval #LMIC_SecureElement_Error_InvalidParameter if any of the parameters is invalid.
+/// \retval LMIC_SecureElement_Error_OK if the encryption was performed
+/// \retval LMIC_SecureElement_Error_InvalidParameter if any of the parameters is invalid.
 ///
 typedef LMIC_SecureElement_Error_t LMIC_ABI_STD
 LMIC_SecureElement_aes128Encrypt_t(const uint8_t *pKey, const uint8_t *pInput, uint8_t *pOutput);
@@ -366,6 +435,25 @@ LMIC_SecureElement_aes128Encrypt_t(const uint8_t *pKey, const uint8_t *pInput, u
 /// \details
 ///     The parameter is macro-expanded and then substituted to declare each
 ///     of the interface functions for the specified driver.
+///
+/// \par Example
+/// \parblock
+///     \code
+///     LMIC_SecureElement_DECLARE_DRIVER_DNS(MyDriver);
+///     \endcode
+///
+///     This expands to a series of function declarations:
+///
+///     \code
+///     LMIC_SecureElement_initialize_t LMIC_SecureElement_MyDriver_initialize;
+///     LMIC_SecureElement_getRandomU1_t LMIC_SecureElement_MyDriver_getRandomU1;
+///     /* ... */
+///     LMIC_SecureElement_aes128Encrypt_t LMIC_SecureElement_MyDriver_aes128Encrypt;
+///     \endcode
+/// \endparblock
+///
+/// \hideinitializer
+///
 #define LMIC_SecureElement_DECLARE_DRIVER_FNS(a_driver)                                         \
     LMIC_SecureElement_initialize_t LMIC_SecureElement_##a_driver##_initialize;                 \
     LMIC_SecureElement_getRandomU1_t LMIC_SecureElement_##a_driver##_getRandomU1;               \
@@ -386,6 +474,8 @@ LMIC_SecureElement_aes128Encrypt_t(const uint8_t *pKey, const uint8_t *pInput, u
 
 LMIC_END_DECLS
 
+// end group lmic_se_driver
+/// \}
 // end group lmic_se
 /// \}
 

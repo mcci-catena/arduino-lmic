@@ -30,12 +30,39 @@ Author:
 |   static binding.
 \****************************************************************************/
 
+#if defined(_DOXYGEN_)
+/// \brief Select the secure-element driver
+///
+/// \details
+///     This macro must be set to the name used by the secure element driver for
+///     its API functions. The default is `Default`.
+///
+/// \hideinitializer
+///
+# define LMIC_CFG_SecureElement_DRIVER   Default
+
+/// \brief Select linkage style
+///
+/// \details
+///     If this macro is defined and non-zero, the secure element will
+///     be integrated with the LMIC at compile time. If defined and zero,
+///     the secure element driver will be accessed via external functions,
+///     allowing the integration to be deferred to link time or run time.
+///
+/// \note
+///     At present, only compile-time integration is implemented.
+///
+/// \hideinitializer
+////
+# define LMIC_ENABLE_SecureElement_STATIC    1
+#endif
+
 #if ! defined(LMIC_CFG_SecureElement_DRIVER)
 # define LMIC_CFG_SecureElement_DRIVER   Default
 #endif
 
 #if ! defined(LMIC_ENABLE_SecureElement_STATIC)
-#define LMIC_ENABLE_SecureElement_STATIC    1
+# define LMIC_ENABLE_SecureElement_STATIC    1
 #endif
 
 /****************************************************************************\
@@ -71,12 +98,65 @@ LMIC_SecureElement_aes128Encrypt_t LMIC_SecureElement_aes128Encrypt;
 /*
 || Use static linkage for the APIs.
 */
+
+/// \brief Generate a method function name without argument expansion
+/// \param a_driver The name of the driver (will be macro-expanded)
+/// \param a_fn     The function-name fragment (will be macro-expanded)
+///
+/// \details
+///     This macro is like \ref LMIC_SecureElement_METHOD() except that
+///     macros in the arguments are not expanded prior performing string substitution.
+///
+///     For example, writing:
+///
+///     \code
+///     #define LMIC_CFG_SecureElement_DRIVER Foo
+///     LMIC_SecureElement_METHOD(LMIC_CFG_SecureElement_DRIVER, initialize)();
+///     \endcode
+///
+///     is the same as writing:
+///
+///     \code
+///     LMIC_SecureElement_LMIC_CFG_SecureElement_DRIVER_initialize();
+///     \endcode
+///
+/// \see LMIC_SecureElement_METHOD()
+/// \hideinitializer
+///
 #define LMIC_SecureElement_METHOD_(a_driver, a_fn)  \
     (LMIC_SecureElement_##a_driver##_##a_fn)
+
+/// \brief Generate a method function name
+/// \param a_driver The name of the driver (will be macro-expanded)
+/// \param a_fn     The function-name fragment (will be macro-expanded)
+///
+/// \details
+///     This macro returns a standard method function name. Standard method
+///     function names begin with `LMIC_SecureElement_`, followed by _a_driver_,
+///     followed by an underscore `_`, and ending with _a_fn_.
+///     For example, writing:
+///
+///     \code
+///     #define LMIC_CFG_SecureElement_DRIVER Foo
+///     LMIC_SecureElement_METHOD(LMIC_CFG_SecureElement_DRIVER, initialize)();
+///     \endcode
+///
+///     is the same as writing:
+///
+///     \code
+///     LMIC_SecureElement_Foo_initialize();
+///     \endcode
+///
+///     This macro is primarily intended for internal use.
+///
+/// \hideinitializer
+///
 #define LMIC_SecureElement_METHOD(a_driver, a_fn)  \
     LMIC_SecureElement_METHOD_(a_driver, a_fn)
 
+/// \cond FALSE
 LMIC_SecureElement_DECLARE_DRIVER_FNS(Default);
+/// \endcond
 
 /// \copydoc LMIC_SecureElement_initialize_t
 static inline
@@ -200,7 +280,7 @@ LMIC_SecureElement_Error_t LMIC_ABI_STD
 LMIC_SecureElement_decodeMessage(
     const uint8_t *pPhyPayload, uint8_t nPhyPayload,
     uint32_t devAddr, uint32_t FCntDown,
-    LMIC_SecureElement_KeySelector_t iKey, 
+    LMIC_SecureElement_KeySelector_t iKey,
     uint8_t *pClearTextBuffer
 ) {
     return LMIC_SecureElement_METHOD(LMIC_CFG_SecureElement_DRIVER, decodeMessage)(
