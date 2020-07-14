@@ -725,15 +725,15 @@ void setup_printSignOnDashLine(void)
     printNl();
     }
 
-static constexpr const char *filebasename2(const char *s, const char *p) {
+static constexpr const char *filebasename(const char *s, const char *p) {
     return p[0] == '\0'                     ? s                             :
-           (p[0] == '/' || p[0] == '\\')    ? filebasename2(p + 1, p + 1)   :
-                                              filebasename2(s, p + 1)       ;
+           (p[0] == '/' || p[0] == '\\')    ? filebasename(p + 1, p + 1)    :
+                                              filebasename(s, p + 1)        ;
 }
 
 static constexpr const char *filebasename(const char *s)
     {
-    return filebasename2(s, s);
+    return filebasename(s, s);
     }
 
 void printVersionFragment(char sep, uint8_t v) {
