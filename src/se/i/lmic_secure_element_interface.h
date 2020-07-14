@@ -280,6 +280,46 @@ LMIC_SecureElement_setAppSKey_t(const LMIC_SecureElement_Aes128Key_t *pAppSKey, 
 typedef LMIC_SecureElement_Error_t LMIC_ABI_STD
 LMIC_SecureElement_getAppSKey_t(LMIC_SecureElement_Aes128Key_t *pAppSKey, LMIC_SecureElement_KeySelector_t iKey);
 
+/// \brief Get device EUI.
+///
+/// \param  pDevEUI [out]   device EUI.
+///
+/// \returns \ref LMIC_SecureElement_Error_OK for success, some other code for failure.
+///     Many secure elements will fail this request, because their purpose in life
+///     is guarding keys and preventing tampering.
+///
+typedef LMIC_SecureElement_Error_t LMIC_ABI_STD
+LMIC_SecureElement_getDevEUI_t(LMIC_SecureElement_EUI_t *pDevEUI);
+
+/// \brief Set device EUI.
+///
+/// \param  pDevEUI [in]    Device key for this secure element.
+///
+/// \returns \ref LMIC_SecureElement_Error_OK for success, some other code for failure.
+///
+typedef LMIC_SecureElement_Error_t LMIC_ABI_STD
+LMIC_SecureElement_setDevEUI_t(const LMIC_SecureElement_EUI_t *pDevEUI);
+
+/// \brief Get application EUI.
+///
+/// \param  pAppEUI [out]   application EUI for this secure element.
+///
+/// \returns \ref LMIC_SecureElement_Error_OK for success, some other code for failure.
+///     Many secure elements will fail this request, because their purpose in life
+///     is guarding keys and preventing tampering.
+///
+typedef LMIC_SecureElement_Error_t LMIC_ABI_STD
+LMIC_SecureElement_getAppEUI_t(LMIC_SecureElement_EUI_t *pAppEUI);
+
+/// \brief Set application EUI.
+///
+/// \param  pAppEUI [in]    application EUI for this secure element.
+///
+/// \returns \ref LMIC_SecureElement_Error_OK for success, some other code for failure.
+///
+typedef LMIC_SecureElement_Error_t LMIC_ABI_STD
+LMIC_SecureElement_setAppEUI_t(const LMIC_SecureElement_EUI_t *pAppEUI);
+
 /// \brief Create a join request.
 ///
 /// \param pJoinRequestBytes [out]  Buffer to be filled with the join request.
@@ -461,6 +501,10 @@ LMIC_SecureElement_aes128Encrypt_t(const uint8_t *pKey, const uint8_t *pInput, u
     LMIC_SecureElement_fillRandomBuffer_t LMIC_SecureElement_##a_driver##_fillRandomBuffer;     \
     LMIC_SecureElement_setAppKey_t LMIC_SecureElement_##a_driver##_setAppKey;                   \
     LMIC_SecureElement_getAppKey_t LMIC_SecureElement_##a_driver##_getAppKey;                   \
+    LMIC_SecureElement_setAppEUI_t LMIC_SecureElement_##a_driver##_setAppEUI;                   \
+    LMIC_SecureElement_getAppEUI_t LMIC_SecureElement_##a_driver##_getAppEUI;                   \
+    LMIC_SecureElement_setDevEUI_t LMIC_SecureElement_##a_driver##_setDevEUI;                   \
+    LMIC_SecureElement_getDevEUI_t LMIC_SecureElement_##a_driver##_getDevEUI;                   \
     LMIC_SecureElement_setNwkSKey_t LMIC_SecureElement_##a_driver##_setNwkSKey;                 \
     LMIC_SecureElement_getNwkSKey_t LMIC_SecureElement_##a_driver##_getNwkSKey;                 \
     LMIC_SecureElement_setAppSKey_t LMIC_SecureElement_##a_driver##_setAppSKey;                 \

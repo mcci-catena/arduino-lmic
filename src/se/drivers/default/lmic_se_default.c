@@ -37,8 +37,30 @@
 
 #include "../../../lmic/lmic.h"
 
+static LMIC_SecureElement_EUI_t       s_devEUI;
+static LMIC_SecureElement_EUI_t       s_appEUI;
+static LMIC_SecureElement_Aes128Key_t s_appKey;
+
 static LMIC_SecureElement_Aes128Key_t s_nwkSKey;
 static LMIC_SecureElement_Aes128Key_t s_appSKey;
+
+static inline
+uint8_t *
+LMIC_SecureElement_DefaultI_GetAppEUIRef(void) {
+    return s_appEUI.bytes;
+}
+
+static inline
+uint8_t *
+LMIC_SecureElement_DefaultI_GetDevEUIRef(void) {
+    return s_devEUI.bytes;
+}
+
+static inline
+uint8_t *
+LMIC_SecureElement_DefaultI_GetAppKeyRef(void) {
+    return s_appKey.bytes;
+}
 
 static inline
 uint8_t *
@@ -51,6 +73,12 @@ uint8_t *
 LMIC_SecureElement_DefaultI_GetAppSKeyRef(void) {
     return s_appSKey.bytes;
 }
+
+
+static void appKeyToAESkey(void) {
+    memcpy(AESkey, s_appKey.bytes, sizeof(s_appKey.bytes));
+}
+
 
 /*!
 
@@ -66,6 +94,51 @@ once during initialization.
 */
 LMIC_SecureElement_Error_t
 LMIC_SecureElement_Default_initialize(void) {
+    return LMIC_SecureElement_Error_OK;
+}
+
+/*!
+
+\copydoc LMIC_SecureElement_setDevEUI_t
+
+\par "Implementation Notes"
+In the default secure element, the device EUI is stored in a static variable without obfuscation.
+
+*/
+
+LMIC_SecureElement_Error_t
+LMIC_SecureElement_Default_setDevEUI(const LMIC_SecureElement_EUI_t *pDevEUI) {
+    s_devEUI = *pDevEUI;
+    return LMIC_SecureElement_Error_OK;
+}
+
+/*!
+
+\copydoc LMIC_SecureElement_setAppEUI_t
+
+\par "Implementation Notes"
+In the default secure element, the app EUI is stored in a static variable without obfuscation.
+
+*/
+
+LMIC_SecureElement_Error_t
+LMIC_SecureElement_Default_setAppEUI(const LMIC_SecureElement_EUI_t *pAppEUI) {
+    s_appEUI = *pAppEUI;
+    return LMIC_SecureElement_Error_OK;
+}
+
+/*!
+
+\copydoc LMIC_SecureElement_setAppKey_t
+
+\par "Implementation Notes"
+In the default secure element, the appkey is stored in a static variable without obfuscation.
+
+*/
+
+LMIC_SecureElement_Error_t
+LMIC_SecureElement_Default_setAppKey(const LMIC_SecureElement_Aes128Key_t *pAppKey) {
+    s_appKey = *pAppKey;
     return LMIC_SecureElement_Error_OK;
 }
 
@@ -259,7 +332,7 @@ LMIC_SecureElement_Default_decodeMessage(
 
 
 static void aes_appendMic0 (xref2u1_t pdu, int len) {
-    os_getDevKey(AESkey);
+    appKeyToAESkey();
     os_wmsbf4(pdu+len, os_aes(AES_MIC|AES_MICNOAUX, pdu, len));  // MSB because of internal structure of AES
 }
 
@@ -286,8 +359,8 @@ LMIC_SecureElement_Default_createJoinRequest(
 
     xref2u1_t d = pJoinRequestBytes;
     d[OFF_JR_HDR] = ftype;
-    os_getArtEui(d + OFF_JR_ARTEUI);
-    os_getDevEui(d + OFF_JR_DEVEUI);
+    memcpy(d + OFF_JR_ARTEUI, s_appEUI.bytes, sizeof(s_appEUI.bytes));
+    memcpy(d + OFF_JR_DEVEUI, s_devEUI.bytes, sizeof(s_devEUI.bytes));
     os_wlsbf2(d + OFF_JR_DEVNONCE, LMIC.devNonce);
     aes_appendMic0(d, OFF_JR_MIC);
 
@@ -296,16 +369,15 @@ LMIC_SecureElement_Default_createJoinRequest(
     return LMIC_SecureElement_Error_OK;
 }
 
-
 static int aes_verifyMic0 (xref2u1_t pdu, int len) {
-    os_getDevKey(AESkey);
+    appKeyToAESkey();
     return os_aes(AES_MIC|AES_MICNOAUX, pdu, len) == os_rmsbf4(pdu+len);
 }
 
 
 
 static void aes_encrypt (xref2u1_t pdu, int len) {
-    os_getDevKey(AESkey);
+    appKeyToAESkey();
     os_aes(AES_ENC, pdu, len);
 }
 
@@ -319,9 +391,9 @@ static void aes_sessKeys (u2_t devnonce, xref2cu1_t artnonce, xref2u1_t nwkkey, 
     os_copyMem(artkey, nwkkey, 16);
     artkey[0] = 0x02;
 
-    os_getDevKey(AESkey);
+    appKeyToAESkey();
     os_aes(AES_ENC, nwkkey, 16);
-    os_getDevKey(AESkey);
+    appKeyToAESkey();
     os_aes(AES_ENC, artkey, 16);
 }
 

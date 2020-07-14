@@ -83,6 +83,10 @@ LMIC_SecureElement_getRandomU2_t LMIC_SecureElement_getRandomU2;
 LMIC_SecureElement_fillRandomBuffer_t LMIC_SecureElement_fillRandomBuffer;
 LMIC_SecureElement_setAppKey_t LMIC_SecureElement_setAppKey;
 LMIC_SecureElement_getAppKey_t LMIC_SecureElement_getAppKey;
+LMIC_SecureElement_setAppEUI_t LMIC_SecureElement_setAppEUI;
+LMIC_SecureElement_getAppEUI_t LMIC_SecureElement_getAppEUI;
+LMIC_SecureElement_setDevEUI_t LMIC_SecureElement_setDevEUI;
+LMIC_SecureElement_getDevEUI_t LMIC_SecureElement_getDevEUI;
 LMIC_SecureElement_setNwkSKey_t LMIC_SecureElement_setNwkSKey;
 LMIC_SecureElement_getNwkSKey_t LMIC_SecureElement_getNwkSKey;
 LMIC_SecureElement_setAppSKey_t LMIC_SecureElement_setAppSKey;
@@ -198,6 +202,34 @@ static inline
 LMIC_SecureElement_Error_t LMIC_ABI_STD
 LMIC_SecureElement_getAppKey(LMIC_SecureElement_Aes128Key_t *pAppKey) {
     return LMIC_SecureElement_METHOD(LMIC_CFG_SecureElement_DRIVER, getAppKey)(pAppKey);
+}
+
+/// \copydoc LMIC_SecureElement_setAppEUI_t
+static inline
+LMIC_SecureElement_Error_t LMIC_ABI_STD
+LMIC_SecureElement_setAppEUI(const LMIC_SecureElement_EUI_t *pAppEUI) {
+    return LMIC_SecureElement_METHOD(LMIC_CFG_SecureElement_DRIVER, setAppEUI)(pAppEUI);
+}
+
+/// \copydoc LMIC_SecureElement_getAppEUI_t
+static inline
+LMIC_SecureElement_Error_t LMIC_ABI_STD
+LMIC_SecureElement_getAppEUI(LMIC_SecureElement_EUI_t *pAppEUI) {
+    return LMIC_SecureElement_METHOD(LMIC_CFG_SecureElement_DRIVER, getAppEUI)(pAppEUI);
+}
+
+/// \copydoc LMIC_SecureElement_setDevEUI_t
+static inline
+LMIC_SecureElement_Error_t LMIC_ABI_STD
+LMIC_SecureElement_setDevEUI(const LMIC_SecureElement_EUI_t *pDevEUI) {
+    return LMIC_SecureElement_METHOD(LMIC_CFG_SecureElement_DRIVER, setDevEUI)(pDevEUI);
+}
+
+/// \copydoc LMIC_SecureElement_getDevEUI_t
+static inline
+LMIC_SecureElement_Error_t LMIC_ABI_STD
+LMIC_SecureElement_getDevEUI(LMIC_SecureElement_EUI_t *pDevEUI) {
+    return LMIC_SecureElement_METHOD(LMIC_CFG_SecureElement_DRIVER, getDevEUI)(pDevEUI);
 }
 
 /// \copydoc LMIC_SecureElement_setNwkSKey_t

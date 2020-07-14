@@ -2732,8 +2732,24 @@ void LMIC_reset (void) {
     LMIC.netDeviceTime = 0;     // the "invalid" time.
     LMIC.netDeviceTimeFrac = 0;
 #endif // LMIC_ENABLE_DeviceTimeReq
-}
 
+    // finally, initialize the secure element.
+    // As a temporary measure for testing, we grab the keys from the client using `os_getDevKey()`
+    // and so forth.  This needs rework for ABP and really isn't right for the long run,
+    // but OTAA will work.
+    if (LMIC_SecureElement_initialize() == LMIC_SecureElement_Error_OK) {
+        // send down the keys:
+        LMIC_SecureElement_Aes128Key_t appKey;
+        os_getDevKey(appKey.bytes);
+        LMIC_SecureElement_setAppKey(&appKey);
+
+        LMIC_SecureElement_EUI_t devEui, appEui;
+        os_getDevEui(devEui.bytes);
+        os_getArtEui(appEui.bytes);
+        LMIC_SecureElement_setDevEUI(&devEui);
+        LMIC_SecureElement_setAppEUI(&appEui);
+    }
+}
 
 void LMIC_init (void) {
     LMIC.opmode = OP_SHUTDOWN;
