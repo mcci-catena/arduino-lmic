@@ -96,7 +96,7 @@
 extern "C"{
 #endif
 
-// LMIC version -- this is ths IBM LMIC version
+// LMIC version -- this is the IBM LMIC version
 #define LMIC_VERSION_MAJOR 1
 #define LMIC_VERSION_MINOR 6
 #define LMIC_VERSION_BUILD 1468577746
@@ -267,7 +267,7 @@ enum _ev_t { EV_SCAN_TIMEOUT=1, EV_BEACON_FOUND,
              EV_TXSTART, EV_TXCANCELED, EV_RXSTART, EV_JOIN_TXCOMPLETE };
 typedef enum _ev_t ev_t;
 
-/// \brief Macro to initalize a normal table of event strings
+/// \brief Macro to initialize a normal table of event strings
 #define LMIC_EVENT_NAME_TABLE__INIT                                         \
     "<<zero>>",                                                             \
     "EV_SCAN_TIMEOUT", "EV_BEACON_FOUND",                                   \
