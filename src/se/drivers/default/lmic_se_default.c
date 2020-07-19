@@ -417,8 +417,11 @@ LMIC_SecureElement_Default_decodeJoinAccept(
     if (joinFormat != LMIC_SecureElement_JoinFormat_JoinRequest10) {
         return LMIC_SecureElement_Error_InvalidParameter;
     }
+    // for API reasons, we have to allow input and output buffers
+    // to be different. But we know they'll often be the same, and
+    // in our case, we can work in place.
     if (pJoinAcceptClearText != pJoinAcceptBytes) {
-        os_copyMem(pJoinAcceptClearText, pJoinAcceptClearText, nJoinAcceptBytes);
+        os_copyMem(pJoinAcceptClearText, pJoinAcceptBytes, nJoinAcceptBytes);
     }
     aes_encrypt(pJoinAcceptClearText+1, nJoinAcceptBytes-1);
     if( !aes_verifyMic0(pJoinAcceptClearText, nJoinAcceptBytes-4) ) {
