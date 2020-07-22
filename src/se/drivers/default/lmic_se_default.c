@@ -142,6 +142,36 @@ LMIC_SecureElement_Default_setAppKey(const LMIC_SecureElement_Aes128Key_t *pAppK
     return LMIC_SecureElement_Error_OK;
 }
 
+/*!
+
+\copydoc LMIC_SecureElement_getNwkSKey_t
+
+\par "Implementation Notes"
+In the default secure element, the nwkskey is stored in a static variable without obfuscation.
+In this function the nwkskey is passed to upper layer of LMIC.
+
+*/
+
+LMIC_SecureElement_Error_t
+LMIC_SecureElement_Default_getNwkSKey(LMIC_SecureElement_Aes128Key_t *pNwkSKey, LMIC_SecureElement_KeySelector_t iKey) {
+    os_copyMem(pNwkSKey->bytes,s_nwkSKey.bytes, 16);
+}
+
+/*!
+
+\copydoc LMIC_SecureElement_getAppSKey_t
+
+\par "Implementation Notes"
+In the default secure element, the appskey is stored in a static variable without obfuscation.
+In this function the appskey is passed to upper layer of LMIC.
+
+*/
+
+LMIC_SecureElement_Error_t
+LMIC_SecureElement_Default_getAppSKey(LMIC_SecureElement_Aes128Key_t *pAppSKey, LMIC_SecureElement_KeySelector_t iKey) {
+    os_copyMem(pAppSKey->bytes,s_appSKey.bytes, 16);
+}
+
 // ================================================================================
 // BEG AES
 
@@ -265,7 +295,7 @@ LMIC_SecureElement_Default_encodeMessage(
         LMIC.seqnoUp - 1,
         /*up*/ 0,
         pCipherTextBuffer,
-        nMessage
+        nData
         );
     return LMIC_SecureElement_Error_OK;
 }
