@@ -1553,8 +1553,8 @@ static bit_t processJoinAccept (void) {
     if (seErr != LMIC_SecureElement_Error_OK)
         return processJoinAccept_badframe();
     
-    LMIC_SecureElement_getAppSKey(&AppSKey, 0);
-    LMIC_SecureElement_getNwkSKey(&NwkSKey, 0);
+    LMIC_SecureElement_getAppSKey(&AppSKey, LMIC_SecureElement_KeySelector_Unicast);
+    LMIC_SecureElement_getNwkSKey(&NwkSKey, LMIC_SecureElement_KeySelector_Unicast);
 
     memcpy(LMIC.artKey, AppSKey.bytes, sizeof(LMIC.artKey));
     memcpy(LMIC.nwkKey, NwkSKey.bytes, sizeof(LMIC.nwkKey));
