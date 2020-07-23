@@ -154,7 +154,7 @@ In this function the nwkskey is passed to upper layer of LMIC.
 
 LMIC_SecureElement_Error_t
 LMIC_SecureElement_Default_getNwkSKey(LMIC_SecureElement_Aes128Key_t *pNwkSKey, LMIC_SecureElement_KeySelector_t iKey) {
-    os_copyMem(pNwkSKey->bytes,s_nwkSKey.bytes, 16);
+    os_copyMem(pNwkSKey->bytes, s_nwkSKey.bytes, sizeof(pNwkSKey->bytes));
 }
 
 /*!
@@ -169,7 +169,7 @@ In this function the appskey is passed to upper layer of LMIC.
 
 LMIC_SecureElement_Error_t
 LMIC_SecureElement_Default_getAppSKey(LMIC_SecureElement_Aes128Key_t *pAppSKey, LMIC_SecureElement_KeySelector_t iKey) {
-    os_copyMem(pAppSKey->bytes,s_appSKey.bytes, 16);
+    os_copyMem(pAppSKey->bytes, s_appSKey.bytes, sizeof(pAppSKey->bytes));
 }
 
 // ================================================================================
