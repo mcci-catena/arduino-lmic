@@ -1542,7 +1542,6 @@ static bit_t processJoinAccept (void) {
     }
 
     LMIC_SecureElement_Error_t seErr;
-    LMIC_SecureElement_Aes128Key_t AppSKey, NwkSKey;
     
     seErr = LMIC_SecureElement_Default_decodeJoinAccept(
         LMIC.frame, dlen,
@@ -1552,12 +1551,6 @@ static bit_t processJoinAccept (void) {
 
     if (seErr != LMIC_SecureElement_Error_OK)
         return processJoinAccept_badframe();
-    
-    LMIC_SecureElement_getAppSKey(&AppSKey, LMIC_SecureElement_KeySelector_Unicast);
-    LMIC_SecureElement_getNwkSKey(&NwkSKey, LMIC_SecureElement_KeySelector_Unicast);
-
-    memcpy(LMIC.artKey, AppSKey.bytes, sizeof(LMIC.artKey));
-    memcpy(LMIC.nwkKey, NwkSKey.bytes, sizeof(LMIC.nwkKey));
 
     u4_t addr = os_rlsbf4(LMIC.frame+OFF_JA_DEVADDR);
     LMIC.devaddr = addr;
@@ -3005,10 +2998,14 @@ u4_t LMIC_setSeqnoUp(u4_t seq_no) {
 
 // \brief return the current session keys returned from join.
 void LMIC_getSessionKeys (u4_t *netid, devaddr_t *devaddr, xref2u1_t nwkKey, xref2u1_t artKey) {
+    LMIC_SecureElement_Aes128Key_t AppSKey, NwkSKey;
     *netid = LMIC.netid;
     *devaddr = LMIC.devaddr;
-    memcpy(artKey, LMIC.artKey, sizeof(LMIC.artKey));
-    memcpy(nwkKey, LMIC.nwkKey, sizeof(LMIC.nwkKey));
+
+    LMIC_SecureElement_getAppSKey(&AppSKey, LMIC_SecureElement_KeySelector_Unicast);
+    LMIC_SecureElement_getNwkSKey(&NwkSKey, LMIC_SecureElement_KeySelector_Unicast);
+    memcpy(artKey, AppSKey.bytes, sizeof(AppSKey.bytes));
+    memcpy(nwkKey, NwkSKey.bytes, sizeof(NwkSKey.bytes));
 }
 
 // \brief post an asynchronous request for the network time.
