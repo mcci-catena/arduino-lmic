@@ -92,9 +92,6 @@ extern u4_t AESKEY[];
 #define AESaux ((u1_t*)AESAUX)
 #define FUNC_ADDR(func) (&(func))
 
-u1_t radio_rand1 (void);
-#define os_getRndU1() radio_rand1()
-
 #define DEFINE_LMIC  struct lmic_t LMIC
 #define DECLARE_LMIC extern struct lmic_t LMIC
 
@@ -114,6 +111,7 @@ void os_init (void);
 int os_init_ex (const void *pPinMap);
 void os_runloop (void);
 void os_runloop_once (void);
+u1_t radio_rand1 (void);
 u1_t radio_rssi (void);
 void radio_monitor_rssi(ostime_t n, oslmic_radio_rssi_t *pRssi);
 
@@ -222,7 +220,7 @@ bit_t os_queryTimeCriticalJobs(ostime_t time);
 u4_t os_rlsbf4 (xref2cu1_t buf);
 #endif
 #ifndef os_wlsbf4
-//! Write 32-bit quntity into buffer in little endian byte order.
+//! Write 32-bit quantity into buffer in little endian byte order.
 void os_wlsbf4 (xref2u1_t buf, u4_t value);
 #endif
 #ifndef os_rmsbf4
@@ -230,7 +228,7 @@ void os_wlsbf4 (xref2u1_t buf, u4_t value);
 u4_t os_rmsbf4 (xref2cu1_t buf);
 #endif
 #ifndef os_wmsbf4
-//! Write 32-bit quntity into buffer in big endian byte order.
+//! Write 32-bit quantity into buffer in big endian byte order.
 void os_wmsbf4 (xref2u1_t buf, u4_t value);
 #endif
 #ifndef os_rlsbf2
@@ -238,10 +236,14 @@ void os_wmsbf4 (xref2u1_t buf, u4_t value);
 u2_t os_rlsbf2 (xref2cu1_t buf);
 #endif
 #ifndef os_wlsbf2
-//! Write 16-bit quntity into buffer in little endian byte order.
+//! Write 16-bit quantity into buffer in little endian byte order.
 void os_wlsbf2 (xref2u1_t buf, u2_t value);
 #endif
 
+//! Get random number (default impl for u1_t).
+#ifndef os_getRndU1
+#define os_getRndU1() radio_rand1()
+#endif
 //! Get random number (default impl for u2_t).
 #ifndef os_getRndU2
 #define os_getRndU2() ((u2_t)((os_getRndU1()<<8)|os_getRndU1()))
