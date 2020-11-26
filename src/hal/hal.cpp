@@ -118,27 +118,16 @@ void hal_pollPendingIRQs_helper() {
 #else
 // Interrupt handlers
 
-static void hal_isrPin0() {
-    if (interrupt_time[0] == 0) {
+template<int i>
+static ICACHE_RAM_ATTR void hal_isrPin() {
+    if (interrupt_time[i] == 0) {
         ostime_t now = os_getTime();
-        interrupt_time[0] = now ? now : 1;
-    }
-}
-static void hal_isrPin1() {
-    if (interrupt_time[1] == 0) {
-        ostime_t now = os_getTime();
-        interrupt_time[1] = now ? now : 1;
-    }
-}
-static void hal_isrPin2() {
-    if (interrupt_time[2] == 0) {
-        ostime_t now = os_getTime();
-        interrupt_time[2] = now ? now : 1;
+        interrupt_time[i] = now ? now : 1;
     }
 }
 
 typedef void (*isr_t)();
-static const isr_t interrupt_fns[NUM_DIO_INTERRUPT] = {hal_isrPin0, hal_isrPin1, hal_isrPin2};
+static const isr_t interrupt_fns[NUM_DIO_INTERRUPT] = {hal_isrPin<0>, hal_isrPin<1>, hal_isrPin<2>};
 static_assert(NUM_DIO_INTERRUPT == 3, "number of interrupts must be 3 for initializing interrupt_fns[]");
 
 static void hal_interrupt_init() {
