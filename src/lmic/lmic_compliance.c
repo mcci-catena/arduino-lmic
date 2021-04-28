@@ -74,6 +74,47 @@ lmic_compliance_t LMIC_Compliance;
 
 /*
 
+Name:   LMIC_complianceEvent()
+
+Function:
+        Modify join state during compliance test.
+
+Definition:
+        void LMIC_complianceEvent(ev_t ev);
+
+Description:
+        Clients who want to handle the LoRaWAN compliance protocol on
+        port 224 should call this routine in the event callback.
+        This function will update the LMIC duty rate to allow the test
+        to run in a raisonnable time.
+
+Returns:
+        nothing.
+
+*/
+
+
+void LMIC_complianceEvent(ev_t ev) {
+    lmic_compliance_state_t const complianceState = LMIC_Compliance.state;
+
+    // only handle event during compliance test.
+    if(!lmic_compliance_state_IsActive(complianceState))
+        return;
+    
+    switch (ev)
+    {
+        case EV_JOINING:
+        case EV_JOIN_TXCOMPLETE:
+            // Remove duty rate during join test.
+            LMIC.globalDutyRate = 0;
+            break;
+        default:
+            break;
+    }
+}
+
+/*
+
 Name:   LMIC_complianceRxMessage()
 
 Function:

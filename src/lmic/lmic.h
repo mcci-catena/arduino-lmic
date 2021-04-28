@@ -569,6 +569,7 @@ struct lmic_t {
 
     u1_t        txChnl;          // channel for next TX
     u1_t        globalDutyRate;  // max rate: 1/2^k
+    ostime_t    lastDutyRateBackOff;
 
     u1_t        upRepeat;     // configured up repeat
     s1_t        adrTxPow;     // ADR adjusted TX power
@@ -715,6 +716,7 @@ enum lmic_compliance_rx_action_e {
     LMIC_COMPLIANCE_RX_ACTION_END           // exit compliance mode, discard this message
 };
 
+void LMIC_complianceEvent(ev_t ev);
 lmic_compliance_rx_action_t LMIC_complianceRxMessage(u1_t port, const u1_t *pMessage, size_t nMessage);
 
 // Declare onEvent() function, to make sure any definition will have the

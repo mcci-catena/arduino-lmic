@@ -597,6 +597,7 @@ static void stateJustJoined (void) {
     LMIC.rejoinCnt   = 0;
     LMIC.dnConf      = LMIC.lastDnConf  = LMIC.adrChanged = 0;
     LMIC.upRepeatCount = LMIC.upRepeat = 0;
+    LMIC.globalDutyRate = 0;
 #if !defined(DISABLE_MCMD_RXParamSetupReq)
     LMIC.dn2Ans      = 0;
 #endif
@@ -1724,6 +1725,21 @@ static bit_t processJoinAccept_nojoinframe(void) {
         LMIC.opmode &= ~OP_TXRXPEND;
         reportEventNoUpdate(EV_JOIN_TXCOMPLETE);
         int failed = LMICbandplan_nextJoinState();
+
+        if(LMIC.globalDutyRate != 0 && (LMIC.txend - LMIC.globalDutyAvail) < 0) {
+            LMIC.txend = LMIC.globalDutyAvail;
+            // Add random delay 10s is arbitrary
+            LMIC.txend += LMICcore_rndDelay(10);
+        }
+        
+        // Adjust dutyrate to respect retransmissions back-off during join
+        // Duty rate of 2^14 is enought to respect the max 8.7s by 24h (5.7s / 24h)
+        // Divide the rate by 2 every 4000s respect the limit of 36s during hours 1 to 11
+        if (LMIC.globalDutyRate < 14 && os_getTime() - LMIC.lastDutyRateBackOff > sec2osticks(4000)) {
+            LMIC.globalDutyRate++;
+            LMIC.lastDutyRateBackOff = os_getTime();
+        }
+
         EV(devCond, DEBUG, (e_.reason = EV::devCond_t::NO_JACC,
                             e_.eui    = MAIN::CDEV->getEui(),
                             e_.info   = LMIC.datarate|DR_PAGE,
@@ -2169,8 +2185,12 @@ bit_t LMIC_startJoining (void) {
         // There should be no TX/RX going on
         // ASSERT((LMIC.opmode & (OP_POLL|OP_TXRXPEND)) == 0);
         LMIC.opmode &= ~OP_POLL;
-        // Lift any previous duty limitation
-        LMIC.globalDutyRate = 0;
+        // Reset Duty rate limitation to respect retransmission backoff
+        // (max 28s < 36s during first hour)
+        LMIC.globalDutyRate = 7;
+        LMIC.globalDutyAvail = os_getTime();
+        LMIC.lastDutyRateBackOff = os_getTime();
+
         // Cancel scanning
         LMIC.opmode &= ~(OP_SCAN|OP_UNJOIN|OP_REJOIN|OP_LINKDEAD|OP_NEXTCHNL);
         // Setup state

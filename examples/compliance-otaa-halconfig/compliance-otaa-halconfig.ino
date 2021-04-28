@@ -223,6 +223,8 @@ bool lastWasTxStart;
 uint32_t lastTxStartTime;
 
 void myEventCb(void *pUserData, ev_t ev) {
+    LMIC_complianceEvent(ev);
+    
     eventQueue.putEvent(ev);
 
     if (ev == EV_TXSTART) {
