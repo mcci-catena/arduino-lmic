@@ -1823,8 +1823,8 @@ static void setupRx2DnData (xref2osjob_t osjob) {
 static void processRx1DnData (xref2osjob_t osjob) {
     LMIC_API_PARAMETER(osjob);
 
-    if( LMIC.dataLen == 0 || !processDnData() )
-        schedRx12(sec2osticks(LMIC.rxDelay +(int)DELAY_EXTDNW2), FUNC_ADDR(setupRx2DnData), LMIC.dn2Dr);
+    if( LMIC.dataLen == 0 || !processDnData() )       
+      schedRx12(sec2osticks(LMIC.rxDelay +(int)DELAY_EXTDNW2), FUNC_ADDR(setupRx2DnData), LMIC.dn2Dr);
 }
 
 
@@ -1838,7 +1838,13 @@ static void setupRx1DnData (xref2osjob_t osjob) {
 static void updataDone (xref2osjob_t osjob) {
     LMIC_API_PARAMETER(osjob);
 
-    txDone(sec2osticks(LMIC.rxDelay), FUNC_ADDR(setupRx1DnData));
+    if (LMIC.downlinkEnabled == 0)
+    {
+      LMIC.opmode &= ~(OP_TXDATA|OP_TXRXPEND);
+      reportEventAndUpdate(EV_TXCOMPLETE);
+    }
+    else
+      txDone(sec2osticks(LMIC.rxDelay), FUNC_ADDR(setupRx1DnData));
 }
 
 // ========================================
@@ -2822,6 +2828,8 @@ void LMIC_reset (void) {
     LMIC.netDeviceTime = 0;     // the "invalid" time.
     LMIC.netDeviceTimeFrac = 0;
 #endif // LMIC_ENABLE_DeviceTimeReq
+
+    LMIC.downlinkEnabled = 1;
 }
 
 

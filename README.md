@@ -1,3 +1,16 @@
+**This fork was specifically created for those developpers wanting to build real low-power applications. Unlike the mainstream version and other forks, this version allows us to disable downlinks completely. Calling LMIC_setDownlinks(false) turns downlinks off anytime dynamically, reducing active times down to the minimum necessary to transmit uplink messages. As an example, typical uplink+downlink intervals at SF7 vary around 6-9 seconds. With downlinks deactivated, uplinks only take ~50 msec to complete.**
+
+# Important note
+
+This version of Arduino-lmic does not comply with LoRaWAN™ Specification v1.1 since downlinks should never be disabled.
+
+From LoRaWAN™ Specification v1.1:
+
+> 3.3.6 Important notice on receive windows
+> An end-device SHALL NOT transmit another uplink message before it either has received a
+> downlink message in the first or second receive window of the previous transmission, or the
+> second receive window of the previous transmission is expired.
+
 # Arduino-LMIC library
 
 This repository contains the IBM LMIC (LoRaWAN-MAC-in-C) library, slightly
