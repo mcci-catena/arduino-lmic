@@ -13,7 +13,7 @@ Author:
 
 */
 
-#include <arduino_lmic_hal_boards.h>
+#include "../arduino_lmic_hal_boards.h"
 #include <Arduino.h>
 
 #include "../lmic/oslmic.h"
