@@ -68,7 +68,11 @@ enum {
         AS923_FREQ_MAX = 928000000
 };
 enum {
+#if defined(CFG_as923jp)
+        AS923_TX_EIRP_MAX_DBM = 13      // 13 dBm = 19.95mW < 20mW
+#else
         AS923_TX_EIRP_MAX_DBM = 16      // 16 dBm
+#endif
 };
 enum { DR_PAGE_AS923 = 0x10 * (LMIC_REGION_as923 - 1) };
 
