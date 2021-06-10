@@ -180,6 +180,8 @@ static void inline hal_pollPendingIRQs(void)
 #endif /* !defined(LMIC_USE_INTERRUPTS) */
 	}
 
+void hal_jump_to_the_future_us (uint32_t us);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif
