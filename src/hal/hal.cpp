@@ -223,11 +223,14 @@ static void hal_time_init () {
     // Nothing to do
 }
 
-uint32_t delta_ticks = 0;
-void hal_jump_to_the_future_us (uint32_t us) {
-    delta_ticks += us >> US_PER_OSTICK_EXPONENT;
-    //overflow += 
+#if defined(HAL_ALLOW_FUTURE_JUMP)
+static uint32_t delta_usec = 0;
+void hal_jump_to_the_future_us (uint32_t usec) {
+    delta_usec += usec;
 }
+#else
+#define delta_usec (0)
+#endif
 
 u4_t hal_ticks () {
     // Because micros() is scaled down in this function, micros() will
@@ -249,12 +252,14 @@ u4_t hal_ticks () {
     // jumps, which should result in efficient code. By avoiding shifts
     // other than by multiples of 8 as much as possible, this is also
     // efficient on AVR (which only has 1-bit shifts).
+    // This discussion is still valid when (micros()+delta_usec) is
+    // considered instead of micros() only: The sum is also constantly
+    // increasing and overflowing.
     static uint8_t overflow = 0;
 
     // Scaled down timestamp. The top US_PER_OSTICK_EXPONENT bits are 0,
     // the others will be the lower bits of our return value.
-    uint32_t scaled = micros() >> US_PER_OSTICK_EXPONENT;
-    scaled += delta_ticks;
+    uint32_t scaled = (micros() + delta_usec) >> US_PER_OSTICK_EXPONENT;
     // Most significant byte of scaled
     uint8_t msb = scaled >> 24;
     // Mask pointing to the overlapping bit in msb and overflow.
