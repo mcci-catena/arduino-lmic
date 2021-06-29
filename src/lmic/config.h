@@ -151,6 +151,14 @@
 # error "You may define at most one of USE_ORIGINAL_AES and USE_IDEETRON_AES"
 #endif
 
+
+// By default LMIC use the radio to gather random seed from wideband RSSI
+// measurements. Extracting good quality random seed takes 480 SPI transactions
+// on average. This flag allows alternative random implementations, like
+// true-RNGs built-in to many MCUs. Use in conjuction with os_getRndU1.
+// define this in lmic_project_config.h to disable radio.c random number generator
+//#define LMIC_DISABLE_RADIO_RAND
+
 // LMIC_DISABLE_DR_LEGACY
 // turn off legacy DR_* symbols that vary by bandplan.
 // Older code uses these for configuration. EU868_DR_*, US915_DR_*

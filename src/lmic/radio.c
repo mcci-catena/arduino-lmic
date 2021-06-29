@@ -373,9 +373,12 @@
 #error Missing CFG_sx1272_radio/CFG_sx1276_radio
 #endif
 
+
+#if !defined(LMIC_DISABLE_RADIO_RAND)
 // RADIO STATE
 // (initialized by radio_init(), used by radio_rand1())
 static u1_t randbuf[16];
+#endif
 
 
 static void writeReg (u1_t addr, u1_t data ) {
@@ -1117,21 +1120,26 @@ int radio_init () {
 #else
 #error Missing CFG_sx1272_radio/CFG_sx1276_radio
 #endif
+
     // set the tcxo input, if needed
     if (hal_queryUsingTcxo())
         writeReg(RegTcxo, readReg(RegTcxo) | RegTcxo_TcxoInputOn);
 
+#if !defined(LMIC_DISABLE_RADIO_RAND)
     // seed 15-byte randomness via noise rssi
     rxlora(RXMODE_RSSI);
     while( (readReg(RegOpMode) & OPMODE_MASK) != OPMODE_RX ); // continuous rx
     for(int i=1; i<16; i++) {
         for(int j=0; j<8; j++) {
+            // von Neumann extractor:
+            // creates uniform distribution random from a non-uniformly distributed random source.
             u1_t b; // wait for two non-identical subsequent least-significant bits
             while( (b = readReg(LORARegRssiWideband) & 0x01) == (readReg(LORARegRssiWideband) & 0x01) );
             randbuf[i] = (randbuf[i] << 1) | b;
         }
     }
     randbuf[0] = 16; // set initial index
+#endif
 
 #ifdef CFG_sx1276mb1_board
     // chain calibration
@@ -1157,6 +1165,7 @@ int radio_init () {
     return 1;
 }
 
+#if !defined(LMIC_DISABLE_RADIO_RAND)
 // return next random byte derived from seed buffer
 // (buf[0] holds index of next byte to be returned)
 u1_t radio_rand1 () {
@@ -1170,6 +1179,7 @@ u1_t radio_rand1 () {
     randbuf[0] = i;
     return v;
 }
+#endif
 
 u1_t radio_rssi () {
     u1_t r = readReg(LORARegRssiValue);
