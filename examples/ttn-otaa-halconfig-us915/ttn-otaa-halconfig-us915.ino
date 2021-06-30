@@ -12,6 +12,8 @@
  * world!", using frequency and encryption settings matching those of
  * the The Things Network. It's pre-configured for the Adafruit
  * Feather M0 LoRa.
+ * /!\ By default Adafruit Feather M0's pin 6 and DIO1 are not connected.
+ * Please ensure they are connected.
  *
  * This uses OTAA (Over-the-air activation), where where a DevEUI and
  * application key is configured, which are used in an over-the-air

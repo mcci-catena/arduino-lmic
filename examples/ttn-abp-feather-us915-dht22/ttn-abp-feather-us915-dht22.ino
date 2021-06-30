@@ -76,6 +76,8 @@ static osjob_t sendjob;
 const unsigned TX_INTERVAL = 30;
 
 // Pin mapping for Adafruit Feather M0 LoRa
+// /!\ By default Adafruit Feather M0's pin 6 and DIO1 are not connected.
+// Please ensure they are connected.
 const lmic_pinmap lmic_pins = {
     .nss = 8,
     .rxtx = LMIC_UNUSED_PIN,
