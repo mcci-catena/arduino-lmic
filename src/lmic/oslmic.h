@@ -215,6 +215,8 @@ u1_t os_getBattLevel (void);
 #ifndef os_queryTimeCriticalJobs
 //! Return non-zero if any jobs are scheduled between now and now+time.
 bit_t os_queryTimeCriticalJobs(ostime_t time);
+// return the time to the next scheduled job, or ostime_t_max if no job is scheduled
+ostime_t os_timeToNextTimeCriticalJob();
 #endif
 
 #ifndef os_rlsbf4
