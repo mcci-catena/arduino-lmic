@@ -92,6 +92,8 @@
 #  define LMIC_X_DEBUG_PRINTF(f, ...)  do {;} while(0)
 #endif
 
+#define LMIC_DEBUG_TRACE LMIC_DEBUG_PRINTF("*** Trace *** %s\n", __func__)
+
 #ifdef __cplusplus
 extern "C"{
 #endif
