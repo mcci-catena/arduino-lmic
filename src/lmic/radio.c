@@ -1184,8 +1184,8 @@ s1_t radio_GetRawTemp(void) {
 #define RF_IMAGECAL_TEMPMONITOR_ON 0x00
 #define RF_IMAGECAL_TEMPMONITOR_OFF 0x01
 
-  int8_t temp = 0;
-  uint8_t previousOpMode, RegTemp;
+  s1_t temp = 0;
+  u1_t previousOpMode, RegTemp;
 
   // Save current Operation Mode
   previousOpMode = readReg(RegOpMode);
