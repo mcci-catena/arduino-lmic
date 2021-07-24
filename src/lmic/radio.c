@@ -1176,6 +1176,60 @@ u1_t radio_rssi () {
     return r;
 }
 
+// Reads the raw temperature
+// \retval New raw temperature reading in 2's complement format
+s1_t radio_GetRawTemp(void) {
+
+#define RF_IMAGECAL_TEMPMONITOR_MASK 0xFE
+#define RF_IMAGECAL_TEMPMONITOR_ON 0x00
+#define RF_IMAGECAL_TEMPMONITOR_OFF 0x01
+
+  int8_t temp = 0;
+  uint8_t previousOpMode, RegTemp;
+
+  // Save current Operation Mode
+  previousOpMode = readReg(RegOpMode);
+
+  // Put device in FSK Sleep Mode
+  opmode(OPMODE_SLEEP);
+
+  // select FSK modem (from sleep mode)
+  opmodeFSK();
+  ASSERT((readReg(RegOpMode) & OPMODE_LORA) == 0);
+
+  // Put device in FSK RxSynth
+  opmode(OPMODE_FSRX);
+
+  // Enable Temperature reading
+  writeReg(FSKRegImageCal, (readReg(RegOpMode) & RF_IMAGECAL_TEMPMONITOR_MASK) |
+                               RF_IMAGECAL_TEMPMONITOR_ON);
+
+  // Wait 150us
+  hal_waitUntil(os_getTime() + us2osticks(150));
+
+  // Disable Temperature reading
+  writeReg(FSKRegImageCal, (readReg(RegOpMode) & RF_IMAGECAL_TEMPMONITOR_MASK) |
+                               RF_IMAGECAL_TEMPMONITOR_OFF);
+
+  // Put device in FSK Sleep Mode
+  opmode(OPMODE_SLEEP);
+
+  // Read temperature
+  RegTemp = readReg(FSKRegTemp);
+
+  if ((RegTemp & 0x80) == 0x80) {
+    temp = 255 - RegTemp;
+  } else {
+    temp = RegTemp;
+    temp *= -1;
+  }
+
+  // Reload previous Op Mode
+  writeReg(RegOpMode, previousOpMode);
+
+  return temp;
+}
+
 /// \brief get the current RSSI on the current channel.
 ///
 /// monitor rssi for specified number of ostime_t ticks, and return statistics
