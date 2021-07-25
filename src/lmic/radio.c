@@ -861,6 +861,12 @@ static void txlora () {
 // start transmitter (buf=LMIC.frame, len=LMIC.dataLen)
 static void starttx () {
     u1_t const rOpMode = readReg(RegOpMode);
+    
+    // update radio chip raw temperature value
+    LMIC.radio.temperature = radio_raw_temp();
+#if LMIC_DEBUG_LEVEL > 0
+  LMIC_DEBUG_PRINTF("RegTemp=%d\n", LMIC.radio.temperature);
+#endif
 
     // originally, this code ASSERT()ed, but asserts are both bad and
     // blunt instruments. If we see that we're not in sleep mode,
@@ -1177,21 +1183,14 @@ u1_t radio_rssi () {
 }
 
 // Reads the raw temperature
-// \retval New raw temperature reading in 2's complement format
-s1_t radio_GetRawTemp(void) {
+// \retval New raw temperature reading
+s1_t radio_raw_temp(void) {
 
 #define RF_IMAGECAL_TEMPMONITOR_MASK 0xFE
 #define RF_IMAGECAL_TEMPMONITOR_ON 0x00
 #define RF_IMAGECAL_TEMPMONITOR_OFF 0x01
 
-  s1_t temp = 0;
-  u1_t previousOpMode, RegTemp;
-
-  // Save current Operation Mode
-  previousOpMode = readReg(RegOpMode);
-
-  // Put device in FSK Sleep Mode
-  opmode(OPMODE_SLEEP);
+  s1_t RegTemp = 0;
 
   // select FSK modem (from sleep mode)
   opmodeFSK();
@@ -1218,16 +1217,12 @@ s1_t radio_GetRawTemp(void) {
   RegTemp = readReg(FSKRegTemp);
 
   if ((RegTemp & 0x80) == 0x80) {
-    temp = 255 - RegTemp;
+    RegTemp = 255 - RegTemp;
   } else {
-    temp = RegTemp;
-    temp *= -1;
+    RegTemp *= -1;
   }
 
-  // Reload previous Op Mode
-  writeReg(RegOpMode, previousOpMode);
-
-  return temp;
+  return RegTemp;
 }
 
 /// \brief get the current RSSI on the current channel.
