@@ -115,7 +115,7 @@ int os_init_ex (const void *pPinMap);
 void os_runloop (void);
 void os_runloop_once (void);
 u1_t radio_rssi (void);
-s1_t radio_GetRawTemp(void);
+s1_t radio_raw_temp(void);
 void radio_monitor_rssi(ostime_t n, oslmic_radio_rssi_t *pRssi);
 
 //================================================================================
