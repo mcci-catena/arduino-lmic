@@ -861,12 +861,6 @@ static void txlora () {
 // start transmitter (buf=LMIC.frame, len=LMIC.dataLen)
 static void starttx () {
     u1_t const rOpMode = readReg(RegOpMode);
-    
-    // update radio chip raw temperature value
-    LMIC.radio.temperature = radio_raw_temp();
-#if LMIC_DEBUG_LEVEL > 0
-  LMIC_DEBUG_PRINTF("RegTemp=%d\n", LMIC.radio.temperature);
-#endif
 
     // originally, this code ASSERT()ed, but asserts are both bad and
     // blunt instruments. If we see that we're not in sleep mode,
@@ -878,6 +872,12 @@ static void starttx () {
         opmode(OPMODE_SLEEP);
         hal_waitUntil(os_getTime() + ms2osticks(1));
     }
+    
+    // update radio chip raw temperature value
+    LMIC.radio.temperature = radio_raw_temp();
+#if LMIC_DEBUG_LEVEL > 0
+  LMIC_DEBUG_PRINTF("RegTemp=%d\n", LMIC.radio.temperature);
+#endif
 
     if (LMIC.lbt_ticks > 0) {
         oslmic_radio_rssi_t rssi;
