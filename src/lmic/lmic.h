@@ -486,6 +486,8 @@ struct lmic_radio_data_s {
     ostime_t    txlate_ticks;
     // number of tx late launches.
     unsigned    txlate_count;
+    // radio chip raw temperature value.
+    s1_t	temperature;
 };
 
 /*
