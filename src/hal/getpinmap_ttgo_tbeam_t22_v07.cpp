@@ -9,7 +9,8 @@ Copyright & License:
         See accompanying LICENSE file.
 
 Author:
-        German Martin, gmag11@gmail.com   June 2019
+        José Manuel Mariño Mariño, jm@marinho.com.es    July 2021
+	based on previous file by German Martin, gmag11@gmail.com   June 2019
 
 */
 
