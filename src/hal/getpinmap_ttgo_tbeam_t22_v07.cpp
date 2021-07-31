@@ -73,7 +73,7 @@ static const HalPinmap_t myPinmap =
         .pConfig = &myConfig
         };
 
-const HalPinmap_t * GetPinmap_ttgo_t-beam_t22_v07 (void)
+const HalPinmap_t * GetPinmap_ttgo_tbeam_t22_v07 (void)
 	{
 	return &myPinmap;
 	}
