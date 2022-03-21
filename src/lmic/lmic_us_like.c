@@ -99,6 +99,9 @@ bit_t LMICuslike_canMapChannels(u1_t chpage, u2_t chmap) {
 	|| channel map appllies to 500kHz (ch 64..71) and in addition
 	|| all channels 0..63 are turned off or on.  MCMC_LADR_CHP_BANK
 	|| is also special, in that it enables subbands.
+        ||
+        || TODO(tmm@mcci.com) revise the 0xFF00 mask for regions with other than
+        || eight 500 kHz channels.
 	*/
 	if (chpage < MCMD_LinkADRReq_ChMaskCntl_USLIKE_SPECIAL) {
 		// operate on channels 0..15, 16..31, 32..47, 48..63, 64..71
@@ -111,17 +114,22 @@ bit_t LMICuslike_canMapChannels(u1_t chpage, u2_t chmap) {
 			return 1;
 		}
 	} else if (chpage == MCMD_LinkADRReq_ChMaskCntl_USLIKE_BANK) {
-		if (chmap == 0 || (chmap & 0xFF00) != 0) {
-			// no bits set, or reserved bitsset , fail.
+		if ((chmap & 0xFF00) != 0) {
+			// Reserved bits set, fail.
 			return 0;
 		}
 	} else if (chpage == MCMD_LinkADRReq_ChMaskCntl_USLIKE_125ON ||
 	           chpage == MCMD_LinkADRReq_ChMaskCntl_USLIKE_125OFF) {
-                u1_t const en125 = chpage == MCMD_LinkADRReq_ChMaskCntl_USLIKE_125ON;
-
-		// if disabling all 125kHz chans, must have at least one 500kHz chan
-		// don't allow reserved bits to be set in chmap.
-		if ((! en125 && chmap == 0) || (chmap & 0xFF00) != 0)
+                //
+                // if disabling all 125kHz chans, you might think we must have
+                // at least one 500kHz chan; but that's a local conclusion.
+                // Some network servers will disable all (including 500kHz)
+                // then turn things back on in the next LinkADRReq. So
+                // we can't fail that here.
+                //
+                // But don't allow reserved bits to be set in chmap.
+                //
+                if ((chmap & 0xFF00) != 0)
 			return 0;
 	} else {
 		return 0;

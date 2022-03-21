@@ -764,6 +764,9 @@ applyAdrRequests(
             p4     = opts[oidx+4];                  // ChMaskCtl, NbTrans
             u1_t chpage = p4 & MCMD_LinkADRReq_Redundancy_ChMaskCntl_MASK;     // channel page
 
+            // notice that we ignore map_ok except on the last setting.
+            // so LMICbandplan_mapChannels should report failure status, but do
+            // the work; if it fails, we'll back it out.
             map_ok = LMICbandplan_mapChannels(chpage, chmap);
             LMICOS_logEventUint32("applyAdrRequests: mapChannels", ((u4_t)chpage << 16)|(chmap << 0));
         }
