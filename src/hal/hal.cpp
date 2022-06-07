@@ -28,6 +28,10 @@ static Arduino_LMIC::HalConfiguration_t nullHalConig;
 static lmic_hal_failure_handler_t* custom_hal_failure_handler = NULL;
 
 static void lmic_hal_interrupt_init(); // Fwd declaration
+// SPI interface pointer, initialized to first SPI interface.
+static HardwareSPI *_spi = &SPI;
+
+static void hal_interrupt_init(); // Fwd declaration
 
 static void lmic_hal_io_init () {
     // NSS and DIO0 are required, DIO1 is required for LoRa, DIO2 for FSK
@@ -187,8 +191,8 @@ void lmic_hal_processPendingIRQs() {
 // -----------------------------------------------------------------------------
 // SPI
 
-static void lmic_hal_spi_init () {
-    SPI.begin();
+static void hal_spi_init () {
+    _spi->begin();
 }
 
 #if (defined(CFG_sx1261_radio) || defined(CFG_sx1262_radio))
@@ -211,7 +215,7 @@ static void lmic_hal_spi_trx(u1_t cmd, u1_t* buf, size_t len, bit_t is_read) {
         spi_freq = LMIC_SPI_FREQ;
 
     SPISettings settings(spi_freq, MSBFIRST, SPI_MODE0);
-    SPI.beginTransaction(settings);
+    _spi->beginTransaction(settings);
     digitalWrite(nss, 0);
 
     // SX126x modems use BUSY pin. Only interact with SPI when BUSY goes LOW 
@@ -219,17 +223,17 @@ static void lmic_hal_spi_trx(u1_t cmd, u1_t* buf, size_t len, bit_t is_read) {
     while (lmic_hal_radio_spi_is_busy());
 #endif
 
-    SPI.transfer(cmd);
+    _spi->transfer(cmd);
 
     for (; len > 0; --len, ++buf) {
         u1_t data = is_read ? 0x00 : *buf;
-        data = SPI.transfer(data);
+        data = _spi->transfer(data);
         if (is_read)
             *buf = data;
     }
 
     digitalWrite(nss, 1);
-    SPI.endTransaction();
+    _spi->endTransaction();
 }
 
 void lmic_hal_spi_write(u1_t cmd, const u1_t* buf, size_t len) {
@@ -364,7 +368,7 @@ u4_t lmic_hal_waitUntil (u4_t time) {
 
     // The radio driver runs with interrupt disabled, and this can
     // mess up timing APIs on some platforms. If we know the BSP feature
-    // set, we can decide whether to use delta_time() [more exact, 
+    // set, we can decide whether to use delta_time() [more exact,
     // but not always possible with interrupts off], or fall back to
     // delay_microseconds() [less exact, but more universal]
 
@@ -484,6 +488,12 @@ void lmic_hal_init_ex (const void *pContext) {
     if (! Arduino_LMIC::lmic_hal_init_with_pinmap(pHalPinmap)) {
         lmic_hal_failed(__FILE__, __LINE__);
     }
+}
+
+// Replace currently specified SPI interface with supplied
+// Call this method before running os_init()
+void hal_set_spi(HardwareSPI *spi) {
+  _spi = spi;
 }
 
 // C++ API: initialize the HAL properly with a configuration object
