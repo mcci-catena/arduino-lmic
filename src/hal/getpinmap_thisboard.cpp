@@ -19,11 +19,13 @@ namespace Arduino_LMIC {
 
 const HalPinmap_t *GetPinmap_ThisBoard(void)
         {
+#if defined(ARDUINO_CHALLENGER_2040_LORA_RP2040)
+        return GetPinmap_Challenger_RP2040_LoRa();
 /*
 || Adafruit BSPs are not consistent -- m0 express defs ARDUINO_SAMD_FEATHER_M0,
 || m0 defs ADAFRUIT_FEATHER_M0
 */
-#if defined(ARDUINO_SAMD_FEATHER_M0) || defined(ADAFRUIT_FEATHER_M0)
+# elif defined(ARDUINO_SAMD_FEATHER_M0) || defined(ADAFRUIT_FEATHER_M0)
 # if defined(ARDUINO_MCCI_CATENA_4420)
         // this uses a radiowing and an odd configuration
         return GetPinmap_Catena4420();
@@ -78,4 +80,3 @@ const HalPinmap_t *GetPinmap_ThisBoard(void)
         }
 
 }; // namespace Arduino_LMIC
-

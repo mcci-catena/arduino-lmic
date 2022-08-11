@@ -18,6 +18,7 @@ Author:
 #ifndef _arduino_lmic_hal_configuration_h_
 # define _arduino_lmic_hal_configuration_h_
 
+#include <SPI.h>
 #include <stdint.h>
 #include "lmic/lmic_env.h"
 
@@ -60,8 +61,8 @@ struct HalPinmap_t {
 	int8_t rssi_cal;	// byte 7: cal in dB -- added to RSSI
 				//   measured prior to decision.
 				//   Must include noise guardband!
+  HardwareSPI *spi;   // SPI interface used
 	uint32_t spi_freq;	// bytes 8..11: SPI freq in Hz.
-
 	// optional pointer to configuration object (bytes 12..15)
 	HalConfiguration_t *pConfig;
 	};

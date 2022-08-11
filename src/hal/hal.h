@@ -31,10 +31,4 @@ const u1_t LMIC_UNUSED_PIN = lmic_pinmap::UNUSED_PIN;
 // you need to define a derived type (so you can override methods).
 extern const lmic_pinmap lmic_pins;
 
-/*
- * Initializes the HAL with a new SPI interface
- *   - write the new SPI interface 'spi'
- */
-void hal_set_spi(HardwareSPI *spi);
-
 #endif // _hal_hal_h_

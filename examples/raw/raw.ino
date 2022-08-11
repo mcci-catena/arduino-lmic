@@ -36,15 +36,6 @@
 // https://docs.google.com/spreadsheets/d/1voGAtQAjC1qBmaVuP1ApNKs1ekgUjavHuVQIXyYSvNc
 #define TX_INTERVAL 2000
 
-// Pin mapping
-const lmic_pinmap lmic_pins = {
-    .nss = 6,
-    .rxtx = LMIC_UNUSED_PIN,
-    .rst = 5,
-    .dio = {2, 3, 4},
-};
-
-
 // These callbacks are only used in over-the-air activation, so they are
 // left empty here (we cannot leave them out completely unless
 // DISABLE_JOIN is set in arduino-lmoc/project_config/lmic_project_config.h,
@@ -137,7 +128,23 @@ void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
 
   // initialize runtime env
-  os_init();
+  // don't die mysteriously; die noisily.
+  const lmic_pinmap *pPinMap = Arduino_LMIC::GetPinmap_ThisBoard();
+
+  if (pPinMap == nullptr) {
+    pinMode(LED_BUILTIN, OUTPUT);
+    for (;;) {
+      // flash lights, sleep.
+      for (int i = 0; i < 5; ++i) {
+        digitalWrite(LED_BUILTIN, 1);
+        delay(100);
+        digitalWrite(LED_BUILTIN, 0);
+        delay(900);
+      }
+      Serial.println(F("board not known to library; add pinmap or update getconfig_thisboard.cpp"));
+    }
+  }
+  os_init_ex(pPinMap);
 
 #if defined(CFG_eu868)
   // Use a frequency in the g3 which allows 10% duty cycling.

@@ -18,7 +18,10 @@
  *******************************************************************************/
 #include <lmic.h>
 #include <hal/hal.h>
+#include <arduino_lmic_hal_boards.h>
+
 #include <SPI.h>
+#include "ttn-secrets.h"
 
 // include the DHT22 Sensor Library
 #include "DHT.h"
@@ -27,57 +30,13 @@
 #define DHTPIN 10
 #define DHTTYPE DHT22
 
-//
-// For normal use, we require that you edit the sketch to replace FILLMEIN
-// with values assigned by the TTN console. However, for regression tests,
-// we want to be able to compile these scripts. The regression tests define
-// COMPILE_REGRESSION_TEST, and in that case we define FILLMEIN to a non-
-// working but innocuous value.
-//
-#ifdef COMPILE_REGRESSION_TEST
-#define FILLMEIN 0
-#else
-#warning "You must replace the values marked FILLMEIN with real values from the TTN control panel!"
-#define FILLMEIN (#dont edit this, edit the lines that use FILLMEIN)
-#endif
-
-// This EUI must be in little-endian format, so least-significant-byte
-// first. When copying an EUI from ttnctl output, this means to reverse
-// the bytes. For TTN issued EUIs the last bytes should be 0xD5, 0xB3,
-// 0x70.
-static const u1_t PROGMEM APPEUI[8] = { FILLMEIN };
-void os_getArtEui (u1_t* buf) { memcpy_P(buf, APPEUI, 8);}
-
-// This should also be in little endian format, see above.
-static const u1_t PROGMEM DEVEUI[8] = { FILLMEIN };
-void os_getDevEui (u1_t* buf) { memcpy_P(buf, DEVEUI, 8);}
-
-// This key should be in big endian format (or, since it is not really a
-// number but a block of memory, endianness does not really apply). In
-// practice, a key taken from the TTN console can be copied as-is.
-static const u1_t PROGMEM APPKEY[16] = { FILLMEIN };
-void os_getDevKey (u1_t* buf) {  memcpy_P(buf, APPKEY, 16);}
-
 // payload to send to TTN gateway
 static uint8_t payload[5];
 static osjob_t sendjob;
 
 // Schedule TX every this many seconds (might become longer due to duty
 // cycle limitations).
-const unsigned TX_INTERVAL = 30;
-
-// Pin mapping for Adafruit Feather M0 LoRa
-// /!\ By default Adafruit Feather M0's pin 6 and DIO1 are not connected.
-// Please ensure they are connected.
-const lmic_pinmap lmic_pins = {
-    .nss = 8,
-    .rxtx = LMIC_UNUSED_PIN,
-    .rst = 4,
-    .dio = {3, 6, LMIC_UNUSED_PIN},
-    .rxtx_rx_active = 0,
-    .rssi_cal = 8,              // LBT cal for the Adafruit Feather M0 LoRa, in dB
-    .spi_freq = 8000000,
-};
+const unsigned TX_INTERVAL = (60 * 15);
 
 // init. DHT
 DHT dht(DHTPIN, DHTTYPE);
@@ -258,26 +217,34 @@ void do_send(osjob_t* j){
 }
 
 void setup() {
-    delay(5000);
-    while (! Serial);
-    Serial.begin(9600);
+    while (!Serial)
+      delay(100);
+
+    Serial.begin(115200);
     Serial.println(F("Starting"));
 
     dht.begin();
 
-    // LMIC init
-    os_init();
+    // initialize runtime env
+    // don't die mysteriously; die noisily.
+    const lmic_pinmap *pPinMap = Arduino_LMIC::GetPinmap_ThisBoard();
+
+    if (pPinMap == nullptr) {
+      pinMode(LED_BUILTIN, OUTPUT);
+      for (;;) {
+        // flash lights, sleep.
+        for (int i = 0; i < 5; ++i) {
+          digitalWrite(LED_BUILTIN, 1);
+          delay(100);
+          digitalWrite(LED_BUILTIN, 0);
+          delay(900);
+        }
+        Serial.println(F("board not known to library; add pinmap or update getconfig_thisboard.cpp"));
+      }
+    }
+    os_init_ex(pPinMap);
     // Reset the MAC state. Session and pending data transfers will be discarded.
     LMIC_reset();
-    // Disable link-check mode and ADR, because ADR tends to complicate testing.
-    LMIC_setLinkCheckMode(0);
-    // Set the data rate to Spreading Factor 7.  This is the fastest supported rate for 125 kHz channels, and it
-    // minimizes air time and battery power. Set the transmission power to 14 dBi (25 mW).
-    LMIC_setDrTxpow(DR_SF7,14);
-    // in the US, with TTN, it saves join time if we start on subband 1 (channels 8-15). This will
-    // get overridden after the join by parameters from the network. If working with other
-    // networks or in other regions, this will need to be changed.
-    LMIC_selectSubBand(1);
 
     // Start job (sending automatically starts OTAA too)
     do_send(&sendjob);

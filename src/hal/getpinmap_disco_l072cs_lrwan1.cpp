@@ -20,7 +20,7 @@ Author:
 
 #include "../lmic/oslmic.h"
 
-namespace Arduino_LMIC { 
+namespace Arduino_LMIC {
 
     class HalConfiguration_Disco_L072cz_Lrwan1_t : public HalConfiguration_t
             {
@@ -43,15 +43,16 @@ namespace Arduino_LMIC {
     static const HalPinmap_t myPinmap =
             {
             .nss = HalConfiguration_Disco_L072cz_Lrwan1_t::PIN_SX1276_NSS,
-            .rxtx = HalConfiguration_Disco_L072cz_Lrwan1_t::PIN_SX1276_RXTX, 
+            .rxtx = HalConfiguration_Disco_L072cz_Lrwan1_t::PIN_SX1276_RXTX,
             .rst = HalConfiguration_Disco_L072cz_Lrwan1_t::PIN_SX1276_NRESET,
 
-            .dio = {HalConfiguration_Disco_L072cz_Lrwan1_t::PIN_SX1276_DIO0, 
-                    HalConfiguration_Disco_L072cz_Lrwan1_t::PIN_SX1276_DIO1, 
-                    HalConfiguration_Disco_L072cz_Lrwan1_t::PIN_SX1276_DIO2, 
+            .dio = {HalConfiguration_Disco_L072cz_Lrwan1_t::PIN_SX1276_DIO0,
+                    HalConfiguration_Disco_L072cz_Lrwan1_t::PIN_SX1276_DIO1,
+                    HalConfiguration_Disco_L072cz_Lrwan1_t::PIN_SX1276_DIO2,
                 },
             .rxtx_rx_active = 1,
             .rssi_cal = 10,
+            .spi = &SPI,
             .spi_freq = 8000000,     /* 8MHz */
             .pConfig = &myConfig
             };

@@ -33,38 +33,10 @@
 
 #include <lmic.h>
 #include <hal/hal.h>
+#include <arduino_lmic_hal_boards.h>
+
 #include <SPI.h>
-
-//
-// For normal use, we require that you edit the sketch to replace FILLMEIN
-// with values assigned by the TTN console. However, for regression tests,
-// we want to be able to compile these scripts. The regression tests define
-// COMPILE_REGRESSION_TEST, and in that case we define FILLMEIN to a non-
-// working but innocuous value.
-//
-#ifdef COMPILE_REGRESSION_TEST
-# define FILLMEIN 0
-#else
-# warning "You must replace the values marked FILLMEIN with real values from the TTN control panel!"
-# define FILLMEIN (#dont edit this, edit the lines that use FILLMEIN)
-#endif
-
-// This EUI must be in little-endian format, so least-significant-byte
-// first. When copying an EUI from ttnctl output, this means to reverse
-// the bytes. For TTN issued EUIs the last bytes should be 0xD5, 0xB3,
-// 0x70.
-static const u1_t PROGMEM APPEUI[8]={ FILLMEIN };
-void os_getArtEui (u1_t* buf) { memcpy_P(buf, APPEUI, 8);}
-
-// This should also be in little endian format, see above.
-static const u1_t PROGMEM DEVEUI[8]={ FILLMEIN };
-void os_getDevEui (u1_t* buf) { memcpy_P(buf, DEVEUI, 8);}
-
-// This key should be in big endian format (or, since it is not really a
-// number but a block of memory, endianness does not really apply). In
-// practice, a key taken from ttnctl can be copied as-is.
-static const u1_t PROGMEM APPKEY[16] = { FILLMEIN };
-void os_getDevKey (u1_t* buf) {  memcpy_P(buf, APPKEY, 16);}
+#include "ttn-secrets.h"
 
 static uint8_t mydata[] = "Hello, world!";
 static osjob_t sendjob;
@@ -72,14 +44,6 @@ static osjob_t sendjob;
 // Schedule TX every this many seconds (might become longer due to duty
 // cycle limitations).
 const unsigned TX_INTERVAL = 60;
-
-// Pin mapping
-const lmic_pinmap lmic_pins = {
-    .nss = 6,
-    .rxtx = LMIC_UNUSED_PIN,
-    .rst = 5,
-    .dio = {2, 3, 4},
-};
 
 void printHex2(unsigned v) {
     v &= 0xff;
@@ -222,18 +186,37 @@ void do_send(osjob_t* j){
 }
 
 void setup() {
-    Serial.begin(9600);
+    while (!Serial)
+        delay(100);
+
+    Serial.begin(115200);
     Serial.println(F("Starting"));
 
-    #ifdef VCC_ENABLE
+#ifdef VCC_ENABLE
     // For Pinoccio Scout boards
     pinMode(VCC_ENABLE, OUTPUT);
     digitalWrite(VCC_ENABLE, HIGH);
     delay(1000);
-    #endif
+#endif
 
-    // LMIC init
-    os_init();
+    // initialize runtime env
+    // don't die mysteriously; die noisily.
+    const lmic_pinmap *pPinMap = Arduino_LMIC::GetPinmap_ThisBoard();
+
+    if (pPinMap == nullptr) {
+      pinMode(LED_BUILTIN, OUTPUT);
+      for (;;) {
+        // flash lights, sleep.
+        for (int i = 0; i < 5; ++i) {
+          digitalWrite(LED_BUILTIN, 1);
+          delay(100);
+          digitalWrite(LED_BUILTIN, 0);
+          delay(900);
+        }
+        Serial.println(F("board not known to library; add pinmap or update getconfig_thisboard.cpp"));
+      }
+    }
+    os_init_ex(pPinMap);
     // Reset the MAC state. Session and pending data transfers will be discarded.
     LMIC_reset();
 
