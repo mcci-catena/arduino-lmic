@@ -1236,7 +1236,7 @@ function uflt12f(rawUflt12)
     // that Math.pow(2, k) is handled efficiently by
     // the JS interpreter! If this is time critical code,
     // you can replace by a suitable shift and divide.
-    var f_unscaled = sSign * mant1 * Math.pow(2, exp1 - 15);
+    var f_unscaled = mant1 * Math.pow(2, exp1 - 15);
 
     return f_unscaled;
     }
