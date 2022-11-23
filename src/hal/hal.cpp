@@ -118,18 +118,21 @@ void hal_pollPendingIRQs_helper() {
 #else
 // Interrupt handlers
 
+LMIC_ISR_ATTR
 static void hal_isrPin0() {
     if (interrupt_time[0] == 0) {
         ostime_t now = os_getTime();
         interrupt_time[0] = now ? now : 1;
     }
 }
+LMIC_ISR_ATTR
 static void hal_isrPin1() {
     if (interrupt_time[1] == 0) {
         ostime_t now = os_getTime();
         interrupt_time[1] = now ? now : 1;
     }
 }
+LMIC_ISR_ATTR
 static void hal_isrPin2() {
     if (interrupt_time[2] == 0) {
         ostime_t now = os_getTime();

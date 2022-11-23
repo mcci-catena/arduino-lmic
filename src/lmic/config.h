@@ -220,4 +220,11 @@
 # define LMIC_ENABLE_arbitrary_clock_error 0	/* PARAM */
 #endif
 
+#if defined(ESP8266) || defined(ESP32)
+// functions called from an interrupt context need this attribute
+#define LMIC_ISR_ATTR ICACHE_RAM_ATTR
+#else
+#define LMIC_ISR_ATTR
+#endif
+
 #endif // _lmic_config_h_
