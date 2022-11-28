@@ -1109,7 +1109,7 @@ int radio_init () {
     // some sanity checks, e.g., read version number
     u1_t v = readReg(RegVersion);
 #ifdef CFG_sx1276_radio
-    if(v != 0x12 )
+    if(v != 0x12 & v != 0x13)
         return 0;
 #elif CFG_sx1272_radio
     if(v != 0x22)
