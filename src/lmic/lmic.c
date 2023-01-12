@@ -839,6 +839,10 @@ scan_mac_cmds_link_adr(
     int lastOidx;
     u1_t adrAns = MCMD_LinkADRAns_PowerACK | MCMD_LinkADRAns_DataRateACK | MCMD_LinkADRAns_ChannelACK;
 
+    if( LMIC.adrEnabled == 0 ) {
+         adrAns = 0; //NACK everything
+    }
+
     // process the contiguous slots
     for (;;) {
         lastOidx = oidx;
