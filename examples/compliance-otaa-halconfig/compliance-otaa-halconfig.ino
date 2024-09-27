@@ -22,7 +22,7 @@ Author:
 #include <SPI.h>
 class cEventQueue;
 
-#define APPLICATION_VERSION ARDUINO_LMIC_VERSION_CALC(3,0,99,10)
+#define APPLICATION_VERSION ARDUINO_LMIC_VERSION_CALC(4, 0, 0, 0)
 
 //
 // For compliance tests with the RWC5020A, we use the default addresses
@@ -30,20 +30,20 @@ class cEventQueue;
 // collisions with a registered app on TTN.
 //
 
-// This EUI must be in little-endian format, so least-significant-byte
-// first.  This corresponds to 0x0000000000000001
-// static const u1_t PROGMEM APPEUI[8]= { 1, 0, 0, 0, 0, 0, 0, 0 };
-void os_getArtEui (u1_t* buf) { memset(buf, 0, 8); buf[0] = 1; }
+// AppEUI: must be in little-endian format, so least-significant-byte
+// first.  This corresponds to 0x0000000000000000
+static const u1_t PROGMEM APPEUI[8]= { 0, 0, 0, 0, 0, 0, 0, 0 };
+void os_getArtEui (u1_t* buf) { memcpy_P(buf, APPEUI, 8); }
 
-// This should also be in little endian format, see above.
+// DevEUI: This should also be in little endian format, see above.
 // This corresponds to 0x0000000000000001
-// static const u1_t PROGMEM DEVEUI[8]= { 1, 0, 0, 0, 0, 0, 0, 0 };
-void os_getDevEui (u1_t* buf) { memset(buf, 0, 8); buf[0] = 1; }
+static const u1_t PROGMEM DEVEUI[8]= { 1, 0, 0, 0, 0, 0, 0, 0 };
+void os_getDevEui (u1_t* buf) { memcpy_P(buf, DEVEUI, 8); }
 
 // This key should be in big endian format (or, since it is not really a
 // number but a block of memory, endianness does not really apply).
-// static const u1_t PROGMEM APPKEY[16] = { 0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 2 };
-void os_getDevKey (u1_t* buf) { memset(buf, 0, 16); buf[15] = 2; }
+static const u1_t PROGMEM APPKEY[16] = { 0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 2 };
+void os_getDevKey (u1_t* buf) { memcpy_P(buf, APPKEY, 16); }
 
 // this data must be kept short -- max is 11 bytes for US DR0
 static uint8_t mydata[] = { 0xCA, 0xFE, 0xF0, 0x0D };
@@ -765,6 +765,12 @@ void setup_printSignOn()
     printVersion(ARDUINO_LMIC_VERSION);
     Serial.print(F(" configured for region "));
     Serial.print(CFG_region);
+
+#if defined(ARDUINO_LMIC_CFG_SUBBAND) && ARDUINO_LMIC_CFG_SUBBAND != -1
+    Serial.print(F(" subband[0:7] "));
+    Serial.print(unsigned(ARDUINO_LMIC_CFG_SUBBAND));
+#endif // defined(ARDUINO_LMIC_CFG_SUBBAND) && ARDUINO_LMIC_CFG_SUBBAND != -1
+
     Serial.println(F(".\nRemember to select 'Line Ending: Newline' at the bottom of the monitor window."));
 
     setup_printSignOnDashLine();
@@ -772,9 +778,9 @@ void setup_printSignOn()
     }
 
 void setupForNetwork(bool preJoin) {
-#if CFG_LMIC_US_like
-    LMIC_selectSubBand(0);
-#endif
+#if defined(ARDUINO_LMIC_CFG_SUBBAND) && ARDUINO_LMIC_CFG_SUBBAND != -1
+    LMIC_selectSubBand(ARDUINO_LMIC_CFG_SUBBAND);
+#endif // defined(ARDUINO_LMIC_CFG_SUBBAND) && ARDUINO_LMIC_CFG_SUBBAND != -1
 }
 
 void loop() {

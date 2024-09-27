@@ -1,28 +1,6 @@
 # Arduino-LMIC library ("MCCI LoRaWAN LMIC Library")
 
-This repository contains the IBM LMIC (LoRaWAN-MAC-in-C) library, slightly
-modified to run in the Arduino environment, allowing using the SX1272,
-SX1276 transceivers and compatible modules (such as some HopeRF RFM9x
-modules and the Murata LoRa modules).
-
-> Note on names: the library was originally ported to Arduino by Matthijs Kooijman and Thomas Telkamp, and was named Arduino LMIC. Subsequently, MCCI did a lot of work to support other regions, and ultimately took over maintenance. The Arduino IDE doesn't like two libraries with the same name, so we had to come up with a new name. So in the IDE, it will appear as MCCI LoRaWAN LMIC Library; but all us know it by the primary header file, which is `<arduino_lmic.h>`.
-
-Information about the LoRaWAN protocol is summarized in [LoRaWAN-at-a-glance](doc/LoRaWAN-at-a-glance.pdf). Full information is available from the [LoRa Alliance](https://lora-alliance.org).
-
-A support forum is available at [forum.mcci.io](https://forum.mcci.io/c/device-software/arduino-lmic/5).
-
-The base Arduino library mostly exposes the functions defined by LMIC. It makes no
-attempt to wrap them in a higher level API that is more in the Arduino
-style. To find out how to use the library itself, see the examples, or
-see the PDF files in the doc subdirectory.
-
-A separate library, [MCCI `arduino-lorawan`](https://github.com/mcci-catena/arduino-lorawan), provides a higher level, more Arduino-like wrapper which may be useful.
-
-The examples in this library (apart from the compliance sketch) are somewhat primitive. A very complete cross-platform Arduino application based on the LMIC has been published by Leonel Lopes Parente ([`@lnlp`](https://github.com/lnlp)) as [LMIC-node](https://github.com/lnlp/LMIC-node). That application specifically targets The Things Network.
-
-Although the wrappers in this library are designed to make the LMIC useful in the Arduino environment, the maintainers have tried to be careful to keep the core LMIC code generally useful. For example, I use this library without modification (but with wrappers) on a RISC-V platform in a non-Arduino environment.
-
-[![GitHub release](https://img.shields.io/github/release/mcci-catena/arduino-lmic.svg)](https://github.com/mcci-catena/arduino-lmic/releases/latest) [![GitHub commits](https://img.shields.io/github/commits-since/mcci-catena/arduino-lmic/latest.svg)](https://github.com/mcci-catena/arduino-lmic/compare/v4.0.0...master) [![Arduino CI](https://img.shields.io/github/workflow/status/mcci-catena/arduino-lmic/Arduino%20CI)](https://github.com/mcci-catena/arduino-lmic/actions)
+[![GitHub release](https://img.shields.io/github/release/mcci-catena/arduino-lmic.svg)](https://github.com/mcci-catena/arduino-lmic/releases/latest) [![GitHub commits](https://img.shields.io/github/commits-since/mcci-catena/arduino-lmic/latest.svg)](https://github.com/mcci-catena/arduino-lmic/compare/v4.1.1...master) [![Arduino CI](https://img.shields.io/github/workflow/status/mcci-catena/arduino-lmic/Arduino%20CI)](https://github.com/mcci-catena/arduino-lmic/actions)
 
 **Contents:**
 
@@ -39,6 +17,7 @@ Although the wrappers in this library are designed to make the LMIC useful in th
 <!-- markdownlint-disable -->
 <!-- TOC depthFrom:2 updateOnSave:true -->
 
+- [Introduction](#introduction)
 - [Installing](#installing)
 - [Getting Help](#getting-help)
 	- [If it's not working](#if-its-not-working)
@@ -117,6 +96,30 @@ Although the wrappers in this library are designed to make the LMIC useful in th
 <!-- markdownlint-restore -->
 <!-- Due to a bug in Markdown TOC, the table is formatted incorrectly if tab indentation is set other than 4. Due to another bug, this comment must be *after* the TOC entry. -->
 
+## Introduction
+
+This repository contains the IBM LMIC (LoRaWAN-MAC-in-C) library, slightly
+modified to run in the Arduino environment, allowing using the SX1272,
+SX1276 transceivers and compatible modules (such as some HopeRF RFM9x
+modules and the Murata LoRa modules).
+
+> Note on names: the library was originally ported to Arduino by Matthijs Kooijman and Thomas Telkamp, and was named Arduino LMIC. Subsequently, MCCI did a lot of work to support other regions, and ultimately took over maintenance. The Arduino IDE doesn't like two libraries with the same name, so we had to come up with a new name. So in the IDE, it will appear as MCCI LoRaWAN LMIC Library; but all us know it by the primary header file, which is `<arduino_lmic.h>`.
+
+Information about the LoRaWAN protocol is summarized in [LoRaWAN-at-a-glance](doc/LoRaWAN-at-a-glance.pdf). Full information is available from the [LoRa Alliance](https://lora-alliance.org).
+
+A support forum is available at [forum.mcci.io](https://forum.mcci.io/c/device-software/arduino-lmic/5).
+
+The base Arduino library mostly exposes the functions defined by LMIC. It makes no
+attempt to wrap them in a higher level API that is more in the Arduino
+style. To find out how to use the library itself, see the examples, or
+see the PDF files in the doc subdirectory.
+
+A separate library, [MCCI `arduino-lorawan`](https://github.com/mcci-catena/arduino-lorawan), provides a higher level, more Arduino-like wrapper which may be useful.
+
+The examples in this library (apart from the compliance sketch) are somewhat primitive. A very complete cross-platform Arduino application based on the LMIC has been published by Leonel Lopes Parente ([`@lnlp`](https://github.com/lnlp)) as [LMIC-node](https://github.com/lnlp/LMIC-node). That application specifically targets The Things Network.
+
+Although the wrappers in this library are designed to make the LMIC useful in the Arduino environment, the maintainers have tried to be careful to keep the core LMIC code generally useful. For example, I use this library without modification (but with wrappers) on a RISC-V platform in a non-Arduino environment.
+
 ## Installing
 
 To install this library:
@@ -169,7 +172,7 @@ us know (creating a GitHub issue is probably the best way for that).
 
 ### PDF/Word Documentation
 
-The `doc` directory contains [LMIC-v3.3.0.pdf](doc/LMIC-v3.3.0.pdf), which documents the library APIs and use. It's based on the original IBM documentation, but has been adapted for this version of the library. However, as this library is used for more than Arduino, that document is supplemented by practical details in this document.
+The `doc` directory contains [LMIC-v4.1.0.pdf](doc/LMIC-v4.1.0.pdf), which documents the library APIs and use. It's based on the original IBM documentation, but has been adapted for this version of the library. However, as this library is used for more than Arduino, that document is supplemented by Arduino-specific details in this document.
 
 ### Adding Regions
 
@@ -339,6 +342,8 @@ By default, beacon support is included in the library.
 Disable or enable support for device network-time requests (LoRaWAN MAC request 0x0D). If zero, support is disabled. If non-zero, support is enabled.
 
 If disabled, stub routines are provided that will return failure (so you don't need conditional compiles in client code).
+
+By default, device network-time requests were disabled in versions prior to `v4.2.0-pre1`. As of v4.2.0-pre1, the default is that device network-time requests are enabled.
 
 ### Rarely changed variables
 
@@ -712,7 +717,7 @@ In some boards require much more advanced management. The LMIC has a very flexib
 The full example looks like this:
 
 ```c++
-class cMyHlaConfiguration_t : public Arduino_LMIC::HalConfiguration_t
+class cMyHalConfiguration_t : public Arduino_LMIC::HalConfiguration_t
   {
 public:
   // ...
@@ -722,7 +727,7 @@ public:
   // or the high-power mode above 17 dBm. In other words, it lets the
   // LMIC-determined policy determine what's to be done.
 
-  virutal TxPowerPolicy_t getTxPowerPolicy(
+  virtual TxPowerPolicy_t getTxPowerPolicy(
     TxPowerPolicy_t policy,
     int8_t requestedPower,
     uint32_t frequency
@@ -730,7 +735,7 @@ public:
     {
     return policy;
     }
-  }
+  };
 ```
 
 #### HalConfiguration_t methods
@@ -850,8 +855,7 @@ The library observes and processes rising edges on the pins as part of `os_runlo
 This can be configured in one of two ways (see
 [Controlling use of interrupts](#controlling-use-of-interrupts)).  See [Interrupts and Arduino system timing](#interrupts-and-arduino-system-timing) for implementation details.
 
-By default, the library 
-polls the enabled pins to determine whether an event has occurred. This approach
+By default, the library polls the enabled pins to determine whether an event has occurred. This approach
 allows use of any CPU pin to sense the DIOs, and makes no assumptions about
 interrupts. However, it means that the end-of-transmit event is not observed
 (and time-stamped) until `os_runloop_once()` is called.
@@ -1240,8 +1244,28 @@ function uflt12f(rawUflt12)
 
 ## Release History
 
-- HEAD contains the following changes
-  - Adapt ttn-otaa-network-time example to be compatible with [PaulStoffregen/Time](https://github.com/PaulStoffregen/Time) v1.6.1, which deletes `Time.h` in favor of `TimeLib.h` [#763](https://github.com/mcci-catena/arduino-lmic/issues/763). Version is v4.0.1-pre1.
+- HEAD has the following changes.
+
+  - Enable device time request by default in config file ([#840](https://github.com/mcci-catena/arduino-lmic/issues/840)).
+
+- v4.1.1 is a patch release.
+
+  - Fix US-like regions when network server disables all channels before setting others up ([#819](https://github.com/mcci-catena/arduino-lmic/issues/819)).
+  - Fix US-like regions when network server disables all banks before setting others up ([#820](https://github.com/mcci-catena/arduino-lmic/issues/820)).
+  - Documentation improvements in README and in code commentary.
+
+- v4.1.0 contains the following changes
+
+  - Adapt `ttn-otaa-network-time` example to be compatible with [PaulStoffregen/Time](https://github.com/PaulStoffregen/Time) v1.6.1, which deletes `Time.h` in favor of `TimeLib.h` [#763](https://github.com/mcci-catena/arduino-lmic/issues/763). Version is v4.0.1-pre1.
+  - Add support for TTGO LoRa32-OLED v2.1.6. (Thanks to [@ChrSchultz](https://github.com/ChrSchultz), [#692](https://github.com/mcci-catena/arduino-lmic/pull/692).)
+  - Correct max TX EIRP for Japan to 13 dBm. (Thanks to [@ryos36](https://github.com/ryos36), [#662](https://github.com/mcci-catena/arduino-lmic/pull/662).)
+  - Correct link in this document to the LMIC-v4.0.0 pdf ([#788](https://github.com/mcci-catena/arduino-lmic/issues/788), thanks [@lnlp](https://github.com/lnlp)).
+  - Warn about Feather pin wiring requirements ([#755](https://github.com/mcci-catena/arduino-lmic/issues/755), thanks to [@d-a-v](https://github.com/d-a-v)).
+  - Fix typos in this document ([#780](https://github.com/mcci-catena/arduino-lmic/issues/780), thanks [@PeeJay](https://github.com/PeeJay)).
+  - Fix additional warnings on non-ARM platforms ([#791](https://github.com/mcci-catena/arduino-lmic/issues/791), thanks [@d-a-v](https://github.com/d-a-v)).
+  - Allow application to set the value to be used in `DeviceStatusAns` MAC messages ([#576](https://github.com/mcci-catena/arduino-lmic/issues/576) and [#560](https://github.com/mcci-catena/arduino-lmic/issues/560), thanks to [@altishchenko](https://github.com/altishchenko)).
+  - Minor adjustments to the compliance sketch ([#800](https://github.com/mcci-catena/arduino-lmic/issues/576)).
+  - Update the LMIC reference manual to `LMIC-v4.1.0.pdf`.
 
 - v4.0 is a major release; changes are significant enough to be "likely breaking". It includes the following changes.
 

@@ -63,6 +63,8 @@ const HalPinmap_t *GetPinmap_ThisBoard(void)
         return GetPinmap_PinnochioScount();
 #elif defined(ARDUINO_TTGO_LoRa32_V1)
         return GetPinmap_ttgo_lora32_v1();
+#elif defined(ARDUINO_TTGO_LoRa32_v21new)
+        return GetPinmap_ttgo_lora32_v21();
 #elif defined(ARDUINO_HELTEC_WIFI_LORA_32) || defined(ARDUINO_HELTEC_WIFI_LORA_32_V2) || defined(ARDUINO_HELTEC_WIRELESS_STICK)
         return GetPinmap_heltec_lora32();
 #else

@@ -668,9 +668,9 @@ static void configPower () {
     if (req_pw >= 20) {
         policy = LMICHAL_radio_tx_power_policy_20dBm;
             eff_pw = 20;
-    } else if (eff_pw >= 14) {
+    } else if (req_pw >= 14) {
         policy = LMICHAL_radio_tx_power_policy_paboost;
-        if (eff_pw > 17) {
+        if (req_pw > 17) {
             eff_pw = 17;
         } else {
             eff_pw = req_pw;

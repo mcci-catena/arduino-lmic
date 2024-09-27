@@ -239,7 +239,7 @@ void os_wmsbf4 (xref2u1_t buf, u4_t value);
 u2_t os_rlsbf2 (xref2cu1_t buf);
 #endif
 #ifndef os_wlsbf2
-//! Write 16-bit quntity into buffer in little endian byte order.
+//! Write 16-bit quantity into buffer in little endian byte order.
 void os_wlsbf2 (xref2u1_t buf, u2_t value);
 #endif
 

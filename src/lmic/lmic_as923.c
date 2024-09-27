@@ -35,6 +35,11 @@
 //
 // BEG: AS923 related stuff
 //
+enum    {
+        AS923_REGION_TX_EIRP_MAX_DBM =
+                (LMIC_COUNTRY_CODE == LMIC_COUNTRY_CODE_JP) ? AS923_JP_TX_EIRP_MAX_DBM
+                                                            : AS923_TX_EIRP_MAX_DBM
+        };
 
 // see table in section 2.7.3
 CONST_TABLE(u1_t, _DR2RPS_CRC)[] = {
@@ -130,7 +135,7 @@ static CONST_TABLE(s1_t, TXMAXEIRP)[16] = {
 static int8_t LMICas923_getMaxEIRP(uint8_t mcmd_txparam) {
         // if uninitialized, return default.
 	if (mcmd_txparam == 0xFF)
-		return AS923_TX_EIRP_MAX_DBM;
+		return AS923_REGION_TX_EIRP_MAX_DBM;
 	else
 		return TABLE_GET_S1(
 			TXMAXEIRP,
@@ -199,7 +204,7 @@ void LMICas923_initDefaultChannels(bit_t join) {
         }
 
         LMIC.bands[BAND_CENTI].txcap = AS923_TX_CAP;
-        LMIC.bands[BAND_CENTI].txpow = AS923_TX_EIRP_MAX_DBM;
+        LMIC.bands[BAND_CENTI].txpow = AS923_REGION_TX_EIRP_MAX_DBM;
         LMIC.bands[BAND_CENTI].lastchnl = os_getRndU1() % MAX_CHANNELS;
         LMIC.bands[BAND_CENTI].avail = os_getTime();
 }
@@ -457,7 +462,7 @@ ostime_t LMICas923_nextJoinState(void) {
 void
 LMICas923_initJoinLoop(void) {
         // LMIC.txParam is set to 0xFF by the central code at init time.
-        LMICeulike_initJoinLoop(NUM_DEFAULT_CHANNELS, /* adr dBm */ AS923_TX_EIRP_MAX_DBM);
+        LMICeulike_initJoinLoop(NUM_DEFAULT_CHANNELS, /* adr dBm */ AS923_REGION_TX_EIRP_MAX_DBM);
 }
 
 void

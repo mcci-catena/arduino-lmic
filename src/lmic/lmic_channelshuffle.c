@@ -108,7 +108,7 @@ int LMIC_findNextChannel(
         memcpy(pShuffleMask, pEnableMask, nEntries * sizeof(*pShuffleMask));
         nSet16 = sidewaysSum16(pShuffleMask, nEntries);
     } else {
-        // don't try to skip the last channel becuase it can't be chosen.
+        // don't try to skip the last channel because it can't be chosen.
         lastChannel = -1;
     }
 
@@ -121,7 +121,7 @@ int LMIC_findNextChannel(
     // the last channel bit. Post condition: if we really clered a bit,
     // saveLastChannelVal will be non-zero.
     saveLastChannelVal = 0;
-    if (nSet16 > 16 && lastChannel >= 0 && lastChannel <= nEntries * 16) {
+    if (nSet16 > 16 && lastChannel >= 0 && lastChannel <= (int)(nEntries * 16)) {
         uint16_t const saveLastChannelMask = (1 << (lastChannel & 0xF));
 
         saveLastChannelVal = pShuffleMask[lastChannel >> 4] & saveLastChannelMask;

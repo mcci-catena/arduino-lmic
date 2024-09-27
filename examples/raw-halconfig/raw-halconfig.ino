@@ -4,6 +4,8 @@ Module:  raw-halconfig.ino
 
 Function:
   Auto-configured raw test example, for Adafruit Feather M0 LoRa
+  /!\ By default Adafruit Feather M0's pin 6 and DIO1 are not connected.
+  Please ensure they are connected.
 
 Copyright notice and License:
   See LICENSE file accompanying this project.

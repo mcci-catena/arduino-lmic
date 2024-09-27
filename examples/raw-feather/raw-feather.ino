@@ -62,6 +62,8 @@ Author:
 // m0 defs ADAFRUIT_FEATHER_M0
 //
 #if defined(ARDUINO_SAMD_FEATHER_M0) || defined(ADAFRUIT_FEATHER_M0)
+// /!\ By default Adafruit Feather M0's pin 6 and DIO1 are not connected.
+// Please ensure they are connected.
 const lmic_pinmap lmic_pins = {
     .nss = 8,
     .rxtx = LMIC_UNUSED_PIN,

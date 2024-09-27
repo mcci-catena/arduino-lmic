@@ -169,7 +169,7 @@
 // enable support for MCMD_DeviceTimeReq and MCMD_DeviceTimeAns
 // this is always defined, and non-zero to enable it.
 #if !defined(LMIC_ENABLE_DeviceTimeReq)
-# define LMIC_ENABLE_DeviceTimeReq 0
+# define LMIC_ENABLE_DeviceTimeReq 1
 #endif
 
 // LMIC_ENABLE_user_events

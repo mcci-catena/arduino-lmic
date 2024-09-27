@@ -106,7 +106,7 @@ extern "C"{
 	((((major)*UINT32_C(1)) << 24) | (((minor)*UINT32_C(1)) << 16) | (((patch)*UINT32_C(1)) << 8) | (((local)*UINT32_C(1)) << 0))
 
 #define	ARDUINO_LMIC_VERSION    \
-    ARDUINO_LMIC_VERSION_CALC(4, 0, 1, 1)  /* 4.0.1-pre1 */
+    ARDUINO_LMIC_VERSION_CALC(4, 2, 0, 1)  /* 4.2.0-1 */
 
 #define	ARDUINO_LMIC_VERSION_GET_MAJOR(v)	\
 	((((v)*UINT32_C(1)) >> 24u) & 0xFFu)
@@ -459,7 +459,7 @@ struct lmic_client_data_s {
     u2_t        clockError;                 //! Inaccuracy in the clock. CLOCK_ERROR_MAX represents +/-100% error
 
     /* finally, things that are (u)int8_t */
-    /* none at the moment */
+    u1_t        devStatusAns_battery;       //!< value to report in MCMD_DevStatusAns message.
 };
 
 /*
@@ -741,6 +741,9 @@ int LMIC_registerRxMessageCb(lmic_rxmessage_cb_t *pRxMessageCb, void *pUserData)
 int LMIC_registerEventCb(lmic_event_cb_t *pEventCb, void *pUserData);
 
 int LMIC_findNextChannel(uint16_t *, const uint16_t *, uint16_t, int);
+
+u1_t LMIC_getBatteryLevel(void);
+u1_t LMIC_setBatteryLevel(u1_t /* uBattLevel */);
 
 // APIs for client half of compliance.
 typedef u1_t lmic_compliance_rx_action_t;

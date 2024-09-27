@@ -589,20 +589,20 @@ enum {
 
 // Bit fields byte#3 of MCMD_LinkADRReq payload
 enum {
-    MCMD_LinkADRReq_Redundancy_RFU            = 0x80,
-    MCMD_LinkADRReq_Redundancy_ChMaskCntl_MASK= 0x70,
-    MCMD_LinkADRReq_Redundancy_NbTrans_MASK   = 0x0F,
+    MCMD_LinkADRReq_Redundancy_RFU            = 0x80,   ///< mask for RFU bit
+    MCMD_LinkADRReq_Redundancy_ChMaskCntl_MASK= 0x70,   ///< mask for the channel-mask control field.
+    MCMD_LinkADRReq_Redundancy_NbTrans_MASK   = 0x0F,   ///< mask for the `NbTrans` (repetition) field.
 
-    MCMD_LinkADRReq_ChMaskCntl_EULIKE_DIRECT  = 0x00,    // direct masking for EU
-    MCMD_LinkADRReq_ChMaskCntl_EULIKE_ALL_ON  = 0x60,    // EU: enable everything.
+    MCMD_LinkADRReq_ChMaskCntl_EULIKE_DIRECT  = 0x00,    ///< EU-like: direct masking for EU
+    MCMD_LinkADRReq_ChMaskCntl_EULIKE_ALL_ON  = 0x60,    ///< EU-like: enable everything.
 
-    MCMD_LinkADRReq_ChMaskCntl_USLIKE_500K    = 0x40,    // mask is for the 8 us-like 500 kHz channels
-    MCMD_LinkADRReq_ChMaskCntl_USLIKE_SPECIAL = 0x50,    // first special for us-like
-    MCMD_LinkADRReq_ChMaskCntl_USLIKE_BANK    = 0x50,    // special: bits are banks.
-    MCMD_LinkADRReq_ChMaskCntl_USLIKE_125ON   = 0x60,    // special channel page enable, bits applied to 64..71
-    MCMD_LinkADRReq_ChMaskCntl_USLIKE_125OFF  = 0x70,    // special channel page: disble 125K, bits apply to 64..71
+    MCMD_LinkADRReq_ChMaskCntl_USLIKE_500K    = 0x40,    ///< US-like: mask is for the 8 us-like 500 kHz channels
+    MCMD_LinkADRReq_ChMaskCntl_USLIKE_SPECIAL = 0x50,    ///< US-like: first special for us-like
+    MCMD_LinkADRReq_ChMaskCntl_USLIKE_BANK    = 0x50,    ///< US-like: special: bits are banks.
+    MCMD_LinkADRReq_ChMaskCntl_USLIKE_125ON   = 0x60,    ///< US-like: special channel page enable, bits applied to 64..71
+    MCMD_LinkADRReq_ChMaskCntl_USLIKE_125OFF  = 0x70,    ///< US-like: special channel page: disable 125K, bits apply to 64..71
 
-    MCMD_LinkADRReq_ChMaskCntl_CN470_ALL_ON   = 0x60,    // turn all on for China.
+    MCMD_LinkADRReq_ChMaskCntl_CN470_ALL_ON   = 0x60,    ///< CN-470: turn all on for China.
 };
 
 // Bit fields byte#0 of MCMD_LinkADRReq payload

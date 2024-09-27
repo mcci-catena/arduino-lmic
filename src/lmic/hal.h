@@ -173,7 +173,7 @@ void hal_pollPendingIRQs_helper();
 void hal_processPendingIRQs(void);
 
 /// \brief check for any pending interrupts: stub if interrupts are enabled.
-static void inline hal_pollPendingIRQs(void)
+static inline void hal_pollPendingIRQs(void)
 	{
 #if !defined(LMIC_USE_INTERRUPTS)
 	hal_pollPendingIRQs_helper();

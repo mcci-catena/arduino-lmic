@@ -81,6 +81,8 @@ const unsigned TX_INTERVAL = 60;
 //
 #if defined(ARDUINO_SAMD_FEATHER_M0) || defined(ADAFRUIT_FEATHER_M0)
 // Pin mapping for Adafruit Feather M0 LoRa, etc.
+// /!\ By default Adafruit Feather M0's pin 6 and DIO1 are not connected.
+// Please ensure they are connected.
 const lmic_pinmap lmic_pins = {
     .nss = 8,
     .rxtx = LMIC_UNUSED_PIN,
