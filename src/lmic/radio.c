@@ -668,9 +668,9 @@ static void configPower () {
     if (req_pw >= 20) {
         policy = LMICHAL_radio_tx_power_policy_20dBm;
             eff_pw = 20;
-    } else if (eff_pw >= 14) {
+    } else if (req_pw >= 14) {
         policy = LMICHAL_radio_tx_power_policy_paboost;
-        if (eff_pw > 17) {
+        if (req_pw > 17) {
             eff_pw = 17;
         } else {
             eff_pw = req_pw;
@@ -872,6 +872,12 @@ static void starttx () {
         opmode(OPMODE_SLEEP);
         hal_waitUntil(os_getTime() + ms2osticks(1));
     }
+    
+    // update radio chip raw temperature value
+    LMIC.radio.temperature = radio_raw_temp();
+#if LMIC_DEBUG_LEVEL > 0
+  LMIC_DEBUG_PRINTF("RegTemp=%d\n", LMIC.radio.temperature);
+#endif
 
     if (LMIC.lbt_ticks > 0) {
         oslmic_radio_rssi_t rssi;
@@ -1174,6 +1180,49 @@ u1_t radio_rand1 () {
 u1_t radio_rssi () {
     u1_t r = readReg(LORARegRssiValue);
     return r;
+}
+
+// Reads the raw temperature
+// \retval New raw temperature reading
+s1_t radio_raw_temp(void) {
+
+#define RF_IMAGECAL_TEMPMONITOR_MASK 0xFE
+#define RF_IMAGECAL_TEMPMONITOR_ON 0x00
+#define RF_IMAGECAL_TEMPMONITOR_OFF 0x01
+
+  s1_t RegTemp = 0;
+
+  // select FSK modem (from sleep mode)
+  opmodeFSK();
+  ASSERT((readReg(RegOpMode) & OPMODE_LORA) == 0);
+
+  // Put device in FSK RxSynth
+  opmode(OPMODE_FSRX);
+
+  // Enable Temperature reading
+  writeReg(FSKRegImageCal, (readReg(RegOpMode) & RF_IMAGECAL_TEMPMONITOR_MASK) |
+                               RF_IMAGECAL_TEMPMONITOR_ON);
+
+  // Wait 150us
+  hal_waitUntil(os_getTime() + us2osticks(150));
+
+  // Disable Temperature reading
+  writeReg(FSKRegImageCal, (readReg(RegOpMode) & RF_IMAGECAL_TEMPMONITOR_MASK) |
+                               RF_IMAGECAL_TEMPMONITOR_OFF);
+
+  // Put device in FSK Sleep Mode
+  opmode(OPMODE_SLEEP);
+
+  // Read temperature
+  RegTemp = readReg(FSKRegTemp);
+
+  if ((RegTemp & 0x80) == 0x80) {
+    RegTemp = 255 - RegTemp;
+  } else {
+    RegTemp *= -1;
+  }
+
+  return RegTemp;
 }
 
 /// \brief get the current RSSI on the current channel.
