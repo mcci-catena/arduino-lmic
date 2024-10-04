@@ -99,14 +99,15 @@ ostime_t LMICeu868_dr2hsym(uint8_t dr) {
 
 
 enum { NUM_DEFAULT_CHANNELS = 3 };
-static CONST_TABLE(u4_t, iniChannelFreq)[6] = {
-        // Join frequencies and duty cycle limit (0.1%)
-        EU868_F1 | BAND_MILLI, EU868_F2 | BAND_MILLI, EU868_F3 | BAND_MILLI,
+static CONST_TABLE(u4_t, iniChannelFreq)[NUM_DEFAULT_CHANNELS] = {
         // Default operational frequencies and duty cycle limit (1%)
-        EU868_F1 | BAND_CENTI, EU868_F2 | BAND_CENTI, EU868_F3 | BAND_CENTI,
+        EU868_F1 | BAND_CENTI,
+        EU868_F2 | BAND_CENTI,
+        EU868_F3 | BAND_CENTI,
 };
 
-void LMICeu868_initDefaultChannels(bit_t join) {
+void LMICeu868_initDefaultChannels() {
+
         os_clearMem(&LMIC.channelFreq, sizeof(LMIC.channelFreq));
 #if !defined(DISABLE_MCMD_DlChannelReq)
         os_clearMem(&LMIC.channelDlFreq, sizeof(LMIC.channelDlFreq));
@@ -115,9 +116,8 @@ void LMICeu868_initDefaultChannels(bit_t join) {
         os_clearMem(&LMIC.bands, sizeof(LMIC.bands));
 
         LMIC.channelMap = (1 << NUM_DEFAULT_CHANNELS) - 1;
-        u1_t su = join ? 0 : NUM_DEFAULT_CHANNELS;
-        for (u1_t fu = 0; fu<NUM_DEFAULT_CHANNELS; fu++, su++) {
-                LMIC.channelFreq[fu] = TABLE_GET_U4(iniChannelFreq, su);
+        for (u1_t fu = 0; fu<NUM_DEFAULT_CHANNELS; fu++) {
+                LMIC.channelFreq[fu] = TABLE_GET_U4(iniChannelFreq, fu);
                 // TODO(tmm@mcci.com): don't use EU DR directly, use something from the LMIC context or a static const
                 LMIC.channelDrMap[fu] = DR_RANGE_MAP(EU868_DR_SF12, EU868_DR_SF7);
         }

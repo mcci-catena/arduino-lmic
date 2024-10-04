@@ -186,9 +186,7 @@ static CONST_TABLE(u4_t, iniChannelFreq)[NUM_DEFAULT_CHANNELS] = {
         AS923_F2 | BAND_CENTI,
 };
 
-// as923 ignores join, becuase the channel setup is the same either way.
-void LMICas923_initDefaultChannels(bit_t join) {
-        LMIC_API_PARAMETER(join);
+void LMICas923_initDefaultChannels() {
 
         os_clearMem(&LMIC.channelFreq, sizeof(LMIC.channelFreq));
 #if !defined(DISABLE_MCMD_DlChannelReq)

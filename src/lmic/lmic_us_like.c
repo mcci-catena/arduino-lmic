@@ -78,8 +78,7 @@ bit_t LMIC_setupBand(u1_t bandidx, s1_t txpow, u2_t txcap) {
 }
 
 
-void LMICuslike_initDefaultChannels(bit_t fJoin) {
-        LMIC_API_PARAMETER(fJoin);
+void LMICuslike_initDefaultChannels() {
 
         // things work the same for join as normal.
         for (u1_t i = 0; i<4; i++)

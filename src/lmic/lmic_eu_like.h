@@ -59,7 +59,7 @@ LMICeulike_isValidBeacon1(const uint8_t *d) {
 void LMICeulike_txDoneFSK(ostime_t delay, osjobcb_t func);
 #define LMICbandplan_txDoneFSK(delay, func)     LMICeulike_txDoneFSK(delay, func)
 
-#define LMICbandplan_joinAcceptChannelClear()   LMICbandplan_initDefaultChannels(/* normal, not join */ 0)
+#define LMICbandplan_joinAcceptChannelClear()   LMICbandplan_initDefaultChannels()
 
 enum { BAND_MILLI = 0, BAND_CENTI = 1, BAND_DECI = 2, BAND_AUX = 3 };
 
@@ -78,7 +78,7 @@ void LMICeulike_processJoinAcceptCFList(void);
         do { /* nothing */ } while (0)
 
 #define LMICbandplan_setSessionInitDefaultChannels()    \
-        do { LMICbandplan_initDefaultChannels(/* normal, not join */ 0); } while (0)
+        do { LMICbandplan_initDefaultChannels(); } while (0)
 
 bit_t LMICeulike_canMapChannels(u1_t chpage, u2_t chmap);
 #define LMICbandplan_canMapChannels(c, m)  LMICeulike_canMapChannels(c, m)

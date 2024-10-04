@@ -78,8 +78,8 @@ ostime_t LMICeu868_nextTx(ostime_t now);
 ostime_t LMICeu868_nextJoinState(void);
 #define LMICbandplan_nextJoinState()    LMICeu868_nextJoinState()
 
-void LMICeu868_initDefaultChannels(bit_t join);
-#define LMICbandplan_initDefaultChannels(join)  LMICeu868_initDefaultChannels(join)
+void LMICeu868_initDefaultChannels();
+#define LMICbandplan_initDefaultChannels()  LMICeu868_initDefaultChannels()
 
 #undef LMICbandplan_nextJoinTime
 ostime_t LMICeu868_nextJoinTime(ostime_t now);

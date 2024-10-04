@@ -104,9 +104,7 @@ static CONST_TABLE(u4_t, iniChannelFreq)[NUM_DEFAULT_CHANNELS] = {
         KR920_F3 | BAND_MILLI,
 };
 
-// korea ignores the join flag, becuase the channel setup is the same either way.
-void LMICkr920_initDefaultChannels(bit_t join) {
-        LMIC_API_PARAMETER(join);
+void LMICkr920_initDefaultChannels() {
 
         os_clearMem(&LMIC.channelFreq, sizeof(LMIC.channelFreq));
 #if !defined(DISABLE_MCMD_DlChannelReq)
