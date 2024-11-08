@@ -96,8 +96,8 @@ ostime_t LMICas923_nextTx(ostime_t now);
 ostime_t LMICas923_nextJoinState(void);
 #define LMICbandplan_nextJoinState()    LMICas923_nextJoinState()
 
-void LMICas923_initDefaultChannels(bit_t join);
-#define LMICbandplan_initDefaultChannels(join)  LMICas923_initDefaultChannels(join)
+void LMICas923_initDefaultChannels();
+#define LMICbandplan_initDefaultChannels()  LMICas923_initDefaultChannels()
 
 // override default for LMICbandplan_updateTX
 #undef LMICbandplan_updateTx

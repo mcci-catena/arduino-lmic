@@ -78,8 +78,8 @@ ostime_t LMICkr920_nextTx(ostime_t now);
 ostime_t LMICkr920_nextJoinState(void);
 #define LMICbandplan_nextJoinState()    LMICkr920_nextJoinState()
 
-void LMICkr920_initDefaultChannels(bit_t join);
-#define LMICbandplan_initDefaultChannels(join)  LMICkr920_initDefaultChannels(join)
+void LMICkr920_initDefaultChannels();
+#define LMICbandplan_initDefaultChannels()  LMICkr920_initDefaultChannels()
 
 void LMICkr920_setRx1Params(void);
 #define LMICbandplan_setRx1Params()     LMICkr920_setRx1Params()

@@ -108,9 +108,7 @@ static CONST_TABLE(u4_t, iniChannelFreq)[NUM_DEFAULT_CHANNELS] = {
         IN866_F3 | BAND_MILLI,
 };
 
-// india ignores join, becuase the channel setup is the same either way.
-void LMICin866_initDefaultChannels(bit_t join) {
-        LMIC_API_PARAMETER(join);
+void LMICin866_initDefaultChannels() {
 
         os_clearMem(&LMIC.channelFreq, sizeof(LMIC.channelFreq));
 #if !defined(DISABLE_MCMD_DlChannelReq)

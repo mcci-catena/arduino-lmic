@@ -78,10 +78,10 @@ void LMICuslike_processJoinAcceptCFList(void);
 // TODO(tmm@mcci.com): decide whether we want to do this on every
 // reset or just restore the last sub-band selected by the user.
 #define LMICbandplan_resetDefaultChannels()     \
-        LMICbandplan_initDefaultChannels(/* normal */ 0)
+        LMICbandplan_initDefaultChannels()
 
-void LMICuslike_initDefaultChannels(bit_t fJoin);
-#define LMICbandplan_initDefaultChannels(fJoin) LMICuslike_initDefaultChannels(fJoin)
+void LMICuslike_initDefaultChannels();
+#define LMICbandplan_initDefaultChannels() LMICuslike_initDefaultChannels()
 
 #define LMICbandplan_setSessionInitDefaultChannels()    \
         do { /* nothing */} while (0)
