@@ -282,7 +282,45 @@ static void hal_time_init () {
     // Nothing to do
 }
 
+#if defined(HAL_ALLOW_FUTURE_JUMP)
+
+static uint32_t future_usec = 0;
+
+typedef decltype(micros()) micros_t;
+
+u4_t hal_ticks (micros_t);
+
 u4_t hal_ticks () {
+    return hal_ticks(micros() + future_usec);
+}
+
+void hal_jump_to_the_future_us (uint32_t usec) {
+    // It is needed to independantly handle
+    // overflowing of `micros()` and `future_usec`.
+
+    // First, handle possible past overflow of `micros()`:
+    micros_t now_us = micros();
+    (void)hal_ticks(now_us + future_usec);
+
+    // Then handle possible `future_usec` overflow
+    // while retaining micros() in a temporary constant
+    future_usec += usec;
+    (void)hal_ticks(now_us + future_usec);
+}
+
+#define HAL_TICKS_PARAM  micros_t micros_now
+#define HAL_TICKS_MICROS micros_now
+
+#else // !defined(HAL_ALLOW_FUTURE_JUMP)
+
+// legacy code without `hal_jump_to_the_future_us()`
+#define HAL_TICKS_PARAM  void
+#define HAL_TICKS_MICROS micros()
+
+#endif // !defined(HAL_ALLOW_FUTURE_JUMP)
+
+u4_t hal_ticks (HAL_TICKS_PARAM) {
+    // (by default HAL_TICKS_PARAM is void and HAL_TICKS_MICROS is micros()).
     // Because micros() is scaled down in this function, micros() will
     // overflow before the tick timer should, causing the tick timer to
     // miss a significant part of its values if not corrected. To fix
@@ -302,11 +340,16 @@ u4_t hal_ticks () {
     // jumps, which should result in efficient code. By avoiding shifts
     // other than by multiples of 8 as much as possible, this is also
     // efficient on AVR (which only has 1-bit shifts).
+    //
+    // Additional note:
+    // When HAL_TICKS_MICROS is (micros()+future_usec), this reasoning is
+    // still valid when overflows of micros() and future_usec are
+    // independently taken care of (see hal_jump_to_the_future_us()).
     static uint8_t overflow = 0;
 
     // Scaled down timestamp. The top US_PER_OSTICK_EXPONENT bits are 0,
     // the others will be the lower bits of our return value.
-    uint32_t scaled = micros() >> US_PER_OSTICK_EXPONENT;
+    uint32_t scaled = (HAL_TICKS_MICROS) >> US_PER_OSTICK_EXPONENT;
     // Most significant byte of scaled
     uint8_t msb = scaled >> 24;
     // Mask pointing to the overlapping bit in msb and overflow.
