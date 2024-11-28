@@ -75,8 +75,8 @@ ostime_t LMICin866_nextTx(ostime_t now);
 ostime_t LMICin866_nextJoinState(void);
 #define LMICbandplan_nextJoinState()    LMICin866_nextJoinState()
 
-void LMICin866_initDefaultChannels(bit_t join);
-#define LMICbandplan_initDefaultChannels(join)  LMICin866_initDefaultChannels(join)
+void LMICin866_initDefaultChannels();
+#define LMICbandplan_initDefaultChannels()  LMICin866_initDefaultChannels()
 
 void LMICin866_setRx1Params(void);
 #define LMICbandplan_setRx1Params()     LMICin866_setRx1Params()
