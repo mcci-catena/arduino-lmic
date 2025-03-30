@@ -39,6 +39,7 @@ const HalPinmap_t *GetPinmap_Catena4802();
 const HalPinmap_t *GetPinmap_Catena4916();
 const HalPinmap_t *GetPinmap_Catena4917();
 const HalPinmap_t *GetPinmap_Catena4931();
+const HalPinmap_t *GetPinmap_Catena4933();
 const HalPinmap_t* GetPinmap_ttgo_lora32_v1();
 const HalPinmap_t *GetPinmap_ttgo_lora32_v21();
 const HalPinmap_t* GetPinmap_heltec_lora32();
