@@ -63,6 +63,8 @@ const HalPinmap_t *GetPinmap_ThisBoard(void)
         return GetPinmap_Catena4916();
 #elif defined(ARDUINO_MCCI_MODEL_4917)
         return GetPinmap_Catena4917();
+#elif defined(ARDUINO_MCCI_MODEL_4931)
+        return GetPinmap_Catena4931();
 #elif defined(ARDUINO_DISCO_L072CZ_LRWAN1)
         return GetPinmap_Disco_L072cz_Lrwan1();
 #elif defined(PINNOCHIO_SCOUT)
