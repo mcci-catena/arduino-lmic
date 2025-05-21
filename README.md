@@ -36,7 +36,7 @@
 		- [Selecting V1.0.2](#selecting-v102)
 		- [Selecting V1.0.3](#selecting-v103)
 	- [Selecting the LoRaWAN Region Configuration](#selecting-the-lorawan-region-configuration)
-		- [eu868, as923, in866, kr920](#eu868-as923-in866-kr920)
+		- [eu868, as923, in866, kr920, eu433](#eu868-as923-in866-kr920-eu433)
 		- [us915, au915](#us915-au915)
 	- [Selecting the target radio transceiver](#selecting-the-target-radio-transceiver)
 	- [Controlling use of interrupts](#controlling-use-of-interrupts)
@@ -257,6 +257,7 @@ The library supports the following regions:
 ------------|-----------------|:----------------:|:-------------------:|--------
 `-D CFG_eu868` | `LMIC_REGION_eu868` | 1 | 2.2 | EU 863-870 MHz ISM
 `-D CFG_us915` | `LMIC_REGION_us915` | 2 | 2.3 | US 902-928 MHz ISM
+`-D CFG_eu433` | `LMIC_REGION_eu433` | 4 | 2.5 | EU 433-434 MHz ISM
 `-D CFG_au915` | `LMIC_REGION_au915` | 5 | 2.6 | Australia 915-928 MHz ISM
 `-D CFG_as923` | `LMIC_REGION_as923` | 7 | 2.8 | Asia 923 MHz ISM
 `-D CFG_as923jp` | `LMIC_REGION_as923` and `LMIC_COUNTRY_CODE_JP` | 7 | 2.8 | Asia 923 MHz ISM with Japan listen-before-talk (LBT) rules
@@ -269,7 +270,7 @@ MCCI BSPs add menu entries to the Arduino IDE so you can select the target regio
 
 The library changes configuration pretty substantially according to the region selected, and this affects the symbols in-scope in your sketches and `.cpp` files. Some of the differences are listed below. This list is not comprehensive, and is subject to change in future major releases.
 
-#### eu868, as923, in866, kr920
+#### eu868, as923, in866, kr920, eu433
 
 If the library is configured for EU868, AS923, or IN866 operation, we make
 the following changes:

@@ -419,6 +419,52 @@ enum _dr_configured_t {
 };
 # endif // LMIC_DR_LEGACY
 
+#elif defined(CFG_eu433) // ==============================================
+
+#include "lorabase_eu433.h"
+
+// per 2.5.3: not implemented
+#define LMIC_ENABLE_TxParamSetupReq	0
+
+enum { DR_DFLTMIN = EU433_DR_SF7 };
+enum { DR_PAGE = DR_PAGE_EU433 };  // debugging parameter
+
+enum { FREQ_PING = EU433_F6 };  // default ping freq
+enum { DR_PING = EU433_DR_SF9 };  // default ping DR
+enum { FREQ_DNW2 = EU433_F6 };
+enum { DR_DNW2 = EU433_DR_SF12 };
+enum { CHNL_BCN = 5 };
+enum { FREQ_BCN = EU433_F6 };
+enum { DR_BCN = EU433_DR_SF9 };
+enum { AIRTIME_BCN = 144384 };  // micros
+enum { LMIC_REGION_EIRP = EU433_LMIC_REGION_EIRP };
+
+enum {
+    // Beacon frame format EU SF9
+    OFF_BCN_NETID = 0,
+    OFF_BCN_TIME = 3,
+    OFF_BCN_CRC1 = 7,
+    OFF_BCN_INFO = 8,
+    OFF_BCN_LAT = 9,
+    OFF_BCN_LON = 12,
+    OFF_BCN_CRC2 = 15,
+    LEN_BCN = 17
+};
+
+# if LMIC_DR_LEGACY
+enum _dr_configured_t {
+	DR_SF12 = EU433_DR_SF12,
+	DR_SF11 = EU433_DR_SF11,
+	DR_SF10 = EU433_DR_SF10,
+	DR_SF9  = EU433_DR_SF9,
+	DR_SF8  = EU433_DR_SF8,
+	DR_SF7  = EU433_DR_SF7,
+	DR_SF7B = EU433_DR_SF7B,
+	DR_FSK  = EU433_DR_FSK,
+	DR_NONE = EU433_DR_NONE
+};
+# endif // LMIC_DR_LEGACY
+
 #else
 # error Unsupported configuration setting
 #endif // ===================================================
