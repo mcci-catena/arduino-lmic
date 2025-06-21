@@ -237,6 +237,9 @@ void setup() {
     // Reset the MAC state. Session and pending data transfers will be discarded.
     LMIC_reset();
 
+    // TTN uses the 2nd sub-band (channels 8-15) (sub-band 1 when counting from 0).
+    LMIC_selectSubBand(1);
+    
     // Start job (sending automatically starts OTAA too)
     do_send(&sendjob);
 }
