@@ -63,8 +63,12 @@ LMICuslike_isValidBeacon1(const uint8_t *d) {
 // provide a default LMICbandplan_joinAcceptChannelClear()
 #define LMICbandplan_joinAcceptChannelClear() do { } while (0)
 
-/// \brief there's a CFList on joins for US-like plans
-#define LMICbandplan_hasJoinCFlist()    (1)
+/// \brief Indicates whether a Join CFList is included for US-like band plans based on LoRaWAN spec version.
+#if LMIC_LORAWAN_SPEC_VERSION <= LMIC_LORAWAN_SPEC_VERSION_1_0_2
+        #define LMICbandplan_hasJoinCFlist()    (0)
+#else
+        #define LMICbandplan_hasJoinCFlist()    (1)
+#endif  
 
 /// \brief process CFLists from JoinAccept for EU-like regions
 void LMICuslike_processJoinAcceptCFList(void);
