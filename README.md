@@ -221,7 +221,7 @@ In V1.0.2, the US accepted power range in MAC commands is 10 dBm to 30 dBm; wher
 
 #### AU915 Data Rate, TxParamSetupReq and CFList 
 
-In V1.0.2, the JoinReq data rate for OTAA is DR0 (SF12). This is reduced to DR2 (SF10) in V1.0.3. Furthermore, the TxParamSetupReq MAC command is not implemented, nor is the use of the optional CFlist appended to the JoinAccept message.
+In V1.0.2, the JoinReq data rate for OTAA is DR0 (SF12). This is reduced to DR2 (SF10) in V1.0.3. Furthermore, the TxParamSetupReq MAC command is not implemented, nor is the optional CFlist appended to the JoinAccept message.
 
 The default LoRaWAN version, if no version is explicitly selected, is V1.0.3.
 
