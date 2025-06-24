@@ -299,7 +299,7 @@ void LMICau915_updateTx(ostime_t txbeg) {
         }
 
         #if LMIC_LORAWAN_SPEC_VERSION > LMIC_LORAWAN_SPEC_VERSION_1_0_2
-                if (LMICau915_getUplinkDwellBit(LMIC.txParam))
+                if (LMICau915_getUplinkDwellBit(LMIC.txParam)) {
                         dwellDelay = AU915_UPLINK_DWELL_TIME_osticks;
                 }
         #endif
