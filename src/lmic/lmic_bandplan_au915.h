@@ -31,7 +31,12 @@
 
 // preconditions for lmic_us_like.h
 #define LMICuslike_getFirst500kHzDR()   (LORAWAN_DR6)
-#define	LMICuslike_getJoin125kHzDR()	(LORAWAN_DR2)
+
+#if LMIC_LORAWAN_SPEC_VERSION <= LMIC_LORAWAN_SPEC_VERSION_1_0_2
+  #define	LMICuslike_getJoin125kHzDR()	(LORAWAN_DR0)
+#else
+  #define	LMICuslike_getJoin125kHzDR()	(LORAWAN_DR2)
+#endif
 
 #ifndef _lmic_us_like_h_
 # include "lmic_us_like.h"
@@ -48,8 +53,11 @@ int8_t LMICau915_pow2dbm(uint8_t mcmd_ladr_p1);
 ostime_t LMICau915_dr2hsym(uint8_t dr);
 #define dr2hsym(dr) LMICau915_dr2hsym(dr)
 
-
-#define LMICbandplan_getInitialDrJoin() (LORAWAN_DR2)
+#if LMIC_LORAWAN_SPEC_VERSION <= LMIC_LORAWAN_SPEC_VERSION_1_0_2
+  #define LMICbandplan_getInitialDrJoin() (LORAWAN_DR0)
+#else
+  #define LMICbandplan_getInitialDrJoin() (LORAWAN_DR2)
+#endif
 
 void LMICau915_initJoinLoop(void);
 #define LMICbandplan_initJoinLoop()     LMICau915_initJoinLoop()
