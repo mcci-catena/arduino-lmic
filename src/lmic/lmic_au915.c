@@ -73,25 +73,36 @@ static CONST_TABLE(u1_t, maxFrameLens_dwell1)[] = {
 
 static bit_t
 LMICau915_getUplinkDwellBit() {
+        #if LMIC_LORAWAN_SPEC_VERSION <= LMIC_LORAWAN_SPEC_VERSION_1_0_2
+                return 0;
+        #else
         // if uninitialized, return default.
-        if (LMIC.txParam == 0xFF) {
-                return AU915_INITIAL_TxParam_UplinkDwellTime;
-        }
-        return (LMIC.txParam & MCMD_TxParam_TxDWELL_MASK) != 0;
+                if (LMIC.txParam == 0xFF) {
+                        return AU915_INITIAL_TxParam_UplinkDwellTime;
+                }
+                return (LMIC.txParam & MCMD_TxParam_TxDWELL_MASK) != 0;
+        #endif
 }
 
 uint8_t LMICau915_maxFrameLen(uint8_t dr) {
-        if (LMICau915_getUplinkDwellBit()) {
+        #if LMIC_LORAWAN_SPEC_VERSION <= LMIC_LORAWAN_SPEC_VERSION_1_0_2
                 if (dr < LENOF_TABLE(maxFrameLens_dwell0))
                         return TABLE_GET_U1(maxFrameLens_dwell0, dr);
                 else
                         return 0;
-        } else {
-                if (dr < LENOF_TABLE(maxFrameLens_dwell1))
-                        return TABLE_GET_U1(maxFrameLens_dwell1, dr);
+        #else
+            if (LMICau915_getUplinkDwellBit()) {
+                if (dr < LENOF_TABLE(maxFrameLens_dwell0))
+                    return TABLE_GET_U1(maxFrameLens_dwell0, dr);
                 else
-                        return 0;
-        }
+                    return 0;
+            } else {
+                if (dr < LENOF_TABLE(maxFrameLens_dwell1))
+                    return TABLE_GET_U1(maxFrameLens_dwell1, dr);
+                else
+                    return 0;
+            }
+        #endif
 }
 
 // from LoRaWAN 5.8: mapping from txParam to MaxEIRP
@@ -100,6 +111,9 @@ static CONST_TABLE(s1_t, TXMAXEIRP)[16] = {
 };
 
 static int8_t LMICau915_getMaxEIRP(uint8_t mcmd_txparam) {
+        #if LMIC_LORAWAN_SPEC_VERSION <= LMIC_LORAWAN_SPEC_VERSION_1_0_2
+                return 0;
+        #else 
         // if uninitialized, return default.
 	if (mcmd_txparam == 0xFF)
 		return AU915_TX_EIRP_MAX_DBM;
@@ -109,14 +123,19 @@ static int8_t LMICau915_getMaxEIRP(uint8_t mcmd_txparam) {
 			(mcmd_txparam & MCMD_TxParam_MaxEIRP_MASK) >>
 				MCMD_TxParam_MaxEIRP_SHIFT
 			);
+        #endif
 }
 
 int8_t LMICau915_pow2dbm(uint8_t mcmd_ladr_p1) {
-        if ((mcmd_ladr_p1 & MCMD_LinkADRReq_POW_MASK) == MCMD_LinkADRReq_POW_MASK)
-                return -128;
-        else    {
-                return ((s1_t)(LMICau915_getMaxEIRP(LMIC.txParam) - (((mcmd_ladr_p1)&MCMD_LinkADRReq_POW_MASK)<<1)));
-        }
+        #if LMIC_LORAWAN_SPEC_VERSION <= LMIC_LORAWAN_SPEC_VERSION_1_0_2
+                return 0;        
+        #else
+                if ((mcmd_ladr_p1 & MCMD_LinkADRReq_POW_MASK) == MCMD_LinkADRReq_POW_MASK)
+                         return -128;
+                else    {
+                         return ((s1_t)(LMICau915_getMaxEIRP(LMIC.txParam) - (((mcmd_ladr_p1)&MCMD_LinkADRReq_POW_MASK)<<1)));
+                }
+        #endif
 }
 
 static CONST_TABLE(ostime_t, DR2HSYM_osticks)[] = {
@@ -256,7 +275,12 @@ bit_t LMIC_selectSubBand(u1_t band) {
 
 void LMICau915_updateTx(ostime_t txbeg) {
         u1_t chnl = LMIC.txChnl;
-        LMIC.txpow = LMICau915_getMaxEIRP(LMIC.txParam);
+        LMIC.txpow = 30;
+
+        #if LMIC_LORAWAN_SPEC_VERSION > LMIC_LORAWAN_SPEC_VERSION_1_0_2
+                LMIC.txpow = LMICau915_getMaxEIRP(LMIC.txParam);
+        #endif
+
         if (chnl < 64) {
                 LMIC.freq = AU915_125kHz_UPFBASE + chnl*AU915_125kHz_UPFSTEP;
         } else {
@@ -273,9 +297,13 @@ void LMICau915_updateTx(ostime_t txbeg) {
                 ostime_t airtime = calcAirTime(LMIC.rps, LMIC.dataLen);
                 globalDutyDelay = txbeg + (airtime << LMIC.globalDutyRate);
         }
-        if (LMICau915_getUplinkDwellBit(LMIC.txParam)) {
-                dwellDelay = AU915_UPLINK_DWELL_TIME_osticks;
-        }
+
+        #if LMIC_LORAWAN_SPEC_VERSION > LMIC_LORAWAN_SPEC_VERSION_1_0_2
+                if (LMICau915_getUplinkDwellBit(LMIC.txParam)) {
+                        dwellDelay = AU915_UPLINK_DWELL_TIME_osticks;
+                }
+        #endif
+
         if (dwellDelay > globalDutyDelay) {
                 globalDutyDelay = dwellDelay;
         }
@@ -314,10 +342,11 @@ void LMICau915_setRx1Params(void) {
 void LMICau915_initJoinLoop(void) {
         // LMIC.txParam is set to 0xFF by the central code at init time.
         LMICuslike_initJoinLoop();
-
         // initialize the adrTxPower.
-        LMIC.adrTxPow = LMICau915_getMaxEIRP(LMIC.txParam); // dBm
-
+        LMIC.adrTxPow = 30; // dBm
+        #if LMIC_LORAWAN_SPEC_VERSION > LMIC_LORAWAN_SPEC_VERSION_1_0_2
+                LMIC.adrTxPow = LMICau915_getMaxEIRP(LMIC.txParam); // dBm
+        #endif
 }
 
 //

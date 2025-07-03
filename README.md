@@ -213,7 +213,15 @@ The following configuration variables are available.
 
 ### Selecting the LoRaWAN Version
 
-This library implements V1.0.3 of the LoRaWAN specification. However, it can also be used with V1.0.2. The only significant change when selecting V1.0.2 is that the US accepted power range in MAC commands is 10 dBm to 30 dBm; whereas in V1.0.3 the accepted range 2 dBm to 30 dBm.
+This library implements V1.0.3 of the LoRaWAN specification. However, it can also be used with V1.0.2rB (revision B). Two significant changes have been identified between the versions:
+
+#### US Power Range
+
+In V1.0.2, the US accepted power range in MAC commands is 10 dBm to 30 dBm; whereas in V1.0.3 the accepted range 2 dBm to 30 dBm.
+
+#### AU915 Data Rate (DR)/Spreading Factor (SF), TxParamSetupReq and CFList 
+
+In V1.0.2, the JoinReq data rate for OTAA is DR0 (SF12). This is been changed to DR2 (SF10) in V1.0.3. Furthermore, the TxParamSetupReq MAC command is not implemented, nor is the optional CFlist appended to the JoinAccept message.
 
 The default LoRaWAN version, if no version is explicitly selected, is V1.0.3.
 
