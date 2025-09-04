@@ -189,7 +189,7 @@ void lmic_hal_processPendingIRQs() {
 // -----------------------------------------------------------------------------
 // SPI
 
-static void hal_spi_init () {
+static void lmic_hal_spi_init () {
     plmic_pins->spi->begin();
 }
 
