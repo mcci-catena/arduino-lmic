@@ -90,7 +90,9 @@ public:
 
 	virtual void begin(void) {}
 	virtual void end(void) {}
-	virtual uint8_t queryBusyPin(void) { return HalPinmap_t::LMIC_UNUSED_PIN; }
+	virtual uint8_t queryBusyPin(void) {
+		return HalPinmap_t::LMIC_UNUSED_PIN;  // SX127x has no BUSY pin
+	}
 	virtual bool queryUsingTcxo(void) { return false; }
 	virtual bool queryUsingDcdc(void) { return false; }
 	virtual bool queryUsingDIO2AsRfSwitch(void) { return false; }

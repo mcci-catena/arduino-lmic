@@ -32,9 +32,9 @@ static void lmic_hal_interrupt_init(); // Fwd declaration
 static void lmic_hal_io_init () {
     // NSS and DIO0 are required, DIO1 is required for LoRa, DIO2 for FSK
     ASSERT(plmic_pins->nss != LMIC_UNUSED_PIN);
-    ASSERT(plmic_pins->dio[0] != LMIC_UNUSED_PIN);
     // SX126x family can operate with a single DIO
 #if (defined(CFG_sx1276_radio) || defined(CFG_sx1272_radio))
+    ASSERT(plmic_pins->dio[0] != LMIC_UNUSED_PIN);
     ASSERT(plmic_pins->dio[1] != LMIC_UNUSED_PIN || plmic_pins->dio[2] != LMIC_UNUSED_PIN);
 #endif
 
