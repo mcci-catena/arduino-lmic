@@ -17,10 +17,11 @@ Author:
 
 namespace Arduino_LMIC {
 
-const HalPinmap_t *GetPinmap_ThisBoard(void)
-        {
+const HalPinmap_t *GetPinmap_ThisBoard(void) {
 #if defined(ARDUINO_CHALLENGER_2040_LORA_RP2040)
         return GetPinmap_Challenger_RP2040_LoRa();
+#elif defined(ARDUINO_CONNECTIVITY_840)
+        return GetPinmap_Connectivity_840();
 /*
 || Adafruit BSPs are not consistent -- m0 express defs ARDUINO_SAMD_FEATHER_M0,
 || m0 defs ADAFRUIT_FEATHER_M0
