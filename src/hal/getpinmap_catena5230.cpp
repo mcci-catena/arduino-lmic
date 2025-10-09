@@ -32,45 +32,24 @@ public:
                 {
                 PIN_SX1262_NSS = D7,
                 PIN_SX1262_NRESET = D8,
-                PIN_SX1262_DIO0 = LMIC_UNUSED_PIN,
+                PIN_SX1262_BUSY = D30,
                 PIN_SX1262_DIO1 = D25,
                 PIN_SX1262_DIO2 = LMIC_UNUSED_PIN,
-                PIN_SX1262_ANT_SWITCH_RX = D26,
+                PIN_SX1262_DIO3 = LMIC_UNUSED_PIN,
+                PIN_SX1262_ANT_SWITCH_RX = LMIC_UNUSED_PIN,
                 PIN_SX1262_ANT_SWITCH_TX_BOOST = LMIC_UNUSED_PIN,
                 PIN_SX1262_ANT_SWITCH_TX_RFO = LMIC_UNUSED_PIN,
                 PIN_VDD_BOOST_ENABLE = LMIC_UNUSED_PIN,
                 PIN_TCXO_VDD = LMIC_UNUSED_PIN,
                 };
 
-        virtual void begin(void) override
-                {
-                digitalWrite(PIN_TCXO_VDD, 0);
-                pinMode(PIN_TCXO_VDD, OUTPUT);
-                }
+        virtual u1_t queryBusyPin(void) override { return HalConfiguration_Catena5230_t::PIN_SX1262_BUSY; };
 
-        virtual void end(void) override
-                {
-                digitalWrite(PIN_TCXO_VDD, 0);
-                pinMode(PIN_TCXO_VDD, INPUT);
-                }
+        virtual bool queryUsingDcdc(void) override { return true; };
 
-        virtual bool queryUsingTcxo(void) override { return true; };
+        virtual bool queryUsingDIO2AsRfSwitch(void) override { return true; };
 
-        virtual ostime_t setModuleActive(bool state) override
-                {
-                ostime_t result;
-                const int oldState = digitalRead(PIN_TCXO_VDD);
-
-                // if turning on, we need to delay.
-                result = 0;
-                if (state && ! oldState)
-                        result = ms2osticksCeil(3);
-
-                if (state != oldState)
-                        digitalWrite(PIN_TCXO_VDD, state);
-
-                return result;
-                }
+        virtual bool queryUsingDIO3AsTCXOSwitch(void) override { return true; };
         };
 
 // save some typing by bringing the pin numbers into scope
@@ -79,14 +58,16 @@ static HalConfiguration_Catena5230_t myConfig;
 static const HalPinmap_t myPinmap =
         {
         .nss = HalConfiguration_Catena5230_t::PIN_SX1262_NSS,      // chip select is D7
-        .rxtx = HalConfiguration_Catena5230_t::PIN_SX1262_ANT_SWITCH_RX, // RXTX is D26
+        .rxtx = HalConfiguration_Catena5230_t::PIN_SX1262_ANT_SWITCH_RX, // RXTX unused pin
         .rst = HalConfiguration_Catena5230_t::PIN_SX1262_NRESET,   // NRESET is D8
 
-        .dio = {LMIC_UNUSED_PIN,
+        .dio = {
                 HalConfiguration_Catena5230_t::PIN_SX1262_DIO1,    // DIO1 (IRQ) is D25
-                LMIC_UNUSED_PIN,
+                LMIC_UNUSED_PIN,        // DIO2 is not used
+                // HalConfiguration_Catena5230_t::PIN_SX1262_DIO1,    // DIO1 (IRQ) is D25
+                LMIC_UNUSED_PIN,        // DIO3 is not used
                },
-        .rxtx_rx_active = 1,
+        .rxtx_rx_active = 0,
         .rssi_cal = 10,
         .spi_freq = 8000000,     /* 8MHz */
         .pConfig = &myConfig
