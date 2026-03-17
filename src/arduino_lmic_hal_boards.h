@@ -22,6 +22,7 @@ Author:
 
 namespace Arduino_LMIC {
 const HalPinmap_t *GetPinmap_Challenger_RP2040_LoRa();
+const HalPinmap_t *GetPinmap_ChallengerZP_RP2350_LoRa();
 const HalPinmap_t *GetPinmap_Connectivity_840();
 
 const HalPinmap_t *GetPinmap_FeatherM0LoRa();

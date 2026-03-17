@@ -49,6 +49,8 @@ Returns:
 
 */
 
+#define LMIC_X_DEBUG_LEVEL 0
+
 #ifndef LMIC_C_ASSERT
 # define LMIC_C_ASSERT(e)	\
  void  LMIC_C_ASSERT__(int LMIC_C_ASSERT_x[(e) ? 1: -1])

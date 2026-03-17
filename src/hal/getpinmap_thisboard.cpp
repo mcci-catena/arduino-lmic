@@ -22,6 +22,8 @@ const HalPinmap_t *GetPinmap_ThisBoard(void) {
         return GetPinmap_Challenger_RP2040_LoRa();
 #elif defined(ARDUINO_CONNECTIVITY_840)
         return GetPinmap_Connectivity_840();
+#elif defined(ARDUINO_CHALLENGERZP_2350_LORA_RP2350)
+        return GetPinmap_ChallengerZP_RP2350_LoRa();
 /*
 || Adafruit BSPs are not consistent -- m0 express defs ARDUINO_SAMD_FEATHER_M0,
 || m0 defs ADAFRUIT_FEATHER_M0
