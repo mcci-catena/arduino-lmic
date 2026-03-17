@@ -32,19 +32,18 @@ static void lmic_hal_interrupt_init(); // Fwd declaration
 static void hal_interrupt_init(); // Fwd declaration
 
 static void lmic_hal_io_init () {
-    // NSS and DIO0 are required, DIO1 is required for LoRa, DIO2 for FSK
+    // NSS is always required
+    // SX1276/SX1272 need DIO0, SX126x only needs one of DIO1-DIO3
     ASSERT(plmic_pins->nss != LMIC_UNUSED_PIN);
-    ASSERT(plmic_pins->dio[0] != LMIC_UNUSED_PIN);
-    // SX126x family can operate with a single DIO
 #if (defined(CFG_sx1276_radio) || defined(CFG_sx1272_radio))
+    ASSERT(plmic_pins->dio[0] != LMIC_UNUSED_PIN);
     ASSERT(plmic_pins->dio[1] != LMIC_UNUSED_PIN || plmic_pins->dio[2] != LMIC_UNUSED_PIN);
+#elif (defined(CFG_sx1261_radio) || defined(CFG_sx1262_radio))
+    // SX126x uses DIO1 for IRQ by default in this library. Some board pinmaps
+    // store that host GPIO in dio[0] for compatibility with the legacy 3-slot
+    // pinmap, so accept any populated DIO entry.
+    ASSERT(plmic_pins->dio[0] != LMIC_UNUSED_PIN || plmic_pins->dio[1] != LMIC_UNUSED_PIN || plmic_pins->dio[2] != LMIC_UNUSED_PIN);
 #endif
-
-Serial.print("nss: "); Serial.println(plmic_pins->nss);
-Serial.print("rst: "); Serial.println(plmic_pins->rst);
-Serial.print("dio[0]: "); Serial.println(plmic_pins->dio[0]);
-Serial.print("dio[1]: "); Serial.println(plmic_pins->dio[1]);
-Serial.print("dio[2]: "); Serial.println(plmic_pins->dio[2]);
 
     // initialize SPI chip select to high (it's active low)
     digitalWrite(plmic_pins->nss, HIGH);
@@ -99,7 +98,8 @@ static ostime_t interrupt_time[NUM_DIO_INTERRUPT] = {0};
 
 #if !defined(LMIC_USE_INTERRUPTS)
 static void lmic_hal_interrupt_init() {
-    pinMode(plmic_pins->dio[0], INPUT);
+    if (plmic_pins->dio[0] != LMIC_UNUSED_PIN)
+        pinMode(plmic_pins->dio[0], INPUT);
     if (plmic_pins->dio[1] != LMIC_UNUSED_PIN)
         pinMode(plmic_pins->dio[1], INPUT);
     if (plmic_pins->dio[2] != LMIC_UNUSED_PIN)
@@ -267,8 +267,12 @@ void lmic_hal_spi_read_sx126x(u1_t cmd, u1_t* addr, size_t addr_len, u1_t* buf, 
 
     // Read buf_len bytes to buf
     for (; buf_len > 0; --buf_len, ++buf) {
+<<<<<<< HEAD
         u1_t data = 0x00;
         data = SPI.transfer(data);
+=======
+        u1_t data = plmic_pins->spi->transfer(0x00);
+>>>>>>> f05f069 (Fixes bugs that prevented the SX1262 driver from working properly.)
         *buf = data;
     }
 

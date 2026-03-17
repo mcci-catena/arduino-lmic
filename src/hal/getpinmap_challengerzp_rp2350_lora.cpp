@@ -45,13 +45,13 @@ namespace Arduino_LMIC {
     		digitalWrite(HalConfiguration_ChallengerZP_RP2350_LoRa_t::SX1262_NSS, 1);
     	}
 
-        virtual u1_t queryBusyPin(void) override { Serial.println("queryBusyPin"); return HalConfiguration_ChallengerZP_RP2350_LoRa_t::SX1262_BUSY; };
+        virtual u1_t queryBusyPin(void) override { return HalConfiguration_ChallengerZP_RP2350_LoRa_t::SX1262_BUSY; };
         
-        virtual bool queryUsingDcdc(void) override { Serial.println("queryUsingDcDc"); return true; };
+        virtual bool queryUsingDcdc(void) override { return true; };
 
-        virtual bool queryUsingDIO2AsRfSwitch(void) override { Serial.println("queryUsingDIO2"); return true; };
+        virtual bool queryUsingDIO2AsRfSwitch(void) override { return true; };
 
-        virtual bool queryUsingDIO3AsTCXOSwitch(void) override { Serial.println("queryUsingDIO3"); return false; };
+        virtual bool queryUsingDIO3AsTCXOSwitch(void) override { return false; };
   };
 
   static HalConfiguration_ChallengerZP_RP2350_LoRa_t myConfig;
@@ -62,9 +62,9 @@ namespace Arduino_LMIC {
       .rxtx = LMIC_UNUSED_PIN,
       .rst = HalConfiguration_ChallengerZP_RP2350_LoRa_t::SX1262_NRESET,
       .dio = {
-        HalConfiguration_ChallengerZP_RP2350_LoRa_t::SX1262_DIO1,
-        HalConfiguration_ChallengerZP_RP2350_LoRa_t::SX1262_DIO2, 
-        HalConfiguration_ChallengerZP_RP2350_LoRa_t::SX1262_DIO3
+        HalPinmap_t::UNUSED_PIN,  // DIO0 (not used by SX1262)
+        HalConfiguration_ChallengerZP_RP2350_LoRa_t::SX1262_DIO1,  // DIO1 (RX/TX interrupt)
+        HalPinmap_t::UNUSED_PIN   // DIO2
       },
       .rxtx_rx_active = 0,
       .rssi_cal = 8,              // LBT cal for the Challenger RP2040 LoRa

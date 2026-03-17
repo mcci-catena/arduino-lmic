@@ -128,6 +128,11 @@
 #define DIO3OutVoltCont                            0x0920 // Reset Value 0x01 - Use only with Semtech-provided code samples
 #define EventMask                                  0x0944 // Reset Value 0x00 - Use only with Semtech-provided code samples
 
+// Some SX126x board designs require different crystal trim capacitance than
+// the reset defaults.
+#define LMIC_SX126X_XTA_TRIM_VALUE                 0x12
+#define LMIC_SX126X_XTB_TRIM_VALUE                 0x12
+
 #define LoRaSyncWordMSBPublic                      0x34
 #define LoRaSyncWordMSBPrivate                     0x14
 #define LoRaSyncWordLSBPublic                      0x44
@@ -281,15 +286,12 @@ static u1_t readRegister(u2_t addr) {
 static void writeBuffer(u1_t addr, xref2u1_t buf, u1_t len) {
     // Set the TX buffer base address. Leave RX base address as 0
     u1_t baseAddr[SX126X_BUFF_BASE_ADDR_LEN] = {addr, 0};
-    lmic_hal_spi_write(SetBufferBaseAddress, &addr, SX126X_BUFF_BASE_ADDR_LEN);
+    lmic_hal_spi_write(SetBufferBaseAddress, baseAddr, SX126X_BUFF_BASE_ADDR_LEN);
 
     // Prepend the offset byte to the data being written to the buffer
     u1_t new_buf[len + 1];
     new_buf[0] = SX126X_FIFO_OFFSET;
-    for (u1_t i = 1; i < (len + 1); i++) {
-        new_buf[i] = buf[i - 1];
-    }
-
+    memcpy(&new_buf[1], buf, len);
     lmic_hal_spi_write(WriteBuffer, new_buf, len + 1);
 }
 
@@ -336,7 +338,7 @@ static void setRx(u1_t timeout[SX126X_TIMEOUT_LEN]) {
     // It is advised to add the following commands after ANY Rx with Timeout active sequence,
     // which stop the RTC and clear the timeout event, if any.
     u1_t hasTimeout = 0;
-    for (u1_t i; i < SX126X_TIMEOUT_LEN; i++) {
+    for (u1_t i = 0; i < SX126X_TIMEOUT_LEN; i++) {
         if ((timeout[i] != 0x00) && (timeout[i] !=0xFF)) {
             hasTimeout = 1;
             break;
@@ -636,7 +638,7 @@ static void setPacketParams(u1_t packetType, u1_t frameLength, u1_t invertIQ) {
         u1_t packetParams[SX126X_LORA_PACKETPARAMS_LEN] = {0};
 
         // LoRa PacketParam1 (MSB) & 2 (LSB) - PreambleLength
-        // The existing radio.c appears to use a default 8 bit preamble
+        // Use 8 symbols for LoRaWAN compatibility (matches SX1276 default)
         packetParams[0] = 0x00;
         packetParams[1] = 0x08;
 
@@ -781,6 +783,18 @@ void radio_config(void) {
     // Workaround 15.2  - Better Resistance of the SX1262 Tx to Antenna Mismatch
     // This register modification must be done after a Power On Reset, or a wake-up from cold Start.
     writeRegister(TxClampConfig, (readRegister(TxClampConfig) | 0x1E));
+
+    // Some boards need explicit crystal trim values for stable frequency accuracy.
+    writeRegister(XTATrim, LMIC_SX126X_XTA_TRIM_VALUE);
+    writeRegister(XTBTrim, LMIC_SX126X_XTB_TRIM_VALUE);
+#if LMIC_DEBUG_LEVEL > 0
+    LMIC_DEBUG_PRINTF(
+        "%"LMIC_PRId_ostime_t": XTAL trim, XTA=%02X XTB=%02X\n",
+        os_getTime(),
+        readRegister(XTATrim),
+        readRegister(XTBTrim)
+    );
+#endif
 
     // DC-DC regulator is hardware dependent
     if (lmic_hal_queryUsingDcdc()) {
@@ -983,9 +997,9 @@ static void rxlora(u1_t rxmode) {
     if (rxmode == RXMODE_SINGLE) {
         u4_t nLate = lmic_hal_waitUntil(LMIC.rxtime);
         u1_t rxTimeoutSingle[SX126X_TIMEOUT_LEN] = {
-            0x00,
-            0x00,
-            0x00
+            0xFF,
+            0xFF,
+            0xFF
         };
         setRx(rxTimeoutSingle);
         LMICOS_logEventUint32("+Rx LoRa Single", nLate);
@@ -1054,9 +1068,9 @@ static void rxfsk(u1_t rxmode) {
     if (rxmode == RXMODE_SINGLE) {
         u4_t nLate = lmic_hal_waitUntil(LMIC.rxtime); // busy wait until exact rx time
         u1_t rxTimeoutSingle[SX126X_TIMEOUT_LEN] = {
-            0x00,
-            0x00,
-            0x00
+            0xFF,
+            0xFF,
+            0xFF
         };
         setRx(rxTimeoutSingle);
         LMICOS_logEventUint32("+Rx FSK", nLate);
