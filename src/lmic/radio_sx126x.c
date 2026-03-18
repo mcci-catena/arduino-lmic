@@ -953,7 +953,7 @@ static void rxlate(u4_t nLate) {
     }
 }
 
-// start LoRa receiver (time=LMIC.rxtime, timeout=LMIC.rxsyms, result=LMIC.frame[LMIC.dataLen])
+// start LoRa receiver (time=LMIC.radio.rxtime, timeout=LMIC.radio.rxsyms, result=LMIC.radio.pFrame[LMIC.radio.dataLen])
 // Chapter 14.3: Circuit configuration for basic rx operation
 static void rxlora(u1_t rxmode) {
     // Send configuration commands to radio
@@ -995,7 +995,7 @@ static void rxlora(u1_t rxmode) {
 
     // now instruct the radio to receive
     if (rxmode == RXMODE_SINGLE) {
-        u4_t nLate = lmic_hal_waitUntil(LMIC.rxtime);
+        u4_t nLate = lmic_hal_waitUntil(LMIC.radio.rxtime);
         u1_t rxTimeoutSingle[SX126X_TIMEOUT_LEN] = {
             0xFF,
             0xFF,
@@ -1006,7 +1006,7 @@ static void rxlora(u1_t rxmode) {
         rxlate(nLate);
 #if LMIC_DEBUG_LEVEL > 0
         ostime_t now = os_getTime();
-        LMIC_DEBUG_PRINTF("start single rx: now-rxtime: %"LMIC_PRId_ostime_t"\n", now - LMIC.rxtime);
+        LMIC_DEBUG_PRINTF("start single rx: now-rxtime: %"LMIC_PRId_ostime_t"\n", now - LMIC.radio.rxtime);
 #endif
     } else {
         LMICOS_logEventUint32("+Rx LoRa Continuous", rxmode);
@@ -1066,7 +1066,7 @@ static void rxfsk(u1_t rxmode) {
 
     // now instruct the radio to receive
     if (rxmode == RXMODE_SINGLE) {
-        u4_t nLate = lmic_hal_waitUntil(LMIC.rxtime); // busy wait until exact rx time
+        u4_t nLate = lmic_hal_waitUntil(LMIC.radio.rxtime); // busy wait until exact rx time
         u1_t rxTimeoutSingle[SX126X_TIMEOUT_LEN] = {
             0xFF,
             0xFF,
@@ -1480,7 +1480,7 @@ void os_radio(u1_t mode) {
     // populate LMIC.radio fields from LMIC for compatibility
     LMIC.radio.freq = LMIC.freq;
     LMIC.radio.pFrame = LMIC.frame;
-    LMIC.radio.rxtime = LMIC.rxtime;
+    LMIC.radio.rxtime = LMIC.nextRxTime;
     LMIC.radio.rps = LMIC.rps;
     LMIC.radio.rxsyms = LMIC.rxsyms;
     LMIC.radio.dataLen = LMIC.dataLen;
