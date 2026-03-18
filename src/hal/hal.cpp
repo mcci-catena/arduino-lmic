@@ -252,32 +252,27 @@ void lmic_hal_spi_read_sx126x(u1_t cmd, u1_t* addr, size_t addr_len, u1_t* buf, 
         spi_freq = LMIC_SPI_FREQ;
 
     SPISettings settings(spi_freq, MSBFIRST, SPI_MODE0);
-    SPI.beginTransaction(settings);
+    plmic_pins->spi->beginTransaction(settings);
     digitalWrite(nss, 0);
 
     while (lmic_hal_radio_spi_is_busy());
 
-    SPI.transfer(cmd);
+    plmic_pins->spi->transfer(cmd);
 
     // Transfer address and NOP bits 
     for (; addr_len > 0; --addr_len, ++addr) {
         u1_t addr_byte = *addr;
-        SPI.transfer(addr_byte);
+        plmic_pins->spi->transfer(addr_byte);
     }
 
     // Read buf_len bytes to buf
     for (; buf_len > 0; --buf_len, ++buf) {
-<<<<<<< HEAD
-        u1_t data = 0x00;
-        data = SPI.transfer(data);
-=======
         u1_t data = plmic_pins->spi->transfer(0x00);
->>>>>>> f05f069 (Fixes bugs that prevented the SX1262 driver from working properly.)
         *buf = data;
     }
 
     digitalWrite(nss, 1);
-    SPI.endTransaction();
+    plmic_pins->spi->endTransaction();
 }
 #endif
 
