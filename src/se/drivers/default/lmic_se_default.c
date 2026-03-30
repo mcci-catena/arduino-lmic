@@ -144,6 +144,24 @@ LMIC_SecureElement_Default_setAppKey(const LMIC_SecureElement_Aes128Key_t *pAppK
 
 /*!
 
+\copydoc LMIC_SecureElement_setNwkSKey_t
+
+\par "Implementation Notes"
+In the default secure element, the nwkskey is stored in a static variable without obfuscation.
+This function is used by ABP initialization to load the network session key.
+
+*/
+
+LMIC_SecureElement_Error_t
+LMIC_SecureElement_Default_setNwkSKey(const LMIC_SecureElement_Aes128Key_t *pNwkSKey, LMIC_SecureElement_KeySelector_t iKey) {
+	if (iKey != LMIC_SecureElement_KeySelector_Unicast)
+		return LMIC_SecureElement_Error_InvalidParameter;
+	s_nwkSKey = *pNwkSKey;
+	return LMIC_SecureElement_Error_OK;
+}
+
+/*!
+
 \copydoc LMIC_SecureElement_getNwkSKey_t
 
 \par "Implementation Notes"
@@ -157,6 +175,24 @@ LMIC_SecureElement_Default_getNwkSKey(LMIC_SecureElement_Aes128Key_t *pNwkSKey, 
 	if (iKey != LMIC_SecureElement_KeySelector_Unicast)
 		return LMIC_SecureElement_Error_InvalidParameter;
 	os_copyMem(pNwkSKey->bytes, s_nwkSKey.bytes, sizeof(pNwkSKey->bytes));
+	return LMIC_SecureElement_Error_OK;
+}
+
+/*!
+
+\copydoc LMIC_SecureElement_setAppSKey_t
+
+\par "Implementation Notes"
+In the default secure element, the appskey is stored in a static variable without obfuscation.
+This function is used by ABP initialization to load the application session key.
+
+*/
+
+LMIC_SecureElement_Error_t
+LMIC_SecureElement_Default_setAppSKey(const LMIC_SecureElement_Aes128Key_t *pAppSKey, LMIC_SecureElement_KeySelector_t iKey) {
+	if (iKey != LMIC_SecureElement_KeySelector_Unicast)
+		return LMIC_SecureElement_Error_InvalidParameter;
+	s_appSKey = *pAppSKey;
 	return LMIC_SecureElement_Error_OK;
 }
 
