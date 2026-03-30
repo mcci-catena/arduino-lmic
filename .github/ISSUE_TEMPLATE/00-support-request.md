@@ -7,9 +7,9 @@ assignees: terrillmoore
 
 ---
 
-**Consider raising support questions on the forum first**
+**Consider raising support questions in the discussion area first**
 
-There is a discussion site, [forum.mcci.io](https://forum.mcci.io), which includes a [category focused on the Arduino LMIC](https://forum.mcci.io/c/device-software/arduino-lmic/5). Unless you're sure that your problem is a bug in the LMIC, it would be great if you can try for help there first. That will keep issues focused on work that needs to be done by the developers.
+We use GitHub discussions ([link](https://github.com/mcci-catena/arduino-lmic/discussions)). Unless you're sure that your problem is a bug in the LMIC, it would be great if you can try for help there first. That will keep issues focused on work that needs to be done by the developers.
 
 **Describe your question or issue**
 

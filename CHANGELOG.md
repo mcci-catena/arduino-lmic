@@ -1,5 +1,13 @@
 # Release History
 
+## v6.0.1
+
+- Fix loop overflow in SX126x `writeBuffer` ([#1041](https://github.com/mcci-catena/arduino-lmic/issues/1041)). Thanks to [@Maddocrus](https://github.com/Maddocrus) for reporting ([#1013](https://github.com/mcci-catena/arduino-lmic/issues/1013)).
+- Fix buffer read overrun in SX126x radio driver ([#1040](https://github.com/mcci-catena/arduino-lmic/issues/1040)).
+- Replace defunct forum.mcci.io links with GitHub Discussions ([#1035](https://github.com/mcci-catena/arduino-lmic/issues/1035)).
+- Install latest Doxygen 1.x in CI instead of distro package ([#1033](https://github.com/mcci-catena/arduino-lmic/issues/1033)).
+- Fix Doxygen rendering of RadioDriver.md ([#1029](https://github.com/mcci-catena/arduino-lmic/issues/1029)).
+
 ## v6.0.0
 
 - Add Class C continuous reception support (`LMIC_ENABLE_class_c`). See [doc/CLASS-C.md](doc/CLASS-C.md) for usage. ([#323](https://github.com/mcci-catena/arduino-lmic/issues/323), [#1019](https://github.com/mcci-catena/arduino-lmic/pull/1019))

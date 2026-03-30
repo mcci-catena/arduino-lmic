@@ -51,6 +51,19 @@ Key suppression/redirection macros: `ARDUINO_LMIC_PROJECT_CONFIG_H_SUPPRESS`, `A
 
 **Doxygen:** `Doxyfile` at repo root for API documentation generation.
 
+## Workflow
+
+All changes go through pull requests, never direct pushes to master. This applies even for small fixes -- it sets a good example for contributors.
+
+```
+git checkout -b issueNNNN master
+# ... make changes, commit ...
+git push -u origin issueNNNN
+gh pr create --title "Short description (fixes #NNNN)" --body "..."
+# wait for CI
+gh pr merge PRNUM --merge --delete-branch
+```
+
 ## Code Conventions
 
 - Tab size: 8, tabs not spaces (see `.vscode/settings.json`)
@@ -75,6 +88,20 @@ Key suppression/redirection macros: `ARDUINO_LMIC_PROJECT_CONFIG_H_SUPPRESS`, `A
 - `CHANGELOG.md` -- release history
 - `README.md` -- landing page with links to detailed docs
 - **GitHub Pages** (Doxygen): https://mcci-catena.github.io/arduino-lmic/
+
+## Versioning Strategy
+
+Version is encoded in `src/lmic/lmic.h` as `ARDUINO_LMIC_VERSION_CALC(major, minor, patch, local)`. The `local` field serves as a pre-release counter. `library.properties` is only updated at actual release time.
+
+During development, version bumps follow these rules:
+
+- **Patch fixes** on master: `X.Y.(Z+1)-preN` (e.g., 6.0.1-pre1)
+- **Feature additions**: `X.(Y+1).0-preN` (e.g., 6.1.0-pre1)
+- **Breaking changes**: `(X+1).0.0-preN` (e.g., 7.0.0-pre1)
+
+The pre-release counter (`local` field) increments with each version bump commit. On a feature branch, if you fix a bug in passing, bump `preN` -- don't change the patch/minor/major level mid-branch. The patch/minor/major level is set once when the branch is created and reflects the nature of the *most significant* change on the branch.
+
+At release time, `local` resets to 0 and `library.properties` is updated to match.
 
 ## Release Process
 

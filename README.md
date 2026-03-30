@@ -1,6 +1,6 @@
 # Arduino-LMIC library ("MCCI LoRaWAN LMIC Library")
 
-[![GitHub release](https://img.shields.io/github/release/mcci-catena/arduino-lmic.svg)](https://github.com/mcci-catena/arduino-lmic/releases/latest) [![GitHub commits](https://img.shields.io/github/commits-since/mcci-catena/arduino-lmic/latest.svg)](https://github.com/mcci-catena/arduino-lmic/compare/v6.0.0...master) [![Arduino CI](https://img.shields.io/github/actions/workflow/status/mcci-catena/arduino-lmic/ci-arduinocli.yml?branch=master)](https://github.com/mcci-catena/arduino-lmic/actions)
+[![GitHub release](https://img.shields.io/github/release/mcci-catena/arduino-lmic.svg)](https://github.com/mcci-catena/arduino-lmic/releases/latest) [![GitHub commits](https://img.shields.io/github/commits-since/mcci-catena/arduino-lmic/latest.svg)](https://github.com/mcci-catena/arduino-lmic/compare/v6.0.1...master) [![Arduino CI](https://img.shields.io/github/actions/workflow/status/mcci-catena/arduino-lmic/ci-arduinocli.yml?branch=master)](https://github.com/mcci-catena/arduino-lmic/actions)
 
 [![API Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://mcci-catena.github.io/arduino-lmic/)
 
@@ -35,16 +35,14 @@
 
 ## Introduction
 
-This repository contains the IBM LMIC (LoRaWAN-MAC-in-C) library, slightly
+The "Arduino LMIC" repository contains the IBM LMIC (LoRaWAN-MAC-in-C) library, slightly
 modified to run in the Arduino environment, allowing using the SX1272,
-SX1276 transceivers and compatible modules (such as some HopeRF RFM9x
-modules and the Murata LoRa modules).
-
-> Note on names: the library was originally ported to Arduino by Matthijs Kooijman and Thomas Telkamp, and was named Arduino LMIC. Subsequently, MCCI did a lot of work to support other regions, and ultimately took over maintenance. The Arduino IDE doesn't like two libraries with the same name, so we had to come up with a new name. So in the IDE, it will appear as MCCI LoRaWAN LMIC Library; but all us know it by the primary header file, which is `<arduino_lmic.h>`.
+SX1276, SX126x transceivers and compatible modules (such as some HopeRF RFM9x
+modules and the Murata ABZ and 1SJ LoRa modules).
 
 Information about the LoRaWAN protocol is summarized in [LoRaWAN-at-a-glance](doc/LoRaWAN-at-a-glance.pdf). Full information is available from the [LoRa Alliance](https://lora-alliance.org).
 
-A support forum is available at [forum.mcci.io](https://forum.mcci.io/c/device-software/arduino-lmic/5).
+For support, please open an entry in the [GitHub Discussions](https://github.com/mcci-catena/arduino-lmic/discussions) tab of the LMIC page on github.
 
 The base Arduino library mostly exposes the functions defined by LMIC. It makes no
 attempt to wrap them in a higher level API that is more in the Arduino
@@ -56,6 +54,8 @@ A separate library, [MCCI `arduino-lorawan`](https://github.com/mcci-catena/ardu
 The examples in this library (apart from the compliance sketch) are somewhat primitive. A very complete cross-platform Arduino application based on the LMIC has been published by Leonel Lopes Parente ([`@lnlp`](https://github.com/lnlp)) as [LMIC-node](https://github.com/lnlp/LMIC-node). That application specifically targets The Things Network.
 
 Although the wrappers in this library are designed to make the LMIC useful in the Arduino environment, the maintainers have tried to be careful to keep the core LMIC code generally useful. For example, I use this library without modification (but with wrappers) on a RISC-V platform in a non-Arduino environment.
+
+> Note on names: the library was originally ported to Arduino by Matthijs Kooijman and Thomas Telkamp, and was named Arduino LMIC. Subsequently, MCCI did a lot of work to support other regions, and ultimately took over maintenance. The Arduino IDE doesn't like two libraries with the same name, so we had to come up with a new name. In the IDE, this library appears as "MCCI LoRaWAN LMIC Library"; but we all know it by its primary header file, which is `<arduino_lmic.h>`.
 
 ## Installing
 
@@ -74,7 +74,7 @@ For more info, see [https://www.arduino.cc/en/Guide/Libraries](https://www.ardui
 
 ### If it's not working
 
-Ask questions at [`forum.mcci.io`](https://forum.mcci.io/c/device-software/arduino-lmic/5). Wireless is tricky, so don't be afraid to ask. The LMIC has been used successfully in a lot of applications, but it's common to have problems getting it working. To keep the code size down, there are not a lot of debugging features, and the features are not always easy to use.
+Ask questions in the [GitHub Discussions](https://github.com/mcci-catena/arduino-lmic/discussions) tab of the LMIC page on github. Wireless is tricky, so don't be afraid to ask. The LMIC has been used successfully in a lot of applications, but it's common to have problems getting it working. To keep the code size down, there are not a lot of debugging features, and the features are not always easy to use.
 
 ### If you've found a bug
 

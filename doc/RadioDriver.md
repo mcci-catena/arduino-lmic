@@ -1,50 +1,5 @@
 # Radio Driver parameters
 
-<!--
-  This TOC uses the VS Code markdown TOC extension AlanWalk.markdown-toc.
-  We strongly recommend updating using VS Code, the markdown-toc extension and the
-  bierner.markdown-preview-github-styles extension. Note that if you are using
-  VS Code 1.29 and Markdown TOC 1.5.6, https://github.com/AlanWalk/markdown-toc/issues/65
-  applies -- you must change your line-ending to some non-auto value in Settings>
-  Text Editor>Files.  `\n` works for me.
--->
-<!-- markdownlint-disable MD033 MD004 -->
-<!-- markdownlint-capture -->
-<!-- markdownlint-disable -->
-<!-- TOC depthFrom:2 updateOnSave:true -->
-
-- [Radio Driver Operation](#radio-driver-operation)
-	- [`os_radio(RADIO_RST)`](#os_radioradio_rst)
-	- [`os_radio(RADIO_TX)`](#os_radioradio_tx)
-	- [`os_radio(RADIO_RX)`](#os_radioradio_rx)
-	- [`os_radio(RADIO_RXON)`](#os_radioradio_rxon)
-	- [`os_radio(RADIO_RXON_C)`](#os_radioradio_rxon_c)
-	- [`os_radio(RADIO_TX_AT)`](#os_radioradio_tx_at)
-- [Common parameters](#common-parameters)
-	- [`LMIC.radio.rps` (IN)](#lmicradiorps-in)
-	- [`LMIC.radio.freq` (IN)](#lmicradiofreq-in)
-	- [`LMIC.saveIrqFlags` (OUT)](#lmicsaveirqflags-out)
-	- [`LMIC.radio.pRadioDoneJob` (IN/OUT)](#lmicradiopradiodonejob-inout)
-- [Transmit parameters](#transmit-parameters)
-	- [`LMIC.radio.txpow` (IN)](#lmicradiotxpow-in)
-	- [`LMIC.radio.pFrame[]` (IN)](#lmicradiopframe-in)
-	- [`LMIC.radio.datalen` (IN)](#lmicradiodatalen-in)
-	- [`LMIC.txend` (IN, OUT)](#lmictxend-in-out)
-	- [`LMIC.lbt_ticks` (IN)](#lmiclbt_ticks-in)
-	- [`LMIC.lbt_dbmax` (IN)](#lmiclbt_dbmax-in)
-- [Receive parameters](#receive-parameters)
-	- [`LMIC.radio.pFrame[]` (OUT)](#lmicradiopframe-out)
-	- [`LMIC.radio.dataLen` (OUT)](#lmicradiodatalen-out)
-	- [`LMIC.radio.rxtime` (IN/OUT)](#lmicradiorxtime-inout)
-	- [`LMIC.radio.rxsyms` (IN)](#lmicradiorxsyms-in)
-	- [`LMIC.radio.flags` (IN)](#lmicradioflags-in)
-	- [`LMIC.snr` (OUT)](#lmicsnr-out)
-	- [`LMIC.rssi` (OUT)](#lmicrssi-out)
-
-<!-- /TOC -->
-<!-- markdownlint-restore -->
-<!-- Due to a bug in Markdown TOC, the table is formatted incorrectly if tab indentation is set other than 4. Due to another bug, this comment must be *after* the TOC entry. -->
-
 ## Radio Driver Operation
 
 The LMIC radio driver operates asynchronously. Operations are started by calling the `os_radio()` function with a parameter describing the operation to be performed.
@@ -57,7 +12,7 @@ The radio is reset, and put to sleep. This operation is synchronous.
 
 ### `os_radio(RADIO_TX)`
 
-A frame is transmitted. The parameters are given in [common parameters](#common-parameters) and [transmit parameters](#transmit-parameters).
+A frame is transmitted. The parameters are given in "Common parameters" and "Transmit parameters" below.
 
 When the operation completes, `LMIC.osjob` is scheduled.
 
@@ -69,7 +24,7 @@ When the operation completes, `LMIC.osjob` is scheduled.
 
 ### `os_radio(RADIO_RXON)`
 
-The radio is placed in continuous receive mode. If a frame is received, `LMIC.osjob` is scheduled. Continuous receive is explicitly canceled by calling [`os_radio(RADIO_RST)`](#os_radioradio_rst) or implicitly by calling any other radio function.
+The radio is placed in continuous receive mode. If a frame is received, `LMIC.osjob` is scheduled. Continuous receive is explicitly canceled by calling `os_radio(RADIO_RST)` or implicitly by calling any other radio function.
 
 This operation is not supported in FSK mode.
 

@@ -34,7 +34,16 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Doxygen
-        run: sudo apt-get install -y doxygen graphviz
+        run: |
+          sudo apt-get install -y graphviz
+          LATEST=$(gh api repos/doxygen/doxygen/releases --jq '[.[] | select(.tag_name | startswith("Release_1_"))][0].tag_name')
+          VERSION=$(echo "$LATEST" | sed 's/Release_//;s/_/./g')
+          wget -q "https://github.com/doxygen/doxygen/releases/download/${LATEST}/doxygen-${VERSION}.linux.bin.tar.gz"
+          tar xzf doxygen-${VERSION}.linux.bin.tar.gz
+          sudo install -m 755 doxygen-${VERSION}/bin/doxygen /usr/local/bin/
+          doxygen --version
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       - name: Build Doxygen
         run: doxygen Doxyfile

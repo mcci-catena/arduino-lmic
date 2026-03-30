@@ -280,15 +280,15 @@ static u1_t readRegister(u2_t addr) {
 // Write `len` bytes from `buf` to the FIFO buffer starting at buffer address `addr`
 static void writeBuffer(u1_t addr, xref2u1_t buf, u1_t len) {
     // Set the TX buffer base address. Leave RX base address as 0
-    u1_t baseAddr[SX126X_BUFF_BASE_ADDR_LEN] = {addr, 0};
-    lmic_hal_spi_write(SetBufferBaseAddress, &addr, SX126X_BUFF_BASE_ADDR_LEN);
+    const u1_t baseAddr[SX126X_BUFF_BASE_ADDR_LEN] = {addr, 0};
+    lmic_hal_spi_write(SetBufferBaseAddress, baseAddr, sizeof(baseAddr));
 
     // Prepend the offset byte to the data being written to the buffer
-    u1_t new_buf[len + 1];
+    // TODO(tmm@mcci.com): rewrite following #1043 to avoid extra copy,
+    // extra stack use.
+    u1_t new_buf[256];
     new_buf[0] = SX126X_FIFO_OFFSET;
-    for (u1_t i = 1; i < (len + 1); i++) {
-        new_buf[i] = buf[i - 1];
-    }
+    os_copyMem(new_buf + 1, buf, len);
 
     lmic_hal_spi_write(WriteBuffer, new_buf, len + 1);
 }
