@@ -351,7 +351,8 @@ enum _ev_t { EV_SCAN_TIMEOUT=1, EV_BEACON_FOUND,
              EV_JOINED, EV_RFU1, EV_JOIN_FAILED, EV_REJOIN_FAILED,
              EV_TXCOMPLETE, EV_LOST_TSYNC, EV_RESET,
              EV_RXCOMPLETE, EV_LINK_DEAD, EV_LINK_ALIVE, EV_SCAN_FOUND,
-             EV_TXSTART, EV_TXCANCELED, EV_RXSTART, EV_JOIN_TXCOMPLETE };
+             EV_TXSTART, EV_TXCANCELED, EV_RXSTART, EV_JOIN_TXCOMPLETE,
+             EV_SLEEP_READY };
 typedef enum _ev_t ev_t;
 
 /// \brief Macro to initialize a normal table of event strings
@@ -362,7 +363,8 @@ typedef enum _ev_t ev_t;
     "EV_JOINED", "EV_RFU1", "EV_JOIN_FAILED", "EV_REJOIN_FAILED",           \
     "EV_TXCOMPLETE", "EV_LOST_TSYNC", "EV_RESET",                           \
     "EV_RXCOMPLETE", "EV_LINK_DEAD", "EV_LINK_ALIVE", "EV_SCAN_FOUND",      \
-    "EV_TXSTART", "EV_TXCANCELED", "EV_RXSTART", "EV_JOIN_TXCOMPLETE"
+    "EV_TXSTART", "EV_TXCANCELED", "EV_RXSTART", "EV_JOIN_TXCOMPLETE", \
+    "EV_SLEEP_READY"
 
 /// \brief Macro to initialize a compressed string of event strings
 /// \details
@@ -377,7 +379,8 @@ typedef enum _ev_t ev_t;
     "EV_JOINED\0" "EV_RFU1\0" "EV_JOIN_FAILED\0" "EV_REJOIN_FAILED\0"       \
     "EV_TXCOMPLETE\0" "EV_LOST_TSYNC\0" "EV_RESET\0"                        \
     "EV_RXCOMPLETE\0" "EV_LINK_DEAD\0" "EV_LINK_ALIVE\0" "EV_SCAN_FOUND\0"  \
-    "EV_TXSTART\0" "EV_TXCANCELED\0" "EV_RXSTART\0" "EV_JOIN_TXCOMPLETE\0"
+    "EV_TXSTART\0" "EV_TXCANCELED\0" "EV_RXSTART\0" "EV_JOIN_TXCOMPLETE\0" \
+    "EV_SLEEP_READY\0"
 
 /// \brief LMIC error codes
 enum lmic_tx_error_e {
@@ -940,6 +943,91 @@ DECLARE_LMIC; //!< \internal
 
 /****************************************************************************\
 |
+|   Sleep/wake state for power-cycling devices
+|
+\****************************************************************************/
+
+/// \brief Minimal LMIC state that must survive a power cycle for ABP devices.
+///
+/// \details For devices that cut power to the MCU and radio between transmissions
+/// (e.g. using a PMC or other power management IC), this structure holds the
+/// fields that the LoRaWAN spec requires to be retained, plus the fields LMIC
+/// uses internally for correct session behaviour:
+///
+///  - Frame counters (LoRaWAN §4.3.1 — ABP devices MUST persist these).
+///  - RX window parameters set by the network via MAC commands (rxDelay,
+///    dn2Dr, dn2Freq, rx1DrOffset).  Without these the device opens RX1/RX2
+///    at the wrong time or frequency after a power cycle.
+///  - Sticky MAC ACK flags (dn2Ans, macDlChannelAns, macRxTimingSetupAns —
+///    LoRaWAN §5.4/§5.7).  LMIC must re-send these in every uplink until the
+///    network acknowledges them via a Class A downlink.
+///
+/// Usage pattern (ABP):
+/// \code
+///   lmic_sleep_state_t sleepState;
+///
+///   void onEvent(ev_t ev) {
+///       if (ev == EV_SLEEP_READY) {
+///           LMIC_getSleepState(&sleepState);
+///           // persist sleepState to NVRAM / flash
+///           // then power off
+///       }
+///   }
+///
+///   void setup() {
+///       os_init();
+///       LMIC_reset();
+///       LMIC_setSession(...);   // channel plan, ADR settings …
+///       // restore from NVRAM / flash:
+///       LMIC_setSleepState(&sleepState);
+///       do_send(&sendjob);
+///   }
+/// \endcode
+typedef struct lmic_sleep_state_s {
+    /// Uplink frame counter (FCntUp). LoRaWAN §4.3.1 requires ABP devices to
+    /// persist this across power cycles so the network can reject replays.
+    u4_t    seqnoUp;
+
+    /// Downlink frame counter (FCntDown). Used to detect replayed downlinks.
+    u4_t    seqnoDn;
+
+    /// RX1 delay in seconds as set by RxTimingSetupReq.  Default is 1 s.
+    /// If the network sends RxTimingSetupReq and the device loses this value
+    /// on power-down, the device will open its RX1 window at the wrong time
+    /// and miss all downlinks until the network re-negotiates the parameter.
+    u1_t    rxDelay;
+
+    /// RX2 datarate index (set by RxParamSetupReq).
+    u1_t    dn2Dr;
+
+    /// RX2 frequency in Hz (set by RxParamSetupReq).
+    u4_t    dn2Freq;
+
+    /// RX1 datarate offset (set by RxParamSetupReq).
+    u1_t    rx1DrOffset;
+
+#if !defined(DISABLE_MCMD_RXParamSetupReq)
+    /// Pending RxParamSetupAns sticky response (LoRaWAN §5.4).
+    /// Non-zero means the ACK must be included in every uplink until the
+    /// network acknowledges it.  The encoding follows LMIC internals:
+    /// bit 7 = pending, bit 6 = "skip this TX" (first cycle after receipt),
+    /// bits 2:0 = the three acceptance bits.
+    u1_t    dn2Ans;
+#endif
+
+#if !defined(DISABLE_MCMD_DlChannelReq)
+    /// Pending DlChannelAns sticky response (LoRaWAN §5.4).
+    u1_t    macDlChannelAns;
+#endif
+
+#if !defined(DISABLE_MCMD_RXTimingSetupReq)
+    /// Pending RxTimingSetupAns sticky response (LoRaWAN §5.7).
+    u1_t    macRxTimingSetupAns;
+#endif
+} lmic_sleep_state_t;
+
+/****************************************************************************\
+|
 |   API functions
 |
 \****************************************************************************/
@@ -1010,6 +1098,33 @@ int LMIC_findNextChannel(uint16_t *, const uint16_t *, uint16_t, int);
 
 u1_t LMIC_getBatteryLevel(void);
 u1_t LMIC_setBatteryLevel(u1_t /* uBattLevel */);
+
+// Sleep/wake API for power-cycling devices
+//
+// Call LMIC_isSleepReady() inside onEvent(EV_TXCOMPLETE) to check whether it
+// is safe to power down, or handle the EV_SLEEP_READY event which is fired
+// automatically by LMIC when all MAC obligations (including any follow-up
+// port-0 MAC response uplinks) have been fulfilled.
+//
+// Typical flow:
+//   onEvent(EV_SLEEP_READY)  ->  LMIC_getSleepState()  ->  persist to NVRAM  ->  power off
+//   setup()  ->  LMIC_reset() + LMIC_setSession()  ->  LMIC_setSleepState()  ->  do_send()
+
+/// Returns non-zero when LMIC has no pending transmissions and it is safe to
+/// save state and power down.  A zero return means LMIC still has a follow-up
+/// uplink queued (e.g. a port-0 MAC response after receiving NewChannelReq).
+bit_t LMIC_isSleepReady(void);
+
+/// Populate \p pState with the LMIC fields that must survive a power cycle.
+/// Only call this when LMIC_isSleepReady() returns non-zero (i.e. from the
+/// EV_SLEEP_READY handler), otherwise the captured state may be incomplete.
+void  LMIC_getSleepState(lmic_sleep_state_t *pState);
+
+/// Restore previously captured sleep state into the running LMIC instance.
+/// MUST be called after LMIC_reset() and LMIC_setSession() (ABP) or after a
+/// successful OTAA join, so that the freshly zeroed fields are overwritten
+/// with the persisted values rather than the other way around.
+void  LMIC_setSleepState(const lmic_sleep_state_t *pState);
 
 // APIs for client half of compliance.
 typedef u1_t lmic_compliance_rx_action_t;

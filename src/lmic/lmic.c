@@ -2403,6 +2403,13 @@ static bit_t processDnData_txcomplete(void) {
         reportEventNoUpdate(EV_LINK_ALIVE);
     }
     reportEventAndUpdate(EV_TXCOMPLETE);
+    // Fire EV_SLEEP_READY when there are no follow-up transmissions pending
+    // (i.e. no port-0 MAC-response uplink queued by processDnData_txcomplete).
+    // This signals to power-cycling applications that it is safe to call
+    // LMIC_getSleepState() and then cut power.
+    if (LMIC_isSleepReady()) {
+        reportEventAndUpdate(EV_SLEEP_READY);
+    }
     // If we haven't heard from NWK in a while although we asked for a sign
     // assume link is dead - notify application and keep going
     if( LMIC.adrAckReq > LINK_CHECK_DEAD ) {
@@ -3202,6 +3209,77 @@ u1_t LMIC_setBatteryLevel(u1_t uBattLevel) {
 
     LMIC.client.devStatusAns_battery = uBattLevel;
     return result;
+}
+
+// ============================================================================
+// Sleep/wake API
+// ============================================================================
+
+///
+/// \brief Check whether LMIC has fulfilled all pending MAC obligations and it
+///        is safe to power down.
+///
+/// \returns Non-zero when no follow-up uplink is queued.  Zero means LMIC has
+///          a port-0 MAC-response uplink (e.g. NewChannelAns) still to send,
+///          or an in-progress TX/RX cycle is not yet complete.
+///
+bit_t LMIC_isSleepReady(void) {
+    return (LMIC.opmode & (OP_TXDATA | OP_POLL | OP_TXRXPEND)) == 0;
+}
+
+///
+/// \brief Capture the LMIC fields that must persist across a power cycle.
+///
+/// \param pState  Pointer to a caller-allocated \c lmic_sleep_state_t.
+///
+/// \details Only call this when \c LMIC_isSleepReady() returns non-zero.
+///          Calling it while a TX/RX cycle or MAC follow-up is in progress
+///          will capture an incomplete snapshot.
+///
+void LMIC_getSleepState(lmic_sleep_state_t *pState) {
+    pState->seqnoUp     = LMIC.seqnoUp;
+    pState->seqnoDn     = LMIC.seqnoDn;
+    pState->rxDelay     = LMIC.rxDelay;
+    pState->dn2Dr       = LMIC.dn2Dr;
+    pState->dn2Freq     = LMIC.dn2Freq;
+    pState->rx1DrOffset = LMIC.rx1DrOffset;
+#if !defined(DISABLE_MCMD_RXParamSetupReq)
+    pState->dn2Ans      = LMIC.dn2Ans;
+#endif
+#if !defined(DISABLE_MCMD_DlChannelReq)
+    pState->macDlChannelAns = LMIC.macDlChannelAns;
+#endif
+#if !defined(DISABLE_MCMD_RXTimingSetupReq)
+    pState->macRxTimingSetupAns = LMIC.macRxTimingSetupAns;
+#endif
+}
+
+///
+/// \brief Restore previously captured sleep state into LMIC.
+///
+/// \param pState  Pointer to a \c lmic_sleep_state_t populated by a prior call
+///                to \c LMIC_getSleepState().
+///
+/// \details MUST be called AFTER \c LMIC_reset() and \c LMIC_setSession() (ABP)
+///          or after a successful OTAA join, so that these calls do not
+///          overwrite the restored values.
+///
+void LMIC_setSleepState(const lmic_sleep_state_t *pState) {
+    LMIC.seqnoUp     = pState->seqnoUp;
+    LMIC.seqnoDn     = pState->seqnoDn;
+    LMIC.rxDelay     = pState->rxDelay;
+    LMIC.dn2Dr       = pState->dn2Dr;
+    LMIC.dn2Freq     = pState->dn2Freq;
+    LMIC.rx1DrOffset = pState->rx1DrOffset;
+#if !defined(DISABLE_MCMD_RXParamSetupReq)
+    LMIC.dn2Ans      = pState->dn2Ans;
+#endif
+#if !defined(DISABLE_MCMD_DlChannelReq)
+    LMIC.macDlChannelAns = pState->macDlChannelAns;
+#endif
+#if !defined(DISABLE_MCMD_RXTimingSetupReq)
+    LMIC.macRxTimingSetupAns = pState->macRxTimingSetupAns;
+#endif
 }
 
 ///
