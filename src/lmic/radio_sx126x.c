@@ -785,14 +785,12 @@ void radio_config(void) {
     // Apply board-specific crystal oscillator trim values if configured.
     // Some board designs require different XTA/XTB trim capacitance than the
     // chip reset default (0x05) for adequate frequency accuracy.
-    {
-        uint8_t xta = lmic_hal_querySX126xXTATrim();
-        uint8_t xtb = lmic_hal_querySX126xXTBTrim();
-        if (xta != LMIC_HAL_SX126X_XTAL_TRIM_USE_DEFAULT)
-            writeRegister(XTATrim, xta);
-        if (xtb != LMIC_HAL_SX126X_XTAL_TRIM_USE_DEFAULT)
-            writeRegister(XTBTrim, xtb);
-    }
+    uint8_t xta = lmic_hal_querySX126xXTATrim();
+    uint8_t xtb = lmic_hal_querySX126xXTBTrim();
+    if (xta != LMIC_HAL_SX126X_XTAL_TRIM_USE_DEFAULT)
+        writeRegister(XTATrim, xta);
+    if (xtb != LMIC_HAL_SX126X_XTAL_TRIM_USE_DEFAULT)
+        writeRegister(XTBTrim, xtb);
 
     // DC-DC regulator is hardware dependent
     if (lmic_hal_queryUsingDcdc()) {
