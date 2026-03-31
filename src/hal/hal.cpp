@@ -570,6 +570,14 @@ bit_t lmic_hal_queryUsingDIO3AsTCXOSwitch(void) {
     return pHalConfig->queryUsingDIO3AsTCXOSwitch();
 }
 
+uint8_t lmic_hal_querySX126xXTATrim(void) {
+    return pHalConfig->querySX126xXTATrim();
+}
+
+uint8_t lmic_hal_querySX126xXTBTrim(void) {
+    return pHalConfig->querySX126xXTBTrim();
+}
+
 uint8_t lmic_hal_getTxPowerPolicy(
     u1_t inputPolicy,
     s1_t requestedPower,
