@@ -158,8 +158,14 @@ LMIC_SecureElement_aes128Encrypt_t LMIC_SecureElement_aes128Encrypt;
 #define LMIC_SecureElement_METHOD(a_driver, a_fn)  \
 	LMIC_SecureElement_METHOD_(a_driver, a_fn)
 
+/// Helper macro to force macro-expansion of the driver name before
+/// token-pasting inside LMIC_SecureElement_DECLARE_DRIVER_FNS.
+#define LMIC_SecureElement_DECLARE_DRIVER_FNS_(a_driver) \
+	LMIC_SecureElement_DECLARE_DRIVER_FNS(a_driver)
+
 /// \cond FALSE
 LMIC_SecureElement_DECLARE_DRIVER_FNS(Default);
+LMIC_SecureElement_DECLARE_DRIVER_FNS_(LMIC_CFG_SecureElement_DRIVER);
 /// \endcond
 
 /// \copydoc LMIC_SecureElement_initialize_t
