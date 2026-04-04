@@ -106,7 +106,7 @@ extern "C"{
 	((((major)*UINT32_C(1)) << 24) | (((minor)*UINT32_C(1)) << 16) | (((patch)*UINT32_C(1)) << 8) | (((local)*UINT32_C(1)) << 0))
 
 #define	ARDUINO_LMIC_VERSION    \
-    ARDUINO_LMIC_VERSION_CALC(6, 0, 2, 3)  /* 6.0.2-pre3 */
+    ARDUINO_LMIC_VERSION_CALC(6, 0, 2, 4)  /* 6.0.2-pre4 */
 
 #define	ARDUINO_LMIC_VERSION_GET_MAJOR(v)	\
 	((((v)*UINT32_C(1)) >> 24u) & 0xFFu)
