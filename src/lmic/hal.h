@@ -171,6 +171,18 @@ bit_t lmic_hal_queryUsingDIO2AsRfSwitch(void);
 /* SX126x function: find out if the board is configured to control a TCXO with modem DIO3 */
 bit_t lmic_hal_queryUsingDIO3AsTCXOSwitch(void);
 
+/* Sentinel returned by lmic_hal_querySX126xXTATrim/XTBTrim when the board
+   does not specify a trim value and the chip reset default should be used. */
+#define LMIC_HAL_SX126X_XTAL_TRIM_USE_DEFAULT  UINT8_C(0xFF)
+
+/* SX126x function: get XTA crystal trim value (0x00-0x3F), or
+   LMIC_HAL_SX126X_XTAL_TRIM_USE_DEFAULT to leave chip reset value unchanged */
+uint8_t lmic_hal_querySX126xXTATrim(void);
+
+/* SX126x function: get XTB crystal trim value (0x00-0x3F), or
+   LMIC_HAL_SX126X_XTAL_TRIM_USE_DEFAULT to leave chip reset value unchanged */
+uint8_t lmic_hal_querySX126xXTBTrim(void);
+
 /* represent the various radio TX power policy */
 enum	{
 	LMICHAL_radio_tx_power_policy_rfo	= 0,

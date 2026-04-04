@@ -257,6 +257,8 @@ public:
 
 - `queryUsingDIO3AsTCXOSwitch(void)` shall return true when a SX126x transceiver is physically configured with DIO3 driving an external temperature controlled crystal oscillator (TXCO).
 
+- `querySX126xXTATrim(void)` and `querySX126xXTBTrim(void)` return the crystal oscillator trim capacitance values for the SX126x XTA and XTB pins (registers 0x0911 and 0x0912). Valid trim values are 0x00 through 0x3F; the chip reset default is 0x05 for both. Return `kSX126xXtalTrimUseDefault` (0xFF) to leave the chip reset value untouched (this is the default). Some board designs require different trim values for adequate frequency accuracy.
+
 Caution: the LMIC has no way of knowing whether the mode you return makes sense. Use of 20 dBm mode without limiting duty cycle can over-stress your module. The LMIC currently does not have any code to duty-cycle US transmissions at 20 dBm. If properly limiting transmissions to 400 milliseconds, a 1% duty-cycle means at most one message every 40 seconds. This shouldn't be a problem in practice, but buggy upper level software still might do things more rapidly.
 
 <!-- there are links to the following section, so be careful when renaming -->
