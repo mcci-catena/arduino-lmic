@@ -159,7 +159,7 @@ LMIC_SecureElement_aes128Encrypt_t LMIC_SecureElement_aes128Encrypt;
 	LMIC_SecureElement_METHOD_(a_driver, a_fn)
 
 /// \cond FALSE
-LMIC_SecureElement_DECLARE_DRIVER_FNS(Default);
+LMIC_SecureElement_DECLARE_DRIVER_FNS(LMIC_CFG_SecureElement_DRIVER);
 /// \endcond
 
 /// \copydoc LMIC_SecureElement_initialize_t
