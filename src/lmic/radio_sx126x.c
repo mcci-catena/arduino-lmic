@@ -336,7 +336,7 @@ static void setRx(u1_t timeout[SX126X_TIMEOUT_LEN]) {
     // It is advised to add the following commands after ANY Rx with Timeout active sequence,
     // which stop the RTC and clear the timeout event, if any.
     u1_t hasTimeout = 0;
-    for (u1_t i; i < SX126X_TIMEOUT_LEN; i++) {
+    for (u1_t i = 0; i < SX126X_TIMEOUT_LEN; i++) {
         if ((timeout[i] != 0x00) && (timeout[i] !=0xFF)) {
             hasTimeout = 1;
             break;
