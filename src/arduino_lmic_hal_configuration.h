@@ -20,7 +20,6 @@ Author:
 
 #include <stdint.h>
 #include "lmic/lmic_env.h"
-#include "lmic/hal.h"
 
 namespace Arduino_LMIC {
 
@@ -99,9 +98,10 @@ public:
 
 	// SX126x crystal oscillator trim (registers XTATrim/XTBTrim, 0x0911/0x0912).
 	// Valid trim values are 0x00-0x3F; chip reset default is 0x05 for both.
-	// Return LMIC_HAL_SX126X_XTAL_TRIM_USE_DEFAULT (0xFF) to leave the chip reset value untouched.
-	virtual uint8_t querySX126xXTATrim(void) { return LMIC_HAL_SX126X_XTAL_TRIM_USE_DEFAULT; }
-	virtual uint8_t querySX126xXTBTrim(void) { return LMIC_HAL_SX126X_XTAL_TRIM_USE_DEFAULT; }
+	// Return kSX126xXtalTrimUseDefault to leave the chip reset value untouched.
+	static constexpr uint8_t kSX126xXtalTrimUseDefault = 0xFF;
+	virtual uint8_t querySX126xXTATrim(void) { return kSX126xXtalTrimUseDefault; }
+	virtual uint8_t querySX126xXTBTrim(void) { return kSX126xXtalTrimUseDefault; }
 
 	// compute desired transmit power policy.  HopeRF needs
 	// (and previous versions of this library always chose)

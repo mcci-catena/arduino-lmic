@@ -570,6 +570,12 @@ bit_t lmic_hal_queryUsingDIO3AsTCXOSwitch(void) {
     return pHalConfig->queryUsingDIO3AsTCXOSwitch();
 }
 
+// Verify C++ and C sentinel values for SX126x crystal trim match.
+static_assert(
+    Arduino_LMIC::HalConfiguration_t::kSX126xXtalTrimUseDefault == LMIC_HAL_SX126X_XTAL_TRIM_USE_DEFAULT,
+    "C++ and C sentinel values for SX126x crystal trim must match"
+    );
+
 uint8_t lmic_hal_querySX126xXTATrim(void) {
     return pHalConfig->querySX126xXTATrim();
 }
