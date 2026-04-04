@@ -774,7 +774,7 @@ void radio_config(void) {
     }
 
     // If the board has RfSwitch, switch on
-    if (lmic_hal_queryUsingDIO2AsRfSwitch) {
+    if (lmic_hal_queryUsingDIO2AsRfSwitch()) {
         setDio2AsRfSwitchCtrl();
     }
 
