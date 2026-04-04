@@ -494,7 +494,20 @@ LMIC_SecureElement_aes128Encrypt_t(const uint8_t *pKey, const uint8_t *pInput, u
 ///
 /// \hideinitializer
 ///
-#define LMIC_SecureElement_DECLARE_DRIVER_FNS(a_driver)										 \
+#define LMIC_SecureElement_DECLARE_DRIVER_FNS(a_driver)	\
+	LMIC_SecureElement_DECLARE_DRIVER_FNS_(a_driver)
+
+/// \brief Declare all driver functions for a given driver name (inner macro).
+///
+/// \details
+///	This macro does the actual token-pasting. It is called by
+///	LMIC_SecureElement_DECLARE_DRIVER_FNS(), which forces macro-expansion
+///	of its argument first, following the same two-level pattern as
+///	LMIC_SecureElement_METHOD() / LMIC_SecureElement_METHOD_().
+///
+/// \hideinitializer
+///
+#define LMIC_SecureElement_DECLARE_DRIVER_FNS_(a_driver)									 \
 	LMIC_SecureElement_initialize_t LMIC_SecureElement_##a_driver##_initialize;				 \
 	LMIC_SecureElement_getRandomU1_t LMIC_SecureElement_##a_driver##_getRandomU1;			   \
 	LMIC_SecureElement_getRandomU2_t LMIC_SecureElement_##a_driver##_getRandomU2;			   \

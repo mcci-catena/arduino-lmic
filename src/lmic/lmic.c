@@ -1580,7 +1580,7 @@ static bit_t processJoinAccept (void) {
 
     LMIC_SecureElement_Error_t seErr;
 
-    seErr = LMIC_SecureElement_Default_decodeJoinAccept(
+    seErr = LMIC_SecureElement_decodeJoinAccept(
         LMIC.frame, dlen,
         LMIC.frame,
         LMIC_SecureElement_JoinFormat_JoinRequest10
