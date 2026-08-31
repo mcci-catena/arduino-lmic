@@ -258,7 +258,13 @@ u4_t os_aes_original (u1_t mode, xref2u1_t buf, u2_t len) {
             AESAUX[3] = swapmsbf(AESAUX[3]);
         }
 
-        while( (signed char)len > 0 ) {
+        // len is u2_t and underflows at the end of every round; the loop
+        // relies on that underflow to stop. The sign test must therefore
+        // be as wide as len: with (signed char) it only looked at the low
+        // byte, so a length of 128..255 tested as negative and the loop
+        // never ran at all -- leaving the payload in the clear and the
+        // MIC as the untouched B0 block.
+        while( (s2_t)len > 0 ) {
             u4_t a0, a1, a2, a3;
             u4_t t0, t1, t2, t3;
             u4_t *ki, *ke;
