@@ -486,7 +486,8 @@ The following boards are pre-integrated.
 - Adafruit [Feather 32u4 LoRa 900 MHz][1] (SX1276)
 - Adafruit [Feather M0 LoRa 900 MHz][2] (SX1276)
 - MCCI Catena 4410, 4420, [4450][3], [4460][4] and [4470][5] boards (based on Adafruit Feather boards plus wings) (SX1276)
-- MCCI Catena 4551, [4610][6], 4611, [4612][7], 4617, [4618][7a], 4630, [4801][8] and 4802[12] boards (based on the Murata CMWX1ZZABZ-078 module) (SX1276)
+- MCCI Catena 4551, [4610][6], 4611, [4612][7], 4617, [4618][7a], 4630, [4801][8] and [4802][12] boards (based on the Murata CMWX1ZZABZ-078 module) (SX1276)
+- MCCI Model 4916, [4917][13], [4931][14] and [4933][15] boards (based on the Murata CMWX1ZZABZ-078 module) (SX1276)
 - [TTGo LoRa32 V1][10] (based on the ESP32)
 - [Heltec WiFi LoRa 32 V2][11] (based on the ESP32)
 
@@ -502,6 +503,9 @@ The following boards are pre-integrated.
 [10]: https://makeradvisor.com/tools/ttgo-lora32-sx1276-esp32-oled/
 [11]: https://heltec.org/project/wifi-lora-32/
 [12]: https://store.mcci.com/collections/lorawan-iot-and-the-things-network/products/catena-4802
+[13]: https://store.mcci.com/products/mcci-model-4917
+[14]: https://store.mcci.com/products/mcci-model-4931
+[15]: https://store.mcci.com/products/model-4933
 
 > To help you know if you have to worry, we'll call such boards "pre-integrated" and prefix each section with suitable guidance.
 
