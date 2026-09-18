@@ -53,7 +53,7 @@ public:
                 pinMode(PIN_TCXO_VDD, INPUT);
                 }
 
-	virtual bool queryUsingTcxo(void) override { return true; };
+        virtual bool queryUsingTcxo(void) override { return true; };
 
         virtual ostime_t setModuleActive(bool state) override
                 {
@@ -72,7 +72,6 @@ public:
                 }
         };
 
-// save some typing by bringing the pin numbers into scope
 static HalConfiguration_Catena4917_t myConfig;
 
 static const HalPinmap_t myPinmap =

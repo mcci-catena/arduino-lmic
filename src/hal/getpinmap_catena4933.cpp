@@ -72,7 +72,6 @@ public:
                 }
         };
 
-// save some typing by bringing the pin numbers into scope
 static HalConfiguration_Catena4933_t myConfig;
 
 static const HalPinmap_t myPinmap =
