@@ -350,7 +350,7 @@ u4_t lmic_hal_waitUntil (u4_t time) {
 
     // From delayMicroseconds docs: Currently, the largest value that
     // will produce an accurate delay is 16383. Also, STM32 does a better
-    // job with delay is less than 10,000 us; so reduce in steps.
+    // job when delay is less than 10,000 us; so reduce in steps.
     // It's nice to use delay() for the longer times.
     while (delta > HAL_WAITUNTIL_DOWNCOUNT_THRESH) {
         // deliberately delay 8ms rather than 9ms, so we
@@ -362,28 +362,15 @@ u4_t lmic_hal_waitUntil (u4_t time) {
         delta = delta_time(time);
     }
 
-    // The radio driver runs with interrupt disabled, and this can
-    // mess up timing APIs on some platforms. If we know the BSP feature
-    // set, we can decide whether to use delta_time() [more exact, 
-    // but not always possible with interrupts off], or fall back to
-    // delay_microseconds() [less exact, but more universal]
-
-#if defined(_mcci_arduino_version)
-    // unluckily, delayMicroseconds() isn't very accurate.
-    // but delta_time() works with interrupts disabled.
-    // so spin using delta_time().
+    // For the final portion, delta_time() works if interrupts are enabled.
+    // The Arduino LMIC is quite careful to keep interrupts enabled.
     while (delta_time(time) > 0)
         /* loop */;
-#else // ! defined(_mcci_arduino_version)
-    // on other BSPs, we need to stick with the older way,
-    // until we fix the radio driver to run with interrupts
-    // enabled.
-    if (delta > 0)
-        delayMicroseconds(delta * US_PER_OSTICK);
-#endif // ! defined(_mcci_arduino_version)
 
-    // we aren't "late". Callers are interested in gross delays, not
-    // necessarily delays due to poor timekeeping here.
+    // The API says we're supposed to return the number of ticks we're late.
+    // That's a holdover from older designs. In the current LMIC, callers only
+    // require that we return at or after the specified time. The above code
+    // guarantees that. We return 0 to indicate that we're not "late".
     return 0;
 }
 
