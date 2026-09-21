@@ -101,49 +101,9 @@ extern "C"{
 #define LMIC_VERSION_MINOR 6
 #define LMIC_VERSION_BUILD 1468577746
 
-// Arduino LMIC version
-#define ARDUINO_LMIC_VERSION_CALC(major, minor, patch, local)	\
-	((((major)*UINT32_C(1)) << 24) | (((minor)*UINT32_C(1)) << 16) | (((patch)*UINT32_C(1)) << 8) | (((local)*UINT32_C(1)) << 0))
-
+/// Official ARDUINO LMIC version. Different from LMIC_VERSION_MAJOR etc. because those document the version released by IBM.
 #define	ARDUINO_LMIC_VERSION    \
-    ARDUINO_LMIC_VERSION_CALC(6, 1, 0, 1)  /* 6.1.0-pre1 */
-
-#define	ARDUINO_LMIC_VERSION_GET_MAJOR(v)	\
-	((((v)*UINT32_C(1)) >> 24u) & 0xFFu)
-
-#define	ARDUINO_LMIC_VERSION_GET_MINOR(v)	\
-	((((v)*UINT32_C(1)) >> 16u) & 0xFFu)
-
-#define	ARDUINO_LMIC_VERSION_GET_PATCH(v)	\
-	((((v)*UINT32_C(1)) >> 8u) & 0xFFu)
-
-#define	ARDUINO_LMIC_VERSION_GET_LOCAL(v)	\
-	((v) & 0xFFu)
-
-/// \brief convert a semantic version to an ordinal integer.
-#define ARDUINO_LMIC_VERSION_TO_ORDINAL(v)  \
-        (((v) & 0xFFFFFF00u) | (((v) - 1) & 0xFFu))
-
-/// \brief compare two semantic versions
-/// \return \c true if \p a is less than \p b (as a semantic version).
-#define ARDUINO_LMIC_VERSION_COMPARE_LT(a, b)   \
-        (ARDUINO_LMIC_VERSION_TO_ORDINAL(a) < ARDUINO_LMIC_VERSION_TO_ORDINAL(b))
-
-/// \brief compare two semantic versions
-/// \return \c true if \p a is less than or equal to \p b (as a semantic version).
-#define ARDUINO_LMIC_VERSION_COMPARE_LE(a, b)   \
-        (ARDUINO_LMIC_VERSION_TO_ORDINAL(a) <= ARDUINO_LMIC_VERSION_TO_ORDINAL(b))
-
-/// \brief compare two semantic versions
-/// \return \c true if \p a is greater than \p b (as a semantic version).
-#define ARDUINO_LMIC_VERSION_COMPARE_GT(a, b)   \
-        (ARDUINO_LMIC_VERSION_TO_ORDINAL(a) > ARDUINO_LMIC_VERSION_TO_ORDINAL(b))
-
-/// \brief compare two semantic versions
-/// \return \c true if \p a is greater than or equal to \p b (as a semantic version).
-#define ARDUINO_LMIC_VERSION_COMPARE_GE(a, b)   \
-        (ARDUINO_LMIC_VERSION_TO_ORDINAL(a) >= ARDUINO_LMIC_VERSION_TO_ORDINAL(b))
-
+    ARDUINO_LMIC_VERSION_CALC(7, 0, 0, 1)  /* 7.0.0-pre1 */
 
 //! Only For Antenna Tuning Tests !
 //#define CFG_TxContinuousMode 1
