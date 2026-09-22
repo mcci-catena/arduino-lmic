@@ -22,6 +22,8 @@ Author:
 # include "../../i/lmic_ostime_interface.h"
 #endif
 
+LMIC_BEGIN_DECLS
+
 /*! \defgroup lmic_ostime_micros Generic micros()-based ostime driver
 
 \brief Derive the LMIC time base from the Arduino micros() counter.
@@ -67,6 +69,8 @@ LMIC_OsTime_DECLARE_DRIVER_FNS(Micros);
 #include "../../i/lmic_ostime_conv_generic.h"
 
 /// \}
+
+LMIC_END_DECLS
 
 #endif /* _lmic_ostime_micros_h_ */
 

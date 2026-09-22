@@ -26,6 +26,8 @@ Author:
 # include "../../lmic/lmic_env.h"
 #endif
 
+LMIC_BEGIN_DECLS
+
 /*! \defgroup lmic_ostime LMIC OS Time Interface
 
 \brief This abstract interface represents the system time base to the body of the LMIC.
@@ -140,6 +142,8 @@ LMIC_END_DECLS
 	struct LMIC_OsTime_DECLARE_DRIVER_FNS_unused_##a_driver
 
 /// \}
+
+LMIC_END_DECLS
 
 #endif /* _lmic_ostime_interface_h_ */
 
