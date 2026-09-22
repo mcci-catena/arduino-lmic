@@ -1016,7 +1016,4 @@ DECL_ON_LMIC_EVENT;
 } // extern "C"
 #endif
 
-// names for backward compatibility
-#include "lmic_compat.h"
-
 #endif // _lmic_h_
