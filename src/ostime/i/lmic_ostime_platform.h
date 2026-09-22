@@ -18,6 +18,8 @@ Author:
 #ifndef _lmic_ostime_platform_h_
 #define _lmic_ostime_platform_h_
 
+#include <Arduino.h>
+
 /*
 
 This file maps compiler and BSP predefines onto the name of a header that
@@ -30,11 +32,9 @@ works from LMIC_PLATFORM_OSTIME_INCLUDE.
 
 #if defined (LMIC_PLATFORM_OSTIME_INCLUDE)
   /* we're lucky: the build system injected directly so we don't need to guess */
-#elif defined(_mcci_arduino_version) && defined(STM32L0xx)
+#elif defined(_mcci_arduino_version) && defined(ARDUINO_ARCH_STM32)
   /* MCCI STM32L0 BSP: LPTIM1 counting LSE, 32768 ticks/second. */
-// # define LMIC_PLATFORM_OSTIME_INCLUDE	../drivers/stm32l0lptim/lmic_ostime_stm32l0lptim.h
-  /* but for right now, still the generic way. */
-  # define LMIC_PLATFORM_OSTIME_INCLUDE	../drivers/micros/lmic_ostime_micros.h
+# define LMIC_PLATFORM_OSTIME_INCLUDE	../drivers/stm32l0lptim/lmic_ostime_stm32l0lptim.h
 #elif defined(ARDUINO)
   /* any other Arduino BSP: scale down micros(), 62500 ticks/second. */
 # define LMIC_PLATFORM_OSTIME_INCLUDE	../drivers/micros/lmic_ostime_micros.h
