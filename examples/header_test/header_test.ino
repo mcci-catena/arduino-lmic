@@ -27,6 +27,29 @@ STATIC_ASSERT(ARDUINO_LMIC_VERSION_GET_MINOR(ARDUINO_LMIC_VERSION_CALC(1,2,3,4))
 STATIC_ASSERT(ARDUINO_LMIC_VERSION_GET_PATCH(ARDUINO_LMIC_VERSION_CALC(1,2,3,4)) == 3);
 STATIC_ASSERT(ARDUINO_LMIC_VERSION_GET_PRE(ARDUINO_LMIC_VERSION_CALC(1,2,3,4)) == 4);
 
+#if defined(OSTICKS_PER_SEC)
+# error "OSTICKS_PER_SEC is defined but should not be"
+#endif
+#if defined(US_PER_OSTICK_EXPONENT)
+# error "US_PER_OSTICK_EXPONENT is defined but should not be"
+#endif
+#if defined(US_PER_OSTICK)
+# error "US_PER_OSTICK is defined but should not be"
+#endif
+
+#include <lmic/lmic_compat_v6.h>
+
+#if ! defined(OSTICKS_PER_SEC)
+# error "OSTICKS_PER_SEC is not defined but should be"
+#endif
+#if ! defined(US_PER_OSTICK_EXPONENT)
+# error "US_PER_OSTICK_EXPONENT is not defined but should be"
+#endif
+#if ! defined(US_PER_OSTICK)
+# error "US_PER_OSTICK is not defined but should be"
+#endif
+
+
 void setup()
 	{
 	}

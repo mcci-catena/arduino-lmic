@@ -65,9 +65,6 @@ Author:
 # error "LMIC_OSTICKS_PER_SEC is out of range: one tick must be 15.5 us to 100 us long"
 #endif
 
-/// \brief traditional name for ticks per second.
-#define OSTICKS_PER_SEC LMIC_OSTICKS_PER_SEC
-
 // The driver must supply the tick conversions, either by including
 // lmic_ostime_conv_generic.h or by defining them itself. They must be macros,
 // so that we can check for them here; a driver that needs a real function
