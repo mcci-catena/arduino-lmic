@@ -22,6 +22,8 @@ Author:
 # include "lmic_ostime_api.h"
 #endif
 
+LMIC_BEGIN_DECLS
+
 /*
 
 An ostime driver header includes this file to get the tick conversion macros
@@ -56,6 +58,8 @@ a cheaper form defines the nine macros itself and does not include this file.
 
 /// \brief convert milliseconds to ticks, rounding to nearest
 #define ms2osticksRound(ms)	((ostime_t)( ((int64_t)(ms) * LMIC_OSTICKS_PER_SEC + 500) / 1000))
+
+LMIC_END_DECLS
 
 #endif /* _lmic_ostime_conv_generic_h_ */
 
