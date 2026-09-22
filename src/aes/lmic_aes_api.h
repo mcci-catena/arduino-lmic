@@ -18,7 +18,7 @@ Author:
 #ifndef _lmic_aes_api_h_
 #define _lmic_aes_api_h_
 
-#ifndef _lmic_h_
+#ifndef _oslmic_h_
 # include "../lmic/oslmic.h"
 #endif
 
