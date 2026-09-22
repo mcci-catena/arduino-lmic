@@ -42,11 +42,20 @@ STATIC_ASSERT(ARDUINO_LMIC_VERSION_GET_PRE(ARDUINO_LMIC_VERSION_CALC(1,2,3,4)) =
 #if ! defined(OSTICKS_PER_SEC)
 # error "OSTICKS_PER_SEC is not defined but should be"
 #endif
-#if ! defined(US_PER_OSTICK_EXPONENT)
-# error "US_PER_OSTICK_EXPONENT is not defined but should be"
-#endif
-#if ! defined(US_PER_OSTICK)
-# error "US_PER_OSTICK is not defined but should be"
+#if defined(OSTICKS_PER_SEC) && OSTICKS_PER_SEC == 62500
+# if ! defined(US_PER_OSTICK_EXPONENT)
+#  error "US_PER_OSTICK_EXPONENT is not defined but should be"
+# endif
+# if ! defined(US_PER_OSTICK)
+#  error "US_PER_OSTICK is not defined but should be"
+# endif
+#else
+# if defined(US_PER_OSTICK_EXPONENT)
+#  error "US_PER_OSTICK_EXPONENT is defined but should not be (after lmic_compat_v6.h)"
+#  endif
+# if defined(US_PER_OSTICK)
+#  error "US_PER_OSTICK is defined but should not be (after lmic_compat_v6.h)"
+# endif
 #endif
 
 
