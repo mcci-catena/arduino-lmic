@@ -107,6 +107,17 @@ LMIC_OsTime_Stm32L0Lptim_initialize(
 	{
 	LMIC_ASSERTMSG(! savedConfig.fInitialized, "LPTIM already initialized");
 
+	// unlock the backup domain and start the LSE oscillator; LPTIM1's
+	// kernel clock won't run (and its registers won't latch writes)
+	// until LSE is actually running.
+	__HAL_RCC_PWR_CLK_ENABLE();
+	HAL_PWR_EnableBkUpAccess();
+
+	RCC_OscInitTypeDef RCC_OscInitStruct = {0};
+	RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSE;
+	RCC_OscInitStruct.LSEState = RCC_LSE_ON;
+	LMIC_ASSERTMSG(HAL_RCC_OscConfig(&RCC_OscInitStruct) == HAL_OK, "LSE start failed");
+
 	// enable clock to LPTIM1
 	__HAL_RCC_LPTIM1_CLK_ENABLE();
 	// keep it clocked in sleep:
@@ -142,6 +153,14 @@ LMIC_OsTime_Stm32L0Lptim_initialize(
 	// must be done after enabling.
 	pLptim->ARR = savedConfig.rArr = 0xFFFF;
 
+	// the ARR write crosses into the LPTIM kernel (LSE) clock domain and
+	// isn't visible on readback until the hardware confirms it; without
+	// this wait, a ticks() call made immediately after initialize()
+	// returns can still see the register's pre-write value.
+	while (! (pLptim->ISR & LPTIM_ISR_ARROK))
+		/* wait for the write to synchronize */;
+	pLptim->ICR = LPTIM_ICR_ARROKCF;
+
 	// prepare for interrupts
 	NVIC_SetPriority(LPTIM1_IRQn, LMIC_OsTime_Stm32L0Lptim_LPTIM1_INT_PRIORITY);
 
@@ -150,6 +169,13 @@ LMIC_OsTime_Stm32L0Lptim_initialize(
 
 	// start in continuous mode. Note that CNTSTRT is auto-clear.
 	pLptim->CR = LPTIM_CR_ENABLE | LPTIM_CR_CNTSTRT;
+
+	// CNTSTRT is cleared by hardware only after a synchronization delay
+	// of about two kernel (LSE) clock cycles; wait for it to clear so a
+	// ticks() call made immediately after initialize() returns doesn't
+	// see CR still carrying CNTSTRT and trip the config-check assert.
+	while (pLptim->CR & LPTIM_CR_CNTSTRT)
+		/* wait for the bit to self-clear */;
 
 	// remember that we've been here.
 	savedConfig.fInitialized = true;
