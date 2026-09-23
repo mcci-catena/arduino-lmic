@@ -116,11 +116,6 @@ uint8_t lmic_hal_getIrqLevel (void);
 void lmic_hal_sleep (void);
 
 /*
- * return 32-bit system time in ticks.
- */
-u4_t lmic_hal_ticks (void);
-
-/*
  * busy-wait until specified timestamp (in ticks) is reached. If on-time, return 0,
  * otherwise return the number of ticks we were late.
  */

@@ -19,6 +19,8 @@
 // we may need some things from stdio.
 #include <stdio.h>
 
+#include "../ostime/i/lmic_ostime_api.h"
+
 // -----------------------------------------------------------------------------
 // I/O
 
@@ -278,59 +280,10 @@ void lmic_hal_spi_read_sx126x(u1_t cmd, u1_t* addr, size_t addr_len, u1_t* buf, 
 // -----------------------------------------------------------------------------
 // TIME
 
-static void lmic_hal_time_init () {
-    // Nothing to do
-}
-
-u4_t lmic_hal_ticks () {
-    // Because micros() is scaled down in this function, micros() will
-    // overflow before the tick timer should, causing the tick timer to
-    // miss a significant part of its values if not corrected. To fix
-    // this, the "overflow" serves as an overflow area for the micros()
-    // counter. It consists of three parts:
-    //  - The US_PER_OSTICK upper bits are effectively an extension for
-    //    the micros() counter and are added to the result of this
-    //    function.
-    //  - The next bit overlaps with the most significant bit of
-    //    micros(). This is used to detect micros() overflows.
-    //  - The remaining bits are always zero.
-    //
-    // By comparing the overlapping bit with the corresponding bit in
-    // the micros() return value, overflows can be detected and the
-    // upper bits are incremented. This is done using some clever
-    // bitwise operations, to remove the need for comparisons and a
-    // jumps, which should result in efficient code. By avoiding shifts
-    // other than by multiples of 8 as much as possible, this is also
-    // efficient on AVR (which only has 1-bit shifts).
-    static uint8_t overflow = 0;
-
-    // Scaled down timestamp. The top US_PER_OSTICK_EXPONENT bits are 0,
-    // the others will be the lower bits of our return value.
-    uint32_t scaled = micros() >> US_PER_OSTICK_EXPONENT;
-    // Most significant byte of scaled
-    uint8_t msb = scaled >> 24;
-    // Mask pointing to the overlapping bit in msb and overflow.
-    const uint8_t mask = (1 << (7 - US_PER_OSTICK_EXPONENT));
-    // Update overflow. If the overlapping bit is different
-    // between overflow and msb, it is added to the stored value,
-    // so the overlapping bit becomes equal again and, if it changed
-    // from 1 to 0, the upper bits are incremented.
-    overflow += (msb ^ overflow) & mask;
-
-    // Return the scaled value with the upper bits of stored added. The
-    // overlapping bit will be equal and the lower bits will be 0, so
-    // bitwise or is a no-op for them.
-    return scaled | ((uint32_t)overflow << 24);
-
-    // 0 leads to correct, but overly complex code (it could just return
-    // micros() unmodified), 8 leaves no room for the overlapping bit.
-    static_assert(US_PER_OSTICK_EXPONENT > 0 && US_PER_OSTICK_EXPONENT < 8, "Invalid US_PER_OSTICK_EXPONENT value");
-}
-
 // Returns the number of ticks until time. Negative values indicate that
 // time has already passed.
 static s4_t delta_time(u4_t time) {
-    return (s4_t)(time - lmic_hal_ticks());
+    return (s4_t)(time - LMIC_OsTime_ticks());
 }
 
 // deal with boards that are stressed by no-interrupt delays #529, etc.
@@ -350,7 +303,7 @@ u4_t lmic_hal_waitUntil (u4_t time) {
 
     // From delayMicroseconds docs: Currently, the largest value that
     // will produce an accurate delay is 16383. Also, STM32 does a better
-    // job with delay is less than 10,000 us; so reduce in steps.
+    // job when delay is less than 10,000 us; so reduce in steps.
     // It's nice to use delay() for the longer times.
     while (delta > HAL_WAITUNTIL_DOWNCOUNT_THRESH) {
         // deliberately delay 8ms rather than 9ms, so we
@@ -362,28 +315,15 @@ u4_t lmic_hal_waitUntil (u4_t time) {
         delta = delta_time(time);
     }
 
-    // The radio driver runs with interrupt disabled, and this can
-    // mess up timing APIs on some platforms. If we know the BSP feature
-    // set, we can decide whether to use delta_time() [more exact, 
-    // but not always possible with interrupts off], or fall back to
-    // delay_microseconds() [less exact, but more universal]
-
-#if defined(_mcci_arduino_version)
-    // unluckily, delayMicroseconds() isn't very accurate.
-    // but delta_time() works with interrupts disabled.
-    // so spin using delta_time().
+    // For the final portion, delta_time() works if interrupts are enabled.
+    // The Arduino LMIC is quite careful to keep interrupts enabled.
     while (delta_time(time) > 0)
         /* loop */;
-#else // ! defined(_mcci_arduino_version)
-    // on other BSPs, we need to stick with the older way,
-    // until we fix the radio driver to run with interrupts
-    // enabled.
-    if (delta > 0)
-        delayMicroseconds(delta * US_PER_OSTICK);
-#endif // ! defined(_mcci_arduino_version)
 
-    // we aren't "late". Callers are interested in gross delays, not
-    // necessarily delays due to poor timekeeping here.
+    // The API says we're supposed to return the number of ticks we're late.
+    // That's a holdover from older designs. In the current LMIC, callers only
+    // require that we return at or after the specified time. The above code
+    // guarantees that. We return 0 to indicate that we're not "late".
     return 0;
 }
 
@@ -510,8 +450,8 @@ bool lmic_hal_init_with_pinmap(const HalPinmap_t *pPinmap)
     lmic_hal_io_init();
     // configure radio SPI
     lmic_hal_spi_init();
-    // configure timer and interrupt handler
-    lmic_hal_time_init();
+    // configure time-keeping subsystem
+    LMIC_OsTime_initialize();
 #if defined(LMIC_PRINTF_TO)
     // printf support
     lmic_hal_printf_init();

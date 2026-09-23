@@ -175,7 +175,7 @@ ostime_t calcAirTime (rps_t rps, u1_t plen) {
     u1_t sf = getSf(rps);  // 0=FSK, 1..6 = SF7..12
     if( sf == FSK ) {
         return (plen+/*preamble*/5+/*syncword*/3+/*len*/1+/*crc*/2) * /*bits/byte*/8
-            * (s4_t)OSTICKS_PER_SEC / /*kbit/s*/50000;
+            * (s4_t)LMIC_OSTICKS_PER_SEC / /*kbit/s*/50000;
     }
     u1_t sfx = 4*(sf+(7-SF7));
     u1_t q = sfx - (sf >= SF11 ? 8 : 0);
@@ -193,7 +193,7 @@ ostime_t calcAirTime (rps_t rps, u1_t plen) {
     //      500000 = 15625 * 2^5
     // sf = 7..12
     //
-    // osticks =  tmp * OSTICKS_PER_SEC * 1<<sf / bw
+    // osticks =  tmp * LMIC_OSTICKS_PER_SEC * 1<<sf / bw
     //
     // 3 => counter reduced divisor 125000/8 => 15625
     // 2 => counter 2 shift on tmp
@@ -205,7 +205,7 @@ ostime_t calcAirTime (rps_t rps, u1_t plen) {
         sfx = 4;
     }
     // Need 32bit arithmetic for this last step
-    return (((ostime_t)tmp << sfx) * OSTICKS_PER_SEC + div/2) / div;
+    return (((ostime_t)tmp << sfx) * LMIC_OSTICKS_PER_SEC + div/2) / div;
 }
 
 // END LORA
@@ -314,10 +314,10 @@ static bit_t rxschedNext (xref2rxsched_t rxsched, ostime_t cando) {
 ostime_t LMICcore_rndDelay (u1_t secSpan) {
     u2_t r = os_getRndU2();
     ostime_t delay = r;
-    if( delay > OSTICKS_PER_SEC )
-        delay = r % (u2_t)OSTICKS_PER_SEC;
+    if( delay > LMIC_OSTICKS_PER_SEC )
+        delay = r % (u2_t)LMIC_OSTICKS_PER_SEC;
     if( secSpan > 0 )
-        delay += ((u1_t)r % secSpan) * OSTICKS_PER_SEC;
+        delay += ((u1_t)r % secSpan) * LMIC_OSTICKS_PER_SEC;
     return delay;
 }
 

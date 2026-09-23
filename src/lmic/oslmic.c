@@ -30,6 +30,8 @@
 
 #include "lmic.h"
 
+#include "../ostime/i/lmic_ostime_api.h"
+
 extern const struct lmic_pinmap lmic_pins;
 
 // RUNTIME STATE
@@ -54,7 +56,7 @@ void os_init() {
 }
 
 ostime_t os_getTime () {
-    return lmic_hal_ticks();
+    return (ostime_t) LMIC_OsTime_ticks();
 }
 
 // unlink job from queue, return if removed

@@ -44,6 +44,10 @@
 # include "oslmic_types.h"
 #endif
 
+#ifndef _lmic_ostime_api_h_
+# include "../ostime/i/lmic_ostime_api.h"
+#endif
+
 LMIC_BEGIN_DECLS
 
 
@@ -52,9 +56,11 @@ LMIC_BEGIN_DECLS
 #define EV(a,b,c) /**/
 #define DO_DEVDB(field1,field2) /**/
 #if !defined(CFG_noassert)
-#define ASSERT(cond) if(!(cond)) lmic_hal_failed(__FILE__, __LINE__)
+#define ASSERT(cond) do { if(!(cond)) lmic_hal_failed(__FILE__, __LINE__); } while (0)
+#define LMIC_ASSERTMSG(cond, msg) do { if(!(cond)) lmic_hal_failed(msg ": " __FILE__, __LINE__); } while (0)
 #else
-#define ASSERT(cond) /**/
+#define ASSERT(cond) do {;} while (0)
+#define LMIC_ASSERTMSG(cond, msg) do {;} while (0)
 #endif
 
 /// \private
@@ -138,26 +144,6 @@ void radio_monitor_rssi(ostime_t n, oslmic_radio_rssi_t *pRssi);
 // on this plaform.
 #define TX_RAMPUP  (us2osticks(10000))
 #endif
-
-#ifndef OSTICKS_PER_SEC
-#define OSTICKS_PER_SEC 32768
-#elif OSTICKS_PER_SEC < 10000 || OSTICKS_PER_SEC > 64516
-#error Illegal OSTICKS_PER_SEC - must be in range [10000:64516]. One tick must be 15.5us .. 100us long.
-#endif
-
-#if !HAS_ostick_conv
-#define us2osticks(us)   ((ostime_t)( ((int64_t)(us) * OSTICKS_PER_SEC) / 1000000))
-#define ms2osticks(ms)   ((ostime_t)( ((int64_t)(ms) * OSTICKS_PER_SEC)    / 1000))
-#define sec2osticks(sec) ((ostime_t)( (int64_t)(sec) * OSTICKS_PER_SEC))
-#define osticks2ms(os)   ((s4_t)(((os)*(int64_t)1000    ) / OSTICKS_PER_SEC))
-#define osticks2us(os)   ((s4_t)(((os)*(int64_t)1000000 ) / OSTICKS_PER_SEC))
-// Special versions
-#define us2osticksCeil(us)  ((ostime_t)( ((int64_t)(us) * OSTICKS_PER_SEC + 999999) / 1000000))
-#define us2osticksRound(us) ((ostime_t)( ((int64_t)(us) * OSTICKS_PER_SEC + 500000) / 1000000))
-#define ms2osticksCeil(ms)  ((ostime_t)( ((int64_t)(ms) * OSTICKS_PER_SEC + 999) / 1000))
-#define ms2osticksRound(ms) ((ostime_t)( ((int64_t)(ms) * OSTICKS_PER_SEC + 500) / 1000))
-#endif
-
 
 struct osjob_t;  // fwd decl.
 

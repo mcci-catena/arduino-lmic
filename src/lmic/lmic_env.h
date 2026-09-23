@@ -166,7 +166,7 @@ Returns:
 # define LMIC_EV_VARIABLE(v)                  do { (void) (v); } while (0)
 #endif
 
-/*
+/*
 
 Macro:	LMIC_ABI_STD
 
@@ -389,5 +389,55 @@ enum { ARDUINO_LMIC_VERSION_GET_LOCAL_is_deprecated LMIC_DEPRECATED("use ARDUINO
 /// \return \c true if \p a is greater than or equal to \p b (as a semantic version).
 #define ARDUINO_LMIC_VERSION_COMPARE_GE(a, b)   \
         (ARDUINO_LMIC_VERSION_TO_ORDINAL(a) >= ARDUINO_LMIC_VERSION_TO_ORDINAL(b))
+
+/*
+
+Macro:	LMIC_STRINGIFY()
+
+Index:	Macro:	LMIC_STRINGIFY_()
+
+Function:
+	Utility facility to convert values to C strings.
+
+Definition:
+	#define LMIC_STRINGIFY(x) ...
+	#define LMIC_STRINGIFY_(inner_x) ...
+
+Description:
+	These macros are used as wrappers for the C preprocessor unary
+	`#` operator. #x only works in a macro, so in normal situations,
+	a helper macro is needed. In the general case where your value
+	might be or might contain macros that need to be expanded,
+	LMIC_STRINGIFY() is used. If you need to have the literal value
+	of the parameter converted to a string without macro expansion,
+	LMIC_STRINGIFY_() is used.
+
+Returns:
+	A C string value.
+
+*/
+
+///
+/// \brief helper macro for LMIC_STRINGIFY()
+///
+/// \param inner_x 	is the value to be converted to a string. It is not macro
+///			expanded before conversion.
+///
+#define LMIC_STRINGIFY_(inner_x) #inner_x
+
+///
+/// \brief macro-expand and convert value to C string (in double quotes)
+///
+/// \param x is the value to be converted to a string. It will be macro expanded first.
+///
+/// \details
+///	This relies on obscure details of how macro argument expansion works. If we
+///	expanded here with `#x`, LMIC_STRINGIFY(__LINE__) would return literally
+///	`"__LINE__"`. But when we go to call the second macro LMIC_STRINGIFY_(),
+///	the preprocessor expands __LINE__ (to 386 if that's the line number) and
+///	then invokes the second macro. LMIC_STRINGIFY_ doesn't try to expand its
+///	parameter, and so the result is "386".
+///
+#define LMIC_STRINGIFY(x) LMIC_STRINGIFY_(x)
 
 #endif /* _lmic_env_h_ */

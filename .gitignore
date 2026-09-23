@@ -46,4 +46,9 @@ __vm
 
 # files from vscode
 .vscode
+
+# documentation tree: it's generated
 doxygen
+
+# a place for things we're working on
+scratch/
