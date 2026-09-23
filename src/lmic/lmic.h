@@ -35,6 +35,9 @@
 
 #include "oslmic.h"
 #include "lorabase.h"
+#ifndef _lmic_version_h_
+# include "lmic_version.h"
+#endif
 
 #if LMIC_DEBUG_LEVEL > 0 || LMIC_X_DEBUG_LEVEL > 0
 # if defined(LMIC_DEBUG_INCLUDE)
@@ -95,15 +98,6 @@
 #ifdef __cplusplus
 extern "C"{
 #endif
-
-// LMIC version -- this is the IBM LMIC version
-#define LMIC_VERSION_MAJOR 1
-#define LMIC_VERSION_MINOR 6
-#define LMIC_VERSION_BUILD 1468577746
-
-/// Official ARDUINO LMIC version. Different from LMIC_VERSION_MAJOR etc. because those document the version released by IBM.
-#define	ARDUINO_LMIC_VERSION    \
-    ARDUINO_LMIC_VERSION_CALC(6, 1, 0, 1)  /* 6.1.0-pre1 */
 
 //! Only For Antenna Tuning Tests !
 //#define CFG_TxContinuousMode 1
