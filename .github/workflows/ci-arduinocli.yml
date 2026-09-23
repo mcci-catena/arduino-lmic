@@ -47,8 +47,13 @@ jobs:
       matrix:
         include:
           - { name: avr,        arch: avr,   boards: "",               regions: "" }
-          - { name: esp32-a,    arch: esp32, boards: "",               regions: "us915 au915 as923 as923jp" }
-          - { name: esp32-b,    arch: esp32, boards: "",               regions: "eu868 kr920 in866" }
+          - { name: esp32-us915,   arch: esp32, boards: "",            regions: us915 }
+          - { name: esp32-au915,   arch: esp32, boards: "",            regions: au915 }
+          - { name: esp32-as923,   arch: esp32, boards: "",            regions: as923 }
+          - { name: esp32-as923jp, arch: esp32, boards: "",            regions: as923jp }
+          - { name: esp32-eu868,   arch: esp32, boards: "",            regions: eu868 }
+          - { name: esp32-kr920,   arch: esp32, boards: "",            regions: kr920 }
+          - { name: esp32-in866,   arch: esp32, boards: "",            regions: in866 }
           - { name: samd-4450,  arch: samd,  boards: mcci_catena_4450, regions: "" }
           - { name: samd-4410,  arch: samd,  boards: mcci_catena_4410, regions: "" }
           - { name: samd-4420,  arch: samd,  boards: mcci_catena_4420, regions: "" }
