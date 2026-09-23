@@ -121,7 +121,7 @@ Once again, you will start by copying either `lmic_eu868.c` or `lmic_us915.c` to
 
 - You will need to update the [`arduino-lorawan`](https://github.com/mcci-catena/arduino-lorawan) library to include support for the new region. (See [below](#adding-the-region-to-the-arduino_lorawan-library) for instructions.)
 
-- Please increase the version of `arduino-lmic` (symbol `ARDUINO_LMIC_VERSION` in `src/lmic/lmic.h`), and change `arduino-lorawan`'s `Arduino_LoRaWAN_lmic.h` to check for at least that newer version.
+- Please increase the version of `arduino-lmic` (symbol `ARDUINO_LMIC_VERSION` in `src/lmic/lmic_version.h`), and change `arduino-lorawan`'s `Arduino_LoRaWAN_lmic.h` to check for at least that newer version.
 
 - Please also increase the version of the `arduino-lorawan` library (symbol `ARDUINO_LORAWAN_VERSION`).
 

@@ -35,6 +35,9 @@
 
 #include "oslmic.h"
 #include "lorabase.h"
+#ifndef _lmic_version_h_
+# include "lmic_version.h"
+#endif
 
 #if LMIC_DEBUG_LEVEL > 0 || LMIC_X_DEBUG_LEVEL > 0
 # if defined(LMIC_DEBUG_INCLUDE)
@@ -95,55 +98,6 @@
 #ifdef __cplusplus
 extern "C"{
 #endif
-
-// LMIC version -- this is the IBM LMIC version
-#define LMIC_VERSION_MAJOR 1
-#define LMIC_VERSION_MINOR 6
-#define LMIC_VERSION_BUILD 1468577746
-
-// Arduino LMIC version
-#define ARDUINO_LMIC_VERSION_CALC(major, minor, patch, local)	\
-	((((major)*UINT32_C(1)) << 24) | (((minor)*UINT32_C(1)) << 16) | (((patch)*UINT32_C(1)) << 8) | (((local)*UINT32_C(1)) << 0))
-
-#define	ARDUINO_LMIC_VERSION    \
-    ARDUINO_LMIC_VERSION_CALC(6, 1, 0, 1)  /* 6.1.0-pre1 */
-
-#define	ARDUINO_LMIC_VERSION_GET_MAJOR(v)	\
-	((((v)*UINT32_C(1)) >> 24u) & 0xFFu)
-
-#define	ARDUINO_LMIC_VERSION_GET_MINOR(v)	\
-	((((v)*UINT32_C(1)) >> 16u) & 0xFFu)
-
-#define	ARDUINO_LMIC_VERSION_GET_PATCH(v)	\
-	((((v)*UINT32_C(1)) >> 8u) & 0xFFu)
-
-#define	ARDUINO_LMIC_VERSION_GET_LOCAL(v)	\
-	((v) & 0xFFu)
-
-/// \brief convert a semantic version to an ordinal integer.
-#define ARDUINO_LMIC_VERSION_TO_ORDINAL(v)  \
-        (((v) & 0xFFFFFF00u) | (((v) - 1) & 0xFFu))
-
-/// \brief compare two semantic versions
-/// \return \c true if \p a is less than \p b (as a semantic version).
-#define ARDUINO_LMIC_VERSION_COMPARE_LT(a, b)   \
-        (ARDUINO_LMIC_VERSION_TO_ORDINAL(a) < ARDUINO_LMIC_VERSION_TO_ORDINAL(b))
-
-/// \brief compare two semantic versions
-/// \return \c true if \p a is less than or equal to \p b (as a semantic version).
-#define ARDUINO_LMIC_VERSION_COMPARE_LE(a, b)   \
-        (ARDUINO_LMIC_VERSION_TO_ORDINAL(a) <= ARDUINO_LMIC_VERSION_TO_ORDINAL(b))
-
-/// \brief compare two semantic versions
-/// \return \c true if \p a is greater than \p b (as a semantic version).
-#define ARDUINO_LMIC_VERSION_COMPARE_GT(a, b)   \
-        (ARDUINO_LMIC_VERSION_TO_ORDINAL(a) > ARDUINO_LMIC_VERSION_TO_ORDINAL(b))
-
-/// \brief compare two semantic versions
-/// \return \c true if \p a is greater than or equal to \p b (as a semantic version).
-#define ARDUINO_LMIC_VERSION_COMPARE_GE(a, b)   \
-        (ARDUINO_LMIC_VERSION_TO_ORDINAL(a) >= ARDUINO_LMIC_VERSION_TO_ORDINAL(b))
-
 
 //! Only For Antenna Tuning Tests !
 //#define CFG_TxContinuousMode 1

@@ -91,7 +91,7 @@ gh pr merge PRNUM --merge --delete-branch
 
 ## Versioning Strategy
 
-Version is encoded in `src/lmic/lmic.h` as `ARDUINO_LMIC_VERSION_CALC(major, minor, patch, local)`. The `local` field serves as a pre-release counter. `library.properties` is only updated at actual release time.
+Version is encoded in `src/lmic/lmic_version.h` as `ARDUINO_LMIC_VERSION_CALC(major, minor, patch, local)`. The `local` field serves as a pre-release counter. `library.properties` is only updated at actual release time.
 
 During development, version bumps follow these rules:
 
@@ -111,7 +111,7 @@ To prepare a release (using `gh` CLI where possible):
 
 1. **Choose version number** (semver: breaking = major, features = minor, fixes = patch)
 2. **Update version in code:**
-   - `src/lmic/lmic.h`: `ARDUINO_LMIC_VERSION_CALC(major, minor, patch, 0)`
+   - `src/lmic/lmic_version.h`: `ARDUINO_LMIC_VERSION_CALC(major, minor, patch, 0)`
    - `library.properties`: `version=X.Y.Z`
    - `Doxyfile`: `PROJECT_NUMBER = X.Y.Z`
 3. **Update README.md badges:**
