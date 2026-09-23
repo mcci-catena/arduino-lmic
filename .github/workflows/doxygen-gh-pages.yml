@@ -11,7 +11,7 @@ name: Doxygen Pages
 
 on:
   push:
-    branches: [master]
+    branches: [main]
 
 # Allow only one concurrent deployment
 concurrency:

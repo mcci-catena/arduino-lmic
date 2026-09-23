@@ -255,7 +255,8 @@ Macro:	ARDUINO_LMIC_VERSION_CALC()
 Index:	Macro:	ARDUINO_LMIC_VERSION_GET_MAJOR()
 	Macro:	ARDUINO_LMIC_VERSION_GET_MINOR()
 	Macro:	ARDUINO_LMIC_VERSION_GET_PATCH()
-	Macro:	ARDUINO_LMIC_VERSION_GET_LOCAL()
+	Macro:	ARDUINO_LMIC_VERSION_GET_PRE()
+	Macro:	ARDUINO_LMIC_VERSION_GET_LOCAL() (deprecated)
 	Macro:	ARDUINO_LMIC_VERSION_TO_ORDINAL()
 	Macro:	ARDUINO_LMIC_VERSION_COMPARE_LT()
 	Macro:	ARDUINO_LMIC_VERSION_COMPARE_LE()
@@ -266,11 +267,12 @@ Function:
 	LMIC semantic version calculations.
 
 Definition:
-	#define ARDUINO_LMIC_VERSION_CALC(major, minor, patch, local) ...
+	#define ARDUINO_LMIC_VERSION_CALC(major, minor, patch, pre) ...
 	#define ARDUINO_LMIC_VERSION_GET_MAJOR(version_uint32) ...
 	#define ARDUINO_LMIC_VERSION_GET_MINOR(version_uint32) ...
 	#define ARDUINO_LMIC_VERSION_GET_PATCH(version_uint32) ...
-	#define	ARDUINO_LMIC_VERSION_GET_LOCAL(version_uint32) ...
+	#define	ARDUINO_LMIC_VERSION_GET_PRE(version_uint32) ...
+	#define	ARDUINO_LMIC_VERSION_GET_LOCAL(version_uint32) ... (deprecated)
 	#define ARDUINO_LMIC_VERSION_TO_ORDINAL(version_uint32) ...
 	#define	ARDUINO_LMIC_VERSION_COMPARE_LT(version1, version2) ...
 	#define	ARDUINO_LMIC_VERSION_COMPARE_LE(version1, version2) ...
@@ -288,8 +290,8 @@ Description:
 	lexicographically.
 
 	To make compile time operations easier, we limit the four fields to
-	eight bits. We use `LOCAL` for the pre-release number; if non-zero,
-	the version is a pre-release.
+	eight bits. The fourth field, `pre`, is the pre-release number; if
+	non-zero, the version is a pre-release.
 
 	To avoid confusion, we represent the version fields in a uint32_t,
 	exactly as given. However, this means that the versions can't
@@ -307,15 +309,16 @@ Description:
 
 Returns:
 	ARDUINO_LMIC_VERSION_CALC() returns a 32-bit version number.
-	ARDUINO_LMIC_VERSION_GET_MAJOR(), MINOR(), PATCH(), and LOCAL()
+	ARDUINO_LMIC_VERSION_GET_MAJOR(), MINOR(), PATCH(), and PRE()
 	return an 8-bit number extracted from the corresponding field.
 	ARDUINO_LMIC_VERSION_TO_ORDINAL() returns a 32-bit ordinal.
 	ARDUINO_LMIC_VERSION_COMPARE_LT(), LE(), GT(), GE() return
 	booleans.
 
 Notes:
-	In most other MCCI packages, ARDUINO_LMIC_VERSION_GET_LOCAL()
-	would be called ARDUINO_LMIC_VERSION_GET_PRE().
+	ARDUINO_LMIC_VERSION_GET_LOCAL() is the historical name for
+	ARDUINO_LMIC_VERSION_GET_PRE(). It still works, but using it
+	produces a deprecation warning on GCC 6 and later and on Clang.
 
 	The standard way to format versions is:
 
@@ -324,8 +327,8 @@ Notes:
 */
 
 /// \brief generate version uint32_t from components.
-#define ARDUINO_LMIC_VERSION_CALC(major, minor, patch, local)	\
-	((((major)*UINT32_C(1)) << 24) | (((minor)*UINT32_C(1)) << 16) | (((patch)*UINT32_C(1)) << 8) | (((local)*UINT32_C(1)) << 0))
+#define ARDUINO_LMIC_VERSION_CALC(major, minor, patch, pre)	\
+	((((major)*UINT32_C(1)) << 24) | (((minor)*UINT32_C(1)) << 16) | (((patch)*UINT32_C(1)) << 8) | (((pre)*UINT32_C(1)) << 0))
 
 /// \brief extract major field from version uint32_t
 #define	ARDUINO_LMIC_VERSION_GET_MAJOR(v)	\
@@ -340,8 +343,28 @@ Notes:
 	((((v)*UINT32_C(1)) >> 8u) & 0xFFu)
 
 /// \brief extract pre-release field from version uint32_t
-#define	ARDUINO_LMIC_VERSION_GET_LOCAL(v)	\
+#define	ARDUINO_LMIC_VERSION_GET_PRE(v)	\
 	((v) & 0xFFu)
+
+/// \brief mark a declaration deprecated, with a message.
+///
+/// \details GCC accepts attributes on enumerators from version 6.
+#if (defined(__GNUC__) && __GNUC__ >= 6) || defined(__clang__)
+# define LMIC_DEPRECATED(msg)	__attribute__((deprecated(msg)))
+#else
+# define LMIC_DEPRECATED(msg)	/* nothing */
+#endif
+
+/// \brief zero-valued constant that warns when ARDUINO_LMIC_VERSION_GET_LOCAL() is used.
+///
+/// \details An enumerator keeps the result an integer constant expression.
+///	In a preprocessor \c \#if the name evaluates to zero, so the value
+///	is still right there; the compiler just cannot warn.
+enum { ARDUINO_LMIC_VERSION_GET_LOCAL_is_deprecated LMIC_DEPRECATED("use ARDUINO_LMIC_VERSION_GET_PRE()") = 0 };
+
+/// \brief deprecated name for ARDUINO_LMIC_VERSION_GET_PRE().
+#define	ARDUINO_LMIC_VERSION_GET_LOCAL(v)	\
+	(ARDUINO_LMIC_VERSION_GET_PRE(v) + ARDUINO_LMIC_VERSION_GET_LOCAL_is_deprecated)
 
 /// \brief convert a semantic version to an ordinal integer.
 #define ARDUINO_LMIC_VERSION_TO_ORDINAL(v)  \
