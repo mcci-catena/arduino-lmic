@@ -17,10 +17,13 @@ env:
 
 # specify the events that trigger runs.
 on:
-  # pull requests (default settings)
+  # pull requests (default settings): builds the PR merge commit
   pull_request:
-  # pushes (default settings)
+  # pushes to main and to tags only. A feature branch with an open PR
+  # would otherwise build twice, once here and once as the PR.
   push:
+    branches: [main]
+    tags: ['v*']
   # repository operations
   repository_dispatch:
   schedule:
