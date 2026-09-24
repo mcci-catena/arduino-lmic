@@ -31,8 +31,8 @@ class cEventQueue;
 //
 
 // AppEUI: must be in little-endian format, so least-significant-byte
-// first.  This corresponds to 0x0000000000000000
-static const u1_t PROGMEM APPEUI[8]= { 0, 0, 0, 0, 0, 0, 0, 0 };
+// first.  This corresponds to 0x0000000000000001
+static const u1_t PROGMEM APPEUI[8]= { 1, 0, 0, 0, 0, 0, 0, 0 };
 void os_getArtEui (u1_t* buf) { memcpy_P(buf, APPEUI, 8); }
 
 // DevEUI: This should also be in little endian format, see above.
@@ -212,9 +212,17 @@ void LMICOS_logEventUint32(const char *pMessage, uint32_t datum)
 lmic_hal_failure_handler_t log_assertion;
 
 void log_assertion(const char *pMessage, uint16_t line) {
+    // Append the assertion to the message queue.
     eventQueue.putEvent(ev_t(-3), pMessage, line);
+
+    // Print as much info as we have. And dump registers if
+    // event logging is enabled:
     eventPrintAll();
+
+    // then signal that we had an assert failure
     Serial.println(F("***HALTED BY ASSERT***"));
+
+    // and hang.
     while (true)
         yield();
 }
@@ -725,15 +733,15 @@ void setup_printSignOnDashLine(void)
     printNl();
     }
 
-static constexpr const char *filebasename2(const char *s, const char *p) {
+static constexpr const char *filebasename(const char *s, const char *p) {
     return p[0] == '\0'                     ? s                             :
-           (p[0] == '/' || p[0] == '\\')    ? filebasename2(p + 1, p + 1)   :
-                                              filebasename2(s, p + 1)       ;
+           (p[0] == '/' || p[0] == '\\')    ? filebasename(p + 1, p + 1)    :
+                                              filebasename(s, p + 1)        ;
 }
 
 static constexpr const char *filebasename(const char *s)
     {
-    return filebasename2(s, s);
+    return filebasename(s, s);
     }
 
 void printVersionFragment(char sep, uint8_t v) {
@@ -771,6 +779,10 @@ void setup_printSignOn()
     Serial.print(unsigned(ARDUINO_LMIC_CFG_SUBBAND));
 #endif // defined(ARDUINO_LMIC_CFG_SUBBAND) && ARDUINO_LMIC_CFG_SUBBAND != -1
 
+    if (LMIC_isConfiguredClassC()) {
+        Serial.print(F(", Class C"));
+    }
+
     Serial.println(F(".\nRemember to select 'Line Ending: Newline' at the bottom of the monitor window."));
 
     setup_printSignOnDashLine();
@@ -781,6 +793,12 @@ void setupForNetwork(bool preJoin) {
 #if defined(ARDUINO_LMIC_CFG_SUBBAND) && ARDUINO_LMIC_CFG_SUBBAND != -1
     LMIC_selectSubBand(ARDUINO_LMIC_CFG_SUBBAND);
 #endif // defined(ARDUINO_LMIC_CFG_SUBBAND) && ARDUINO_LMIC_CFG_SUBBAND != -1
+
+    if (LMIC_isConfiguredClassC()) {
+        if (! LMIC_enableClassC(1)) {
+            Serial.println(F("Class C enabled failed"));
+        }
+    }
 }
 
 void loop() {

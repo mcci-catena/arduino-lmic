@@ -66,6 +66,21 @@ then
     PLATFORMIO_BUILD_FLAGS='-D CFG_us915   -D CFG_sx1276_radio -D LMIC_ENABLE_DeviceTimeReq=0 -D COMPILE_REGRESSION_TEST -D ARDUINO_LMIC_PROJECT_CONFIG_H_SUPPRESS' platformio ci --lib . --board heltec_wifi_lora_32 'examples/ttn-otaa/ttn-otaa.ino'
     PLATFORMIO_BUILD_FLAGS='-D CFG_eu868   -D CFG_sx1276_radio -D LMIC_ENABLE_DeviceTimeReq=0 -D COMPILE_REGRESSION_TEST -D ARDUINO_LMIC_PROJECT_CONFIG_H_SUPPRESS' platformio ci --lib . --board heltec_wifi_lora_32 'examples/ttn-otaa/ttn-otaa.ino'
 
+    # Compile "ttn-otaa" example with Class C enabled (SX1276 radio)
+    PLATFORMIO_BUILD_FLAGS='-D CFG_us915 -D CFG_sx1276_radio -D LMIC_ENABLE_class_c=1 -D COMPILE_REGRESSION_TEST -D ARDUINO_LMIC_PROJECT_CONFIG_H_SUPPRESS' platformio ci --lib . --board heltec_wifi_lora_32 'examples/ttn-otaa/ttn-otaa.ino'
+    PLATFORMIO_BUILD_FLAGS='-D CFG_eu868 -D CFG_sx1276_radio -D LMIC_ENABLE_class_c=1 -D COMPILE_REGRESSION_TEST -D ARDUINO_LMIC_PROJECT_CONFIG_H_SUPPRESS' platformio ci --lib . --board heltec_wifi_lora_32 'examples/ttn-otaa/ttn-otaa.ino'
+
+    # Compile "ttn-otaa" example with SX1262 radio
+    PLATFORMIO_BUILD_FLAGS='-D CFG_us915 -D CFG_sx1262_radio -D COMPILE_REGRESSION_TEST -D ARDUINO_LMIC_PROJECT_CONFIG_H_SUPPRESS' platformio ci --lib . --board heltec_wifi_lora_32 'examples/ttn-otaa/ttn-otaa.ino'
+    PLATFORMIO_BUILD_FLAGS='-D CFG_eu868 -D CFG_sx1262_radio -D COMPILE_REGRESSION_TEST -D ARDUINO_LMIC_PROJECT_CONFIG_H_SUPPRESS' platformio ci --lib . --board heltec_wifi_lora_32 'examples/ttn-otaa/ttn-otaa.ino'
+
+    # Compile "ttn-otaa" example with Class C enabled (SX1262 radio)
+    PLATFORMIO_BUILD_FLAGS='-D CFG_us915 -D CFG_sx1262_radio -D LMIC_ENABLE_class_c=1 -D COMPILE_REGRESSION_TEST -D ARDUINO_LMIC_PROJECT_CONFIG_H_SUPPRESS' platformio ci --lib . --board heltec_wifi_lora_32 'examples/ttn-otaa/ttn-otaa.ino'
+    PLATFORMIO_BUILD_FLAGS='-D CFG_eu868 -D CFG_sx1262_radio -D LMIC_ENABLE_class_c=1 -D COMPILE_REGRESSION_TEST -D ARDUINO_LMIC_PROJECT_CONFIG_H_SUPPRESS' platformio ci --lib . --board heltec_wifi_lora_32 'examples/ttn-otaa/ttn-otaa.ino'
+
+    # Compile "ttn-otaa" example with Class C and debug output
+    PLATFORMIO_BUILD_FLAGS='-D CFG_us915 -D CFG_sx1276_radio -D LMIC_ENABLE_class_c=1 -D LMIC_DEBUG_LEVEL=1 -D LMIC_PRINTF_TO=Serial -D COMPILE_REGRESSION_TEST -D ARDUINO_LMIC_PROJECT_CONFIG_H_SUPPRESS' platformio ci --lib . --board heltec_wifi_lora_32 'examples/ttn-otaa/ttn-otaa.ino'
+
     # Compile "ttn-otaa" example in US with debugging to Serial interface
     PLATFORMIO_BUILD_FLAGS='-D COMPILE_REGRESSION_TEST -D LMIC_DEBUG_LEVEL=2 -D LMIC_PRINTF_TO=Serial' platformio ci --lib . --board heltec_wifi_lora_32 'examples/ttn-otaa/ttn-otaa.ino'
 
@@ -145,12 +160,27 @@ then
 
     # Check build with deprecated CFG_au921 flag
     PLATFORMIO_BUILD_FLAGS='-D COMPILE_REGRESSION_TEST -D ARDUINO_LMIC_PROJECT_CONFIG_H_SUPPRESS -D CFG_au921   -D CFG_sx1276_radio' platformio ci --lib . --board feather32u4 'examples/ttn-otaa-feather-us915/ttn-otaa-feather-us915.ino'
+
+    # Compile with Class C enabled (US915 only - the feather-us915 example uses LMIC_selectSubBand)
+    PLATFORMIO_BUILD_FLAGS='-D COMPILE_REGRESSION_TEST -D LMIC_ENABLE_class_c=1' platformio ci --lib . --board feather32u4 'examples/ttn-otaa-feather-us915/ttn-otaa-feather-us915.ino'
+
 elif [ "$TARGET" == "samd" ]
 then
-    echo "WARNING: target '$TARGET' is not configured yet."
+    ################################################################################
+    # TESTS FOR TARGET "samd", i.e. BOARD adafruit_feather_m0
+
+    # Compile "ttn-otaa" example with Class C enabled
+    PLATFORMIO_BUILD_FLAGS='-D CFG_us915 -D CFG_sx1276_radio -D LMIC_ENABLE_class_c=1 -D COMPILE_REGRESSION_TEST -D ARDUINO_LMIC_PROJECT_CONFIG_H_SUPPRESS' platformio ci --lib . --board adafruit_feather_m0 'examples/ttn-otaa/ttn-otaa.ino'
+    PLATFORMIO_BUILD_FLAGS='-D CFG_eu868 -D CFG_sx1276_radio -D LMIC_ENABLE_class_c=1 -D COMPILE_REGRESSION_TEST -D ARDUINO_LMIC_PROJECT_CONFIG_H_SUPPRESS' platformio ci --lib . --board adafruit_feather_m0 'examples/ttn-otaa/ttn-otaa.ino'
+
 elif [ "$TARGET" == "stm32l0" ]
 then
-    echo "WARNING: target '$TARGET' is not configured yet."
+    ################################################################################
+    # TESTS FOR TARGET "stm32l0", i.e. BOARD disco_l072cz_lrwan1
+
+    # Compile "ttn-otaa" example with Class C enabled
+    PLATFORMIO_BUILD_FLAGS='-D CFG_us915 -D CFG_sx1276_radio -D LMIC_ENABLE_class_c=1 -D COMPILE_REGRESSION_TEST -D ARDUINO_LMIC_PROJECT_CONFIG_H_SUPPRESS' platformio ci --lib . --board disco_l072cz_lrwan1 'examples/ttn-otaa/ttn-otaa.ino'
+    PLATFORMIO_BUILD_FLAGS='-D CFG_eu868 -D CFG_sx1276_radio -D LMIC_ENABLE_class_c=1 -D COMPILE_REGRESSION_TEST -D ARDUINO_LMIC_PROJECT_CONFIG_H_SUPPRESS' platformio ci --lib . --board disco_l072cz_lrwan1 'examples/ttn-otaa/ttn-otaa.ino'
 else
     echo "ERROR: target '$TARGET' is not supported"
     exit 1

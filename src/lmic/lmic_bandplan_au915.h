@@ -60,6 +60,12 @@ void LMICau915_setBcnRxParams(void);
 u4_t LMICau915_convFreq(xref2cu1_t ptr);
 #define LMICbandplan_convFreq(ptr)      LMICau915_convFreq(ptr)
 
+static inline u1_t
+LMICau915_queryMaxRx1DrOffset(void) {
+        return 5;
+}
+#define LMICbandplan_queryMaxRx1DrOffset() LMICau915_queryMaxRx1DrOffset()
+
 void LMICau915_setRx1Params(void);
 #define LMICbandplan_setRx1Params()     LMICau915_setRx1Params()
 

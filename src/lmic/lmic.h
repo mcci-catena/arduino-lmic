@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2014-2016 IBM Corporation.
  * Copyright (c) 2016 Matthijs Kooijman.
- * Copyright (c) 2016-2024 MCCI Corporation.
+ * Copyright (c) 2016-2026 MCCI Corporation.
  * All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -35,6 +35,9 @@
 
 #include "oslmic.h"
 #include "lorabase.h"
+#ifndef _lmic_version_h_
+# include "lmic_version.h"
+#endif
 
 #if LMIC_DEBUG_LEVEL > 0 || LMIC_X_DEBUG_LEVEL > 0
 # if defined(LMIC_DEBUG_INCLUDE)
@@ -95,55 +98,6 @@
 #ifdef __cplusplus
 extern "C"{
 #endif
-
-// LMIC version -- this is the IBM LMIC version
-#define LMIC_VERSION_MAJOR 1
-#define LMIC_VERSION_MINOR 6
-#define LMIC_VERSION_BUILD 1468577746
-
-// Arduino LMIC version
-#define ARDUINO_LMIC_VERSION_CALC(major, minor, patch, local)	\
-	((((major)*UINT32_C(1)) << 24) | (((minor)*UINT32_C(1)) << 16) | (((patch)*UINT32_C(1)) << 8) | (((local)*UINT32_C(1)) << 0))
-
-#define	ARDUINO_LMIC_VERSION    \
-    ARDUINO_LMIC_VERSION_CALC(5, 0, 1, 0)  /* 5.0.1 */
-
-#define	ARDUINO_LMIC_VERSION_GET_MAJOR(v)	\
-	((((v)*UINT32_C(1)) >> 24u) & 0xFFu)
-
-#define	ARDUINO_LMIC_VERSION_GET_MINOR(v)	\
-	((((v)*UINT32_C(1)) >> 16u) & 0xFFu)
-
-#define	ARDUINO_LMIC_VERSION_GET_PATCH(v)	\
-	((((v)*UINT32_C(1)) >> 8u) & 0xFFu)
-
-#define	ARDUINO_LMIC_VERSION_GET_LOCAL(v)	\
-	((v) & 0xFFu)
-
-/// \brief convert a semantic version to an ordinal integer.
-#define ARDUINO_LMIC_VERSION_TO_ORDINAL(v)  \
-        (((v) & 0xFFFFFF00u) | (((v) - 1) & 0xFFu))
-
-/// \brief compare two semantic versions
-/// \return \c true if \p a is less than \p b (as a semantic version).
-#define ARDUINO_LMIC_VERSION_COMPARE_LT(a, b)   \
-        (ARDUINO_LMIC_VERSION_TO_ORDINAL(a) < ARDUINO_LMIC_VERSION_TO_ORDINAL(b))
-
-/// \brief compare two semantic versions
-/// \return \c true if \p a is less than or equal to \p b (as a semantic version).
-#define ARDUINO_LMIC_VERSION_COMPARE_LE(a, b)   \
-        (ARDUINO_LMIC_VERSION_TO_ORDINAL(a) <= ARDUINO_LMIC_VERSION_TO_ORDINAL(b))
-
-/// \brief compare two semantic versions
-/// \return \c true if \p a is greater than \p b (as a semantic version).
-#define ARDUINO_LMIC_VERSION_COMPARE_GT(a, b)   \
-        (ARDUINO_LMIC_VERSION_TO_ORDINAL(a) > ARDUINO_LMIC_VERSION_TO_ORDINAL(b))
-
-/// \brief compare two semantic versions
-/// \return \c true if \p a is greater than or equal to \p b (as a semantic version).
-#define ARDUINO_LMIC_VERSION_COMPARE_GE(a, b)   \
-        (ARDUINO_LMIC_VERSION_TO_ORDINAL(a) >= ARDUINO_LMIC_VERSION_TO_ORDINAL(b))
-
 
 //! Only For Antenna Tuning Tests !
 //#define CFG_TxContinuousMode 1
@@ -249,40 +203,103 @@ struct bcninfo_t {
 };
 #endif // !DISABLE_BEACONS
 
-// purpose of receive window - lmic_t.rxState
-enum { RADIO_RST=0, RADIO_TX=1, RADIO_RX=2, RADIO_RXON=3, RADIO_TX_AT=4, };
+/// \brief radio driver request codes
+enum { RADIO_RST=0,     ///< reset, canceling any pending operations.
+       RADIO_TX=1,      ///< transmit.
+       RADIO_RX=2,      ///< receive single with time window
+       RADIO_RXON=3,    ///< receive without time window
+       RADIO_TX_AT=4,   ///< transmit at a specific time
+       RADIO_RXON_C=5,  ///< open the class C window if possible.
+       };
+
 // Netid values /  lmic_t.netid
 enum { NETID_NONE=(int)~0U, NETID_MASK=(int)0xFFFFFF };
 // MAC operation modes (lmic_t.opmode).
 enum { OP_NONE     = 0x0000,
-       OP_SCAN     = 0x0001, // radio scan to find a beacon
-       OP_TRACK    = 0x0002, // track my networks beacon (netid)
-       OP_JOINING  = 0x0004, // device joining in progress (blocks other activities)
-       OP_TXDATA   = 0x0008, // TX user data (buffered in pendTxData)
-       OP_POLL     = 0x0010, // send empty UP frame to ACK confirmed DN/fetch more DN data
-       OP_REJOIN   = 0x0020, // occasionally send JOIN REQUEST
-       OP_SHUTDOWN = 0x0040, // prevent MAC from doing anything
-       OP_TXRXPEND = 0x0080, // TX/RX transaction pending
-       OP_RNDTX    = 0x0100, // prevent TX lining up after a beacon
-       OP_PINGINI  = 0x0200, // pingable is initialized and scheduling active
-       OP_PINGABLE = 0x0400, // we're pingable
-       OP_NEXTCHNL = 0x0800, // find a new channel
-       OP_LINKDEAD = 0x1000, // link was reported as dead
-       OP_TESTMODE = 0x2000, // developer test mode
-       OP_UNJOIN   = 0x4000, // unjoin and rejoin on next engineUpdate().
+       OP_SCAN     = 0x0001, //!< radio scan to find a beacon
+       OP_TRACK    = 0x0002, //!< track my networks beacon (netid)
+       OP_JOINING  = 0x0004, //!< device joining in progress (blocks other activities)
+       OP_TXDATA   = 0x0008, //!< TX user data (buffered in pendTxData)
+       OP_POLL     = 0x0010, //!< send empty UP frame to ACK confirmed DN/fetch more DN data
+       OP_REJOIN   = 0x0020, //!< occasionally send JOIN REQUEST
+       OP_SHUTDOWN = 0x0040, //!< prevent MAC from doing anything
+       OP_TXRXPEND = 0x0080, //!< TX/RX transaction pending
+       OP_RNDTX    = 0x0100, //!< prevent TX lining up after a beacon
+       OP_PINGINI  = 0x0200, //!< pingable is initialized and scheduling active
+       OP_PINGABLE = 0x0400, //!< we're pingable
+       OP_NEXTCHNL = 0x0800, //!< find a new channel
+       OP_LINKDEAD = 0x1000, //!< link was reported as dead
+       OP_TESTMODE = 0x2000, //!< developer test mode
+       OP_UNJOIN   = 0x4000, //!< unjoin and rejoin on next engineUpdate().
 };
 // TX-RX transaction flags - report back to user
-enum { TXRX_ACK    = 0x80,   // confirmed UP frame was acked
-       TXRX_NACK   = 0x40,   // confirmed UP frame was not acked
-       TXRX_NOPORT = 0x20,   // set if a frame with a port was RXed, clr if no frame/no port
-       TXRX_PORT   = 0x10,   // set if a frame with a port was RXed, LMIC.frame[LMIC.dataBeg-1] => port
-       TXRX_LENERR = 0x08,   // set if frame was discarded due to length error.
-       TXRX_PING   = 0x04,   // received in a scheduled RX slot
-       TXRX_DNW2   = 0x02,   // received in 2dn DN slot
-       TXRX_DNW1   = 0x01,   // received in 1st DN slot
+enum { TXRX_ACK    = 0x80,   //!< confirmed UP frame was acked
+       TXRX_NACK   = 0x40,   //!< confirmed UP frame was not acked
+       TXRX_NOPORT = 0x20,   //!< set if a frame with a port was RXed, clr if no frame/no port
+       TXRX_PORT   = 0x10,   //!< set if a frame with a port was RXed, LMIC.frame[LMIC.dataBeg-1] => port
+       TXRX_LENERR = 0x08,   //!< set if frame was discarded due to length error.
+       TXRX_PING   = 0x04,   //!< received in a scheduled RX slot or class C
+       TXRX_DNW2   = 0x02,   //!< received in 2dn DN slot or class C
+       TXRX_DNW1   = 0x01,   //!< received in 1st DN slot
 };
 
-// Event types for event callback
+///
+/// \brief check whether flags say that message was a Class C downlink
+///
+static inline bit_t LMIC_txrxFlags_isClassC(u1_t flags) {
+    return (flags & (TXRX_PING | TXRX_DNW2 | TXRX_DNW1)) == (TXRX_PING | TXRX_DNW2);
+}
+
+///
+/// \brief check whether flags say that message was RX1 downlink
+///
+static inline bit_t LMIC_txrxFlags_isRx1(u1_t flags) {
+    return (flags & (TXRX_PING | TXRX_DNW2 | TXRX_DNW1)) == (TXRX_DNW1);
+}
+
+///
+/// \brief check whether flags say that message was RX2 downlink
+///
+static inline bit_t LMIC_txrxFlags_isRx2(u1_t flags) {
+    return (flags & (TXRX_PING | TXRX_DNW2 | TXRX_DNW1)) == (TXRX_DNW2);
+}
+
+///
+/// \brief check whether flags say that message was a Class A downlink
+///
+static inline bit_t LMIC_txrxFlags_isClassA(u1_t flags) {
+    return LMIC_txrxFlags_isRx1(flags) || LMIC_txrxFlags_isRx2(flags);
+}
+
+///
+/// \brief change txrx flag image to indicate Class C downlink
+///
+static inline u1_t LMIC_txrxFlags_setClassC(u1_t flags) {
+    return (flags & ~TXRX_DNW1) | (TXRX_PING | TXRX_DNW2);
+}
+
+///
+/// \brief change txrx flag image to indicate Class A RX1 downlink
+///
+static inline u1_t LMIC_txrxFlags_setRx1(u1_t flags) {
+    return (flags & ~(TXRX_PING | TXRX_DNW2)) | (TXRX_DNW1);
+}
+
+///
+/// \brief change txrx flag image to indicate Class A RX2 downlink
+///
+static inline u1_t LMIC_txrxFlags_setRx2(u1_t flags) {
+    return (flags & ~(TXRX_PING | TXRX_DNW1)) | (TXRX_DNW2);
+}
+
+///
+/// \brief change txrx flag image to indicate Class B Ping-slot downlink
+///
+static inline u1_t LMIC_txrxFlags_setRxPing(u1_t flags) {
+    return (flags & ~(TXRX_DNW2 | TXRX_DNW1)) | (TXRX_PING);
+}
+
+/// \brief Event codes for event callback
 enum _ev_t { EV_SCAN_TIMEOUT=1, EV_BEACON_FOUND,
              EV_BEACON_MISSED, EV_BEACON_TRACKED, EV_JOINING,
              EV_JOINED, EV_RFU1, EV_JOIN_FAILED, EV_REJOIN_FAILED,
@@ -291,7 +308,7 @@ enum _ev_t { EV_SCAN_TIMEOUT=1, EV_BEACON_FOUND,
              EV_TXSTART, EV_TXCANCELED, EV_RXSTART, EV_JOIN_TXCOMPLETE };
 typedef enum _ev_t ev_t;
 
-// this macro can be used to initalize a normal table of event strings
+/// \brief Macro to initialize a normal table of event strings
 #define LMIC_EVENT_NAME_TABLE__INIT                                         \
     "<<zero>>",                                                             \
     "EV_SCAN_TIMEOUT", "EV_BEACON_FOUND",                                   \
@@ -301,10 +318,12 @@ typedef enum _ev_t ev_t;
     "EV_RXCOMPLETE", "EV_LINK_DEAD", "EV_LINK_ALIVE", "EV_SCAN_FOUND",      \
     "EV_TXSTART", "EV_TXCANCELED", "EV_RXSTART", "EV_JOIN_TXCOMPLETE"
 
-// if working on an AVR (or worried about it), you can use this multi-zero
-// string and put this in a single const F() string.  Index through this
-// counting up from 0, until you get to the entry you want or to an
-// entry that begins with a \0.
+/// \brief Macro to initialize a compressed string of event strings
+/// \details
+/// iIf compiling for an AVR (or worried about it), you can use this multi-zero
+/// string and put this in a single const F() string.  Index through this
+/// counting up from 0, until you get to the entry you want or to an
+// /entry that begins with a \0.
 #define LMIC_EVENT_NAME_MULTISZ__INIT                                       \
     "<<zero>>\0"                                                            \
     "EV_SCAN_TIMEOUT\0" "EV_BEACON_FOUND\0"                                 \
@@ -314,16 +333,20 @@ typedef enum _ev_t ev_t;
     "EV_RXCOMPLETE\0" "EV_LINK_DEAD\0" "EV_LINK_ALIVE\0" "EV_SCAN_FOUND\0"  \
     "EV_TXSTART\0" "EV_TXCANCELED\0" "EV_RXSTART\0" "EV_JOIN_TXCOMPLETE\0"
 
-enum {
-    LMIC_ERROR_SUCCESS = 0,
-    LMIC_ERROR_TX_BUSY = -1,
-    LMIC_ERROR_TX_TOO_LARGE = -2,
-    LMIC_ERROR_TX_NOT_FEASIBLE = -3,
-    LMIC_ERROR_TX_FAILED = -4,
+/// \brief LMIC error codes
+enum lmic_tx_error_e {
+    LMIC_ERROR_SUCCESS = 0,             ///< No error.
+    LMIC_ERROR_TX_BUSY = -1,            ///< Transmit path was busy, mesage rejected.
+    LMIC_ERROR_TX_TOO_LARGE = -2,       ///< Message was too long for configured LMIC buffers.
+    LMIC_ERROR_TX_NOT_FEASIBLE = -3,    ///< Message was too long given region, spreading factor, and network settings.
+    LMIC_ERROR_TX_FAILED = -4,          ///< Transmit failed for unspecified reason.
 };
 
+/// \brief LMIC result codes, as an integer type.
+/// \sa lmic_tx_error_e
 typedef int lmic_tx_error_t;
 
+/// \brief Macro to initalize a normal table of error name strings
 #define LMIC_ERROR_NAME__INIT                                               \
     "LMIC_ERROR_SUCCESS",                                                   \
     "LMIC_ERROR_TX_BUSY",                                                   \
@@ -331,6 +354,13 @@ typedef int lmic_tx_error_t;
     "LMIC_ERROR_TX_NOT_FEASIBLE",                                           \
     "LMIC_ERROR_TX_FAILED"
 
+/// \brief Macro to initialize a compressed string of error name strings
+/// \details
+/// If compling for an AVR (or worried about it), you can use this multi-zero
+/// string and put this in a single const F() string.  Index through this
+/// counting up from 0, until you get to the entry you want or to an
+/// entry that begins with a \0.
+/// \sa LMIC_ERROR_NAME__INIT
 #define LMIC_ERROR_NAME_MULTISZ__INIT                                       \
     "LMIC_ERROR_SUCCESS\0"                                                  \
     "LMIC_ERROR_TX_BUSY\0"                                                  \
@@ -338,29 +368,27 @@ typedef int lmic_tx_error_t;
     "LMIC_ERROR_TX_NOT_FEASIBLE\0"                                          \
     "LMIC_ERROR_TX_FAILED"
 
-enum {
-    LMIC_BEACON_ERROR_INVALID   = -2,
-    LMIC_BEACON_ERROR_WRONG_NETWORK = -1,
-    LMIC_BEACON_ERROR_SUCCESS_PARTIAL = 0,
-    LMIC_BEACON_ERROR_SUCCESS_FULL = 1,
+/// \brief Error codes returned for beacon operations.
+enum lmic_beacon_error_e {
+    LMIC_BEACON_ERROR_INVALID   = -2,       ///< Invalid beacon received.
+    LMIC_BEACON_ERROR_WRONG_NETWORK = -1,   ///< Beacon received for wrong network.
+    LMIC_BEACON_ERROR_SUCCESS_PARTIAL = 0,  ///< Partial success; first set of fields are OK.
+    LMIC_BEACON_ERROR_SUCCESS_FULL = 1,     ///< Full beacon successfuly received.
 };
 
+/// \brief Error codes returned for beacon operations.
+/// \sa lmic_beacon_error_e
 typedef s1_t lmic_beacon_error_t;
 
+/// \brief return \c true if beacon error code indicates a sucessful beacon.
 static inline bit_t LMIC_BEACON_SUCCESSFUL(lmic_beacon_error_t e) {
     return e < 0;
 }
 
-// LMIC_CFG_max_clock_error_ppm
-#if !defined(LMIC_CFG_max_clock_error_ppm)
-# define LMIC_CFG_max_clock_error_ppm	2000	/* max clock error: 0.2% (2000 ppm) */
-#endif
-
-
 enum {
-        // This value represents 100% error in LMIC.clockError
+        //! \brief This value represents 100% error in LMIC.clockError
         MAX_CLOCK_ERROR = 65536,
-        //! \brief maximum clock error that users can specify: 2000 ppm (0.2%).
+        //! \brief maximum clock error that users can specify: 4000 ppm (0.4%).
         //! \details This is the limit for clock error, unless LMIC_ENABLE_arbitrary_clock_error is set.
         //! The default is 4,000 ppm, which is .004, or 0.4%; this is what you get on an
         //! STM32L0 running with the HSI oscillator after cal. If your clock error is bigger,
@@ -378,13 +406,21 @@ typedef void LMIC_ABI_STD lmic_rxmessage_cb_t(void *pUserData, uint8_t port, con
 typedef void LMIC_ABI_STD lmic_txmessage_cb_t(void *pUserData, int fSuccess);
 typedef void LMIC_ABI_STD lmic_event_cb_t(void *pUserData, ev_t e);
 
-// network time request callback function
-// defined unconditionally, because APIs and types can't change based on config.
-// This is called when a time-request succeeds or when we get a downlink
-// without time request, "completing" the pending time request.
+///
+/// \brief network time request callback function type
+///
+/// \param pUserData [in]   value passed to corresponding network time request.
+/// \param flagSuccess [in] \c true if a network time was received, otherwise \c false.
+///
+/// A function of this type is called when a time-request succeeds or when we get a
+/// downlink without time request, "completing" the pending time request.
+///
+/// \note This function is defined unconditionally (even if network time support is
+///     not enabled), because we don't want APIs and types to change based on config.
+///
 typedef void LMIC_ABI_STD lmic_request_network_time_cb_t(void *pUserData, int flagSuccess);
 
-// how the network represents time.
+/// \brief how the network represents time.
 typedef u4_t lmic_gpstime_t;
 
 // rather than deal with 1/256 second tick, we adjust ostime back
@@ -392,45 +428,40 @@ typedef u4_t lmic_gpstime_t;
 typedef struct lmic_time_reference_s lmic_time_reference_t;
 
 struct lmic_time_reference_s {
-    // our best idea of when we sent the uplink (end of packet).
+    /// our best idea of when we sent the uplink (end of packet).
     ostime_t tLocal;
-    // the network's best idea of when we sent the uplink.
+    /// the network's best idea of when we sent the uplink.
     lmic_gpstime_t tNetwork;
 };
 
 enum lmic_request_time_state_e {
-    lmic_RequestTimeState_idle = 0,     // we're not doing anything
-    lmic_RequestTimeState_tx,           // we want to tx a time request on next uplink
-    lmic_RequestTimeState_rx,           // we have tx'ed, next downlink completes.
-    lmic_RequestTimeState_success       // we sucessfully got time.
+    lmic_RequestTimeState_idle = 0,     ///< we're not doing anything
+    lmic_RequestTimeState_tx,           ///< we want to tx a time request on next uplink
+    lmic_RequestTimeState_rx,           ///< we have tx'ed, next downlink completes.
+    lmic_RequestTimeState_success       ///< we sucessfully got time.
 };
 
 typedef u1_t lmic_request_time_state_t;
 
 enum lmic_engine_update_state_e {
-    lmic_EngineUpdateState_idle = 0,    // engineUpdate is idle.
-    lmic_EngineUpdateState_busy = 1,    // engineUpdate is busy, but has not been reentered.
-    lmic_EngineUpdateState_again = 2,   // engineUpdate is busy, and has to be evaluated again.
+    lmic_EngineUpdateState_idle = 0,    ///< engineUpdate is idle.
+    lmic_EngineUpdateState_busy = 1,    ///< engineUpdate is busy, but has not been reentered.
+    lmic_EngineUpdateState_again = 2,   ///< engineUpdate is busy, and has to be evaluated again.
 };
 
 typedef u1_t lmic_engine_update_state_t;
 
-/*
-
-Structure:  lmic_client_data_t
-
-Function:
-        Holds LMIC client data that must live through LMIC_reset().
-
-Description:
-        There are a variety of client registration linkage items that
-        must live through LMIC_reset(), because LMIC_reset() is called
-        at frame rollover time.  We group them together into a structure
-        to make copies easy.
-
-*/
-
-//! abstract type for collection of client data that survives LMIC_reset().
+///
+/// \brief abstract type for collection of client data that survives LMIC_reset().
+///
+/// \details
+///     There are a variety of client registration linkage items that
+///     must live through LMIC_reset(), because LMIC_reset() is called
+///     at frame-rollover time.  We group them together into a structure
+///     to make copies easy.
+///
+/// \sa lmic_client_data_s
+///
 typedef struct lmic_client_data_s lmic_client_data_t;
 
 //! contents of lmic_client_data_t
@@ -438,17 +469,17 @@ struct lmic_client_data_s {
 
     /* pointer-width things come first */
 #if LMIC_ENABLE_DeviceTimeReq
-    lmic_request_network_time_cb_t *pNetworkTimeCb; //! call-back routine for network time
-    void        *pNetworkTimeUserData;              //! call-back data for network time.
+    lmic_request_network_time_cb_t *pNetworkTimeCb; //!< call-back routine for network time
+    void        *pNetworkTimeUserData;              //!< call-back data for network time.
 #endif
 
 #if LMIC_ENABLE_user_events
-    lmic_event_cb_t     *eventCb;           //! user-supplied callback function for events.
-    void                *eventUserData;     //! data for eventCb
-    lmic_rxmessage_cb_t *rxMessageCb;       //! user-supplied message-received callback
-    void                *rxMessageUserData; //! data for rxMessageCb
-    lmic_txmessage_cb_t *txMessageCb;       //! transmit-complete message handler; reset on each tx complete.
-    void                *txMessageUserData; //! data for txMessageCb.
+    lmic_event_cb_t     *eventCb;           //!< user-supplied callback function for events.
+    void                *eventUserData;     //!< data for eventCb
+    lmic_rxmessage_cb_t *rxMessageCb;       //!< user-supplied message-received callback
+    void                *rxMessageUserData; //!< data for rxMessageCb
+    lmic_txmessage_cb_t *txMessageCb;       //!< transmit-complete message handler; reset on each tx complete.
+    void                *txMessageUserData; //!< data for txMessageCb.
 #endif // LMIC_ENABLE_user_events
 
     /* next we have things that are (u)int32_t */
@@ -456,83 +487,267 @@ struct lmic_client_data_s {
 
     /* next we have things that are (u)int16_t */
 
-    u2_t        clockError;                 //! Inaccuracy in the clock. CLOCK_ERROR_MAX represents +/-100% error
+    u2_t        clockError;                 //!< Inaccuracy in the clock. CLOCK_ERROR_MAX represents +/-100% error
 
     /* finally, things that are (u)int8_t */
     u1_t        devStatusAns_battery;       //!< value to report in MCMD_DevStatusAns message.
 };
 
-/*
+/****************************************************************************\
+|
+|   Radio driver interface
+|
+\****************************************************************************/
 
-Structure:  lmic_radio_data_t
+///
+/// \brief concrete type for holding the radio state mask.
+///
+/// Must be wide enough to hold values of type lmic_radio_state_e.
+///
+/// \sa lmic_radio_state_e
+///
+typedef u1_t lmic_radio_state_t;
 
-Function:
-    Holds LMIC radio driver.
-
-Description:
-    Eventually this will be used for all portable things for the radio driver,
-    but for now it's where we can start to add things.
-
-*/
-
-typedef struct lmic_radio_data_s lmic_radio_data_t;
-
-struct lmic_radio_data_s {
-    // total os ticks of accumulated delay error. Can overflow!
-    ostime_t    rxlate_ticks;
-    // number of rx late launches.
-    unsigned    rxlate_count;
-    // total os ticks of accumulated tx delay error. Can overflow!
-    ostime_t    txlate_ticks;
-    // number of tx late launches.
-    unsigned    txlate_count;
+///
+/// \brief radio driver state mask
+///
+enum lmic_radio_state_e {
+    LMIC_RADIO_EV_NONE      = 0u,           ///< no events reported
+    LMIC_RADIO_EV_TXSTART   = (1u << 0),    ///< transmit started
+    LMIC_RADIO_EV_TXDONE    = (1u << 1),    ///< transmit complete, TXSTART will still
+                                            ///  be set
+    LMIC_RADIO_EV_TXDEFER   = (1u << 2),    ///< transmit deferred (LBT)
+    LMIC_RADIO_EV_TXUNKNOWN = (1u << 3),    ///< transmit unknown event.
+    LMIC_RADIO_EV_RXSTART   = (1u << 4),    ///< receive started
+    LMIC_RADIO_EV_RXDONE    = (1u << 5),    ///< rx complete
+    LMIC_RADIO_EV_RXTIMEOUT = (1u << 6),    ///< rx timed out; RXDONE also set.
+    LMIC_RADIO_EV_RXUNKNOWN = (1u << 7),    ///< rx timed out, not sure whay.
 };
 
-/*
+///
+/// \brief container type for radio driver state mask
+/// \sa lmic_radio_state_e
+///
+typedef u1_t lmic_radio_state_t;
 
-Structure:  lmic_t
+///
+/// \brief radio request flags
+///
+enum lmic_radio_flags_e {
+    LMIC_RADIO_FLAGS_NO_RX_IQ_INVERSION     = 1u << 0,  ///< if set, don't invert IQ on receive
+};
 
-Function:
-        Provides the instance data for the LMIC.
+///
+/// \brief container type for radio request flags
+/// \sa lmic_radio_flags_e
+///
+typedef u1_t lmic_radio_flags_t;
 
-*/
 
+///
+/// \brief  Instance data for LMIC radio driver
+///
+/// \details
+///     Eventually this will be used for all portable things for the radio driver,
+///     but for now it's where we can start to add things.
+///
+typedef struct lmic_radio_data_s lmic_radio_data_t;
+
+///
+/// \brief  Details of instance data for LMIC radio driver
+///
+struct lmic_radio_data_s {
+    /// frequency for this radio operation
+    u4_t        freq;
+    /// pointer to buffer
+    u1_t        *pFrame;
+    /// input: rxwindow open time; output: time of receipt of last bit.
+    ostime_t    rxtime;
+
+    /// radio parameter settings for this radio operation. (two bytes)
+    rps_t       rps;
+    /// timeout in symbols (2 bytes)
+    rxsyms_t    rxsyms;
+
+    /// size of buffer (in for TX, out for RX; RX assumes actual size is
+    /// MAX_LEN_FRAME)
+    u1_t        dataLen;
+
+    /// various flags
+    lmic_radio_flags_t flags;
+
+    /// the radio driver's copy of txpow, in dB limited by adrTxPow, and
+    /// also adjusted for EIRP/antenna gain considerations.
+    /// This is just the radio's idea of power. So if you are
+    /// controlling EIRP, and you have 3 dB antenna gain, this
+    /// needs to reduced by 3 dB.
+    s1_t        txpow;
+
+    /// radio state mask; used by radio driver.
+    lmic_radio_state_t state;
+
+    /// job to be scheduled when radio operation completes.
+    osjob_t     *pRadioDoneJob;
+
+    /// Total os ticks of accumulated delay error. Can overflow!
+    ostime_t    rxlate_ticks;
+    /// Total os ticks of accumulated tx delay error. Can overflow!
+    ostime_t    txlate_ticks;
+    /// Count of rx late launches.
+    u2_t        rxlate_count;
+    /// Count of tx late launches.
+    u2_t        txlate_count;
+};
+
+
+/****************************************************************************\
+|
+|   Class C definitions
+|
+\****************************************************************************/
+
+/// \ingroup ClassC
+///     @{
+
+///
+/// \brief  internal state flacs for class C operation
+///
+/// \sa lmic_class_c_flags_u
+///
+typedef union lmic_class_c_flags_u lmic_class_c_flags_t;
+
+///
+/// \brief details of lmic_class_c_flags_t.
+///
+/// \details
+///     Two views are provided: the \c mask field, which
+///     can be used for mass initialization; and the various
+///     bits in the \c f field, which are used for normal
+///     computations.
+///
+union lmic_class_c_flags_u {
+    unsigned    mask;   ///< view all the flags as a word so we can reset them easily.
+
+    /// \brief the Class C operating flags
+    struct lmic_class_c_flags_s {
+        unsigned    fEnabled: 1;    ///< true if class C operation is enabled.
+        unsigned    fRx2Active: 1;  ///< true if we think that RX2 is active.
+    } f;                ///< access the class C flags individually.
+};
+
+///
+/// \brief requests from outside the LMIC to inside the LMIC, for class C
+///
+/// \details
+///     Enabling and disabling Class C operation can happen from outside the LMIC,
+///     or as the result of processing a callback. It's very fragile to require
+///     users to understand the LMIC state, so (at least for Class C), we provide
+///     APIs that are safe to call at any time. The tradeoff is that the operation
+///     is asynchronous -- it doesn't complete until the LMIC gets scheduled.
+///     An object of this type is used to represent these requests.
+///
+/// \sa lmic_class_c_requests_u
+///
+typedef union lmic_class_c_requests_u lmic_class_c_requests_t;
+
+///
+/// \brief details of lmic_class_c_requests_t
+///
+/// \details
+///     Two views are provided: the \c mask field, which
+///     can be used for mass initialization; and the various
+///     bits in the \c f field, which are used for normal
+///     computations.
+///
+/// \sa lmic_class_c_requests_t
+///
+union lmic_class_c_requests_u {
+    unsigned    mask;   ///< view all the flags as a word so we can reset them easily.
+
+    /// \brief the Class C request flags
+    struct lmic_class_c_requests_s {
+        unsigned    fPending:       1;  ///< true while API job is pending.
+        unsigned    fStateChangeRq: 1;  ///< true if the outside world has asked for
+                                        ///  a change in state; target state will be
+                                        ///  the desired state.
+        unsigned    fTargetState: 1;    ///< true if enable requested; false otherwise.
+    } f;    ///< access the Class C request flags individually.
+};
+
+///
+/// \brief the structure containing class C state
+///
+/// \details
+///     State for class C operations are incapsulated in a single object,
+///     so that conditional compiles are easier to read.
+///
+/// \sa lmic_class_c_s
+///
+typedef struct lmic_class_c_s lmic_class_c_t;
+
+///
+/// \brief details of class C state
+///
+/// \sa lmic_class_c_t
+///
+struct lmic_class_c_s {
+    osjob_t                 job;        ///< the job for API requests
+    lmic_class_c_flags_t    flags;      ///< the state flags
+    lmic_class_c_requests_t requests;   ///< the request flags
+    u1_t                    frame[MAX_LEN_FRAME];
+};
+
+///     @}
+
+/****************************************************************************\
+|
+|   The LMIC instance object
+|
+\****************************************************************************/
+
+/// \brief Instance data for the LMIC.
 struct lmic_t {
-    // client setup data, survives LMIC_reset().
+    /// client setup data, survives LMIC_reset().
     lmic_client_data_t  client;
 
-    // the OS job object. pointer alignment.
+    /// the OS job object. pointer alignment. This is only for use by the LMIC for
+    /// running the state machine. Don't use it for other purposes.
     osjob_t     osjob;
 
+    /// the OS job object for events. pointer alignment. This is only for use by
+    /// the LMIC for injecting deferred callbacks. Don't use it for other purposes.
+    osjob_t     osjob_defer;
+
 #if !defined(DISABLE_BEACONS)
-    bcninfo_t   bcninfo;      // Last received beacon info
+    bcninfo_t   bcninfo;      ///< Last received beacon info
 #endif
 
 #if !defined(DISABLE_PING)
-    rxsched_t   ping;         // pingable setup
+    rxsched_t   ping;         ///< Data for handling ping scheduling.
 #endif
 
-    // the radio driver portable context
+    /// the radio driver portable context
     lmic_radio_data_t   radio;
 
     /* (u)int32_t things */
 
     // Radio settings TX/RX (also accessed by HAL)
-    ostime_t    txend;
-    ostime_t    rxtime;
+    ostime_t    txend;      ///< time of end of last transmit
+    ostime_t    rxtime;     ///< time of end of last receive
+    ostime_t    nextRxTime; ///< time of start of next receive
 
     // LBT info
-    ostime_t    lbt_ticks;      // ticks to listen
+    ostime_t    lbt_ticks;      ///< ticks to listen for interference before transmitting.
 
-    u4_t        freq;
+    u4_t        freq;           ///< most recent frequency, Hz.
 
-    ostime_t    globalDutyAvail; // time device can send again
+    ostime_t    globalDutyAvail; ///< time when device can send again
 
-    u4_t        netid;        // current network id (~0 - none)
-    devaddr_t   devaddr;
-    u4_t        seqnoDn;      // device level down stream seqno
-    u4_t        seqnoUp;
-    u4_t        dn2Freq;
+    u4_t        netid;        ///< current network id (~0 - none)
+    devaddr_t   devaddr;      ///< current device address. Zero means not joined.
+    u4_t        seqnoDn;      ///< FCntDown (downlink seqno)
+    u4_t        seqnoUp;      ///< FCntUp (uplink seqno)
+    u4_t        dn2Freq;      ///< the frequency to use for RX2.
 
 #if !defined(DISABLE_BEACONS)
     ostime_t    bcnRxtime;
@@ -584,11 +799,6 @@ struct lmic_t {
     rxsyms_t    rxsyms;         // symbols for receive timeout.
     u1_t        dndr;
     s1_t        txpow;          // transmit dBm (administrative)
-    s1_t        radio_txpow;    // the radio driver's copy of txpow, in dB limited by adrTxPow, and
-				// also adjusted for EIRP/antenna gain considerations.
-				// This is just the radio's idea of power. So if you are
-				// controlling EIRP, and you have 3 dB antenna gain, this
-				// needs to reduced by 3 dB.
     s1_t        lbt_dbmax;      // max permissible dB on our channel (eg -80)
 
     u1_t        txChnl;          // channel for next TX
@@ -659,7 +869,8 @@ struct lmic_t {
 #endif
     // Public part of MAC state
     u1_t        txCnt;
-    u1_t        txrxFlags;  // transaction flags (TX-RX combo)
+    u2_t        txrxFlags;  ///< transaction flags (TX-RX combo)
+
     u1_t        dataBeg;    // 0 or start of data (dataBeg-1 is port)
     u1_t        dataLen;    // 0 no data or zero length data, >0 byte count of data
     u1_t        frame[MAX_LEN_FRAME];
@@ -670,11 +881,22 @@ struct lmic_t {
 
     u1_t        noRXIQinversion;
     u1_t        saveIrqFlags;   // last LoRa IRQ flags
+
+    // Class C state
+#if LMIC_ENABLE_class_c
+    lmic_class_c_t  classC;     ///< the state for class C.
+#endif
 };
 
 //! \var struct lmic_t LMIC
 //! The state of LMIC MAC layer is encapsulated in this variable.
 DECLARE_LMIC; //!< \internal
+
+/****************************************************************************\
+|
+|   API functions
+|
+\****************************************************************************/
 
 //! Construct a bit map of allowed datarates from drlo to drhi (both included).
 #define DR_RANGE_MAP(drlo,drhi) (((u2_t)0xFFFF<<(drlo)) & ((u2_t)0xFFFF>>(15-(drhi))))
@@ -754,6 +976,28 @@ enum lmic_compliance_rx_action_e {
 };
 
 lmic_compliance_rx_action_t LMIC_complianceRxMessage(u1_t port, const u1_t *pMessage, size_t nMessage);
+
+// APIs for class C support
+// We provide stubs so that users don't need to litter their code with #if unless
+// they want to.
+
+static inline bit_t LMIC_isConfiguredClassC(void) {
+    return LMIC_ENABLE_class_c;
+}
+
+#if LMIC_ENABLE_class_c
+/// \brief turn class C operation off or on. By default, it's off.
+bit_t LMIC_enableClassC(bit_t fOnIfTrue);
+#else
+static inline bit_t LMIC_enableClassC(bit_t fOnIfTrue) {
+    if (fOnIfTrue)
+        // class C cannot be turned on in this build;
+        return 0;
+    else
+        // class C cannot be turned on, but the request says "turn it off"
+        return 1;
+}
+#endif // !LMIC_ENABLE_class_c
 
 // Declare onEvent() function, to make sure any definition will have the
 // C conventions, even when in a C++ file.

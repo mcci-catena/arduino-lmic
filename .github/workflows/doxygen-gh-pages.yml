@@ -1,0 +1,61 @@
+##############################################################################
+#
+# File: doxygen-gh-pages.yml
+#
+# Function:
+#   Build Doxygen documentation and deploy to GitHub Pages.
+#
+##############################################################################
+
+name: Doxygen Pages
+
+on:
+  push:
+    branches: [main]
+
+# Allow only one concurrent deployment
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v4
+
+      - name: Install Doxygen
+        run: |
+          sudo apt-get install -y graphviz
+          LATEST=$(gh api repos/doxygen/doxygen/releases --jq '[.[] | select(.tag_name | startswith("Release_1_"))][0].tag_name')
+          VERSION=$(echo "$LATEST" | sed 's/Release_//;s/_/./g')
+          wget -q "https://github.com/doxygen/doxygen/releases/download/${LATEST}/doxygen-${VERSION}.linux.bin.tar.gz"
+          tar xzf doxygen-${VERSION}.linux.bin.tar.gz
+          sudo install -m 755 doxygen-${VERSION}/bin/doxygen /usr/local/bin/
+          doxygen --version
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Build Doxygen
+        run: doxygen Doxyfile
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: doxygen/html
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

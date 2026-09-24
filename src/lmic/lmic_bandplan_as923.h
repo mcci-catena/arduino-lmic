@@ -82,6 +82,12 @@ void LMICas923_setBcnRxParams(void);
 u4_t LMICas923_convFreq(xref2cu1_t ptr);
 #define LMICbandplan_convFreq(ptr)      LMICas923_convFreq(ptr)
 
+static inline u1_t
+LMICas923_queryMaxRx1DrOffset(void) {
+        return 7;
+}
+#define LMICbandplan_queryMaxRx1DrOffset() LMICas923_queryMaxRx1DrOffset()
+
 void LMICas923_initJoinLoop(void);
 #define LMICbandplan_initJoinLoop()     LMICas923_initJoinLoop()
 

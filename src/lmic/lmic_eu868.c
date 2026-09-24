@@ -334,7 +334,7 @@ ostime_t LMICeu868_nextTx(ostime_t now) {
 #if !defined(DISABLE_BEACONS)
 void LMICeu868_setBcnRxParams(void) {
         LMIC.dataLen = 0;
-        LMIC.freq = LMIC.channelFreq[LMIC.bcnChnl] & ~(u4_t)3;
+        LMIC.freq = FREQ_BCN;
         LMIC.rps = setIh(setNocrc(dndr2rps((dr_t)DR_BCN), 1), LEN_BCN);
 }
 #endif // !DISABLE_BEACONS

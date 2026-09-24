@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2014-2016 IBM Corporation.
- * Copyright (c) 2016-2024, 2019 MCCI Corporation.
+ * Copyright (c) 2016-2026 MCCI Corporation.
  * All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -98,6 +98,25 @@ void os_setCallback (osjob_t* job, osjobcb_t cb) {
     for(pnext=&OS.runnablejobs; *pnext; pnext=&((*pnext)->next));
     *pnext = job;
     lmic_hal_enableIRQs();
+}
+
+///
+/// \brief set function in idle job (for future use)
+///
+/// \param [inout] job points to the job block to be updated.
+/// \param [in] cb is the desired new callback.
+///
+/// We make sure that the job is idle, and then we set its
+/// function pointer. If the job was not idle, we log a message.
+///
+bit_t os_setIdleJobFunction(osjob_t *job, osjobcb_t cb) {
+    bit_t const result = unlinkjob(getJobQueue(job), job);
+
+    if (result) {
+        LMICOS_logEventUint32("job was previously in queue with cb", job->func);
+    }
+    job->func = cb;
+    return result;
 }
 
 // schedule timed job

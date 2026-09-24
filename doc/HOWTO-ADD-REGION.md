@@ -21,7 +21,7 @@ This document outlines how to add a new region.
 	- [Determine the region/region category](#determine-the-regionregion-category)
 	- [Check whether the region is already listed in `lmic_config_preconditions.h`](#check-whether-the-region-is-already-listed-in-lmic_config_preconditionsh)
 - [Make the appropriate changes in `lmic_config_preconditions.h`](#make-the-appropriate-changes-in-lmic_config_preconditionsh)
-- [Document your region in `README.md`](#document-your-region-in-readmemd)
+- [Document your region](#document-your-region)
 - [Add the definitions for your region in `lorabase.h`](#add-the-definitions-for-your-region-in-lorabaseh)
 - [Edit `lmic_bandplan.h`](#edit-lmic_bandplanh)
 - [Create <code>lmic_<em>newregion</em>.c</code>](#create-codelmic_emnewregionemccode)
@@ -59,9 +59,9 @@ Check `src/lmic/lmic_config_preconditions.h` and scan the `LMIC_REGION_...` defi
 - `CFG_region` evaluates to the `LMIC_REGION_...` value for the selected region (as long as only one region is selected). The header files check for this, so you don't have to.
 - `CFG_LMIC_EU_like_MASK` is a bitmask of regions that are EU-like, and `CFG_LMIC_US_like_MASK` is a bitmask of regions that are US-like. Add your region to the appropriate one of these two variables.
 
-## Document your region in `README.md`
+## Document your region
 
-You'll see where the regions are listed. Add yours.
+Add your region to the region table in `doc/configuration.md` and `README.md`.
 
 ## Add the definitions for your region in `lorabase.h`
 
@@ -121,7 +121,7 @@ Once again, you will start by copying either `lmic_eu868.c` or `lmic_us915.c` to
 
 - You will need to update the [`arduino-lorawan`](https://github.com/mcci-catena/arduino-lorawan) library to include support for the new region. (See [below](#adding-the-region-to-the-arduino_lorawan-library) for instructions.)
 
-- Please increase the version of `arduino-lmic` (symbol `ARDUINO_LMIC_VERSION` in `src/lmic/lmic.h`), and change `arduino-lorawan`'s `Arduino_LoRaWAN_lmic.h` to check for at least that newer version.
+- Please increase the version of `arduino-lmic` (symbol `ARDUINO_LMIC_VERSION` in `src/lmic/lmic_version.h`), and change `arduino-lorawan`'s `Arduino_LoRaWAN_lmic.h` to check for at least that newer version.
 
 - Please also increase the version of the `arduino-lorawan` library (symbol `ARDUINO_LORAWAN_VERSION`).
 

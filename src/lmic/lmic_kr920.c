@@ -247,7 +247,7 @@ ostime_t LMICkr920_nextTx(ostime_t now) {
 #if !defined(DISABLE_BEACONS)
 void LMICkr920_setBcnRxParams(void) {
         LMIC.dataLen = 0;
-        LMIC.freq = LMIC.channelFreq[LMIC.bcnChnl] & ~(u4_t)3;
+        LMIC.freq = KR920_FBCN;
         LMIC.rps = setIh(setNocrc(dndr2rps((dr_t)DR_BCN), 1), LEN_BCN);
 }
 #endif // !DISABLE_BEACONS

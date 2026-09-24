@@ -235,7 +235,7 @@ ostime_t LMICin866_nextTx(ostime_t now) {
 #if !defined(DISABLE_BEACONS)
 void LMICin866_setBcnRxParams(void) {
         LMIC.dataLen = 0;
-        LMIC.freq = LMIC.channelFreq[LMIC.bcnChnl] & ~(u4_t)3;
+        LMIC.freq = IN866_FB;
         LMIC.rps = setIh(setNocrc(dndr2rps((dr_t)DR_BCN), 1), LEN_BCN);
 }
 #endif // !DISABLE_BEACONS

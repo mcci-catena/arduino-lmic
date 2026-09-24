@@ -155,7 +155,7 @@ Returns:
 #endif
 
 // parameter referenced only if EV() macro is enabled (which it never is)
-// TODO(tmm@mcci.com) take out the EV() framework as it reuqires C++, and
+// TODO(tmm@mcci.com) take out the EV() framework as it requires C++, and
 // this code is really C-99 to its bones.
 #ifndef LMIC_EV_PARAMETER
 # define LMIC_EV_PARAMETER(v)                 do { (void) (v); } while (0)
@@ -247,5 +247,147 @@ Notes:
 
 #define LMIC_DECLARE_FUNCTION_WEAK(a_ReturnType, a_FunctionName, a_Params)	\
 	a_ReturnType __attribute__((__weak__)) a_FunctionName a_Params
+
+/*
+
+Macro:	ARDUINO_LMIC_VERSION_CALC()
+
+Index:	Macro:	ARDUINO_LMIC_VERSION_GET_MAJOR()
+	Macro:	ARDUINO_LMIC_VERSION_GET_MINOR()
+	Macro:	ARDUINO_LMIC_VERSION_GET_PATCH()
+	Macro:	ARDUINO_LMIC_VERSION_GET_PRE()
+	Macro:	ARDUINO_LMIC_VERSION_GET_LOCAL() (deprecated)
+	Macro:	ARDUINO_LMIC_VERSION_TO_ORDINAL()
+	Macro:	ARDUINO_LMIC_VERSION_COMPARE_LT()
+	Macro:	ARDUINO_LMIC_VERSION_COMPARE_LE()
+	Macro:	ARDUINO_LMIC_VERSION_COMPARE_GT()
+	Macro:	ARDUINO_LMIC_VERSION_COMPARE_GE()
+
+Function:
+	LMIC semantic version calculations.
+
+Definition:
+	#define ARDUINO_LMIC_VERSION_CALC(major, minor, patch, pre) ...
+	#define ARDUINO_LMIC_VERSION_GET_MAJOR(version_uint32) ...
+	#define ARDUINO_LMIC_VERSION_GET_MINOR(version_uint32) ...
+	#define ARDUINO_LMIC_VERSION_GET_PATCH(version_uint32) ...
+	#define	ARDUINO_LMIC_VERSION_GET_PRE(version_uint32) ...
+	#define	ARDUINO_LMIC_VERSION_GET_LOCAL(version_uint32) ... (deprecated)
+	#define ARDUINO_LMIC_VERSION_TO_ORDINAL(version_uint32) ...
+	#define	ARDUINO_LMIC_VERSION_COMPARE_LT(version1, version2) ...
+	#define	ARDUINO_LMIC_VERSION_COMPARE_LE(version1, version2) ...
+	#define	ARDUINO_LMIC_VERSION_COMPARE_GT(version1, version2) ...
+	#define	ARDUINO_LMIC_VERSION_COMPARE_GE(version1, version2) ...
+
+Description:
+	These macros are used for creating and manipulating semantic version
+	constants.
+
+	SemanticVersions according to https://semver.org/v2 have
+	up to four parts: major, minor, patch, and pre-release. If a semantic
+	version string has a pre-release, it sorts before the equivalent
+	version string without a pre-release; otherwise version strings sort
+	lexicographically.
+
+	To make compile time operations easier, we limit the four fields to
+	eight bits. The fourth field, `pre`, is the pre-release number; if
+	non-zero, the version is a pre-release.
+
+	To avoid confusion, we represent the version fields in a uint32_t,
+	exactly as given. However, this means that the versions can't
+	be sorted directly because the 32-bit numbers corresponding to
+	pre-releases are greater than the 32-bit number representing the
+	final release.
+
+	To ease comparisons, ARDUINO_LMIC_VERSION_TO_ORDINAL() turns a
+	direct representation of the four fields into a uint32_t which
+	can be compared to any other version ordinal using normal integer
+	comparisons. The four comparison macros use this macro to
+	return a boolean result.
+
+	All these macros can be used at compile time.
+
+Returns:
+	ARDUINO_LMIC_VERSION_CALC() returns a 32-bit version number.
+	ARDUINO_LMIC_VERSION_GET_MAJOR(), MINOR(), PATCH(), and PRE()
+	return an 8-bit number extracted from the corresponding field.
+	ARDUINO_LMIC_VERSION_TO_ORDINAL() returns a 32-bit ordinal.
+	ARDUINO_LMIC_VERSION_COMPARE_LT(), LE(), GT(), GE() return
+	booleans.
+
+Notes:
+	ARDUINO_LMIC_VERSION_GET_LOCAL() is the historical name for
+	ARDUINO_LMIC_VERSION_GET_PRE(). It still works, but using it
+	produces a deprecation warning on GCC 6 and later and on Clang.
+
+	The standard way to format versions is:
+
+		{major}.{minor}.{patch}[-pre{pre}]
+
+*/
+
+/// \brief generate version uint32_t from components.
+#define ARDUINO_LMIC_VERSION_CALC(major, minor, patch, pre)	\
+	((((major)*UINT32_C(1)) << 24) | (((minor)*UINT32_C(1)) << 16) | (((patch)*UINT32_C(1)) << 8) | (((pre)*UINT32_C(1)) << 0))
+
+/// \brief extract major field from version uint32_t
+#define	ARDUINO_LMIC_VERSION_GET_MAJOR(v)	\
+	((((v)*UINT32_C(1)) >> 24u) & 0xFFu)
+
+/// \brief extract minor field from version uint32_t
+#define	ARDUINO_LMIC_VERSION_GET_MINOR(v)	\
+	((((v)*UINT32_C(1)) >> 16u) & 0xFFu)
+
+/// \brief extract patch field from version uint32_t
+#define	ARDUINO_LMIC_VERSION_GET_PATCH(v)	\
+	((((v)*UINT32_C(1)) >> 8u) & 0xFFu)
+
+/// \brief extract pre-release field from version uint32_t
+#define	ARDUINO_LMIC_VERSION_GET_PRE(v)	\
+	((v) & 0xFFu)
+
+/// \brief mark a declaration deprecated, with a message.
+///
+/// \details GCC accepts attributes on enumerators from version 6.
+#if (defined(__GNUC__) && __GNUC__ >= 6) || defined(__clang__)
+# define LMIC_DEPRECATED(msg)	__attribute__((deprecated(msg)))
+#else
+# define LMIC_DEPRECATED(msg)	/* nothing */
+#endif
+
+/// \brief zero-valued constant that warns when ARDUINO_LMIC_VERSION_GET_LOCAL() is used.
+///
+/// \details An enumerator keeps the result an integer constant expression.
+///	In a preprocessor \c \#if the name evaluates to zero, so the value
+///	is still right there; the compiler just cannot warn.
+enum { ARDUINO_LMIC_VERSION_GET_LOCAL_is_deprecated LMIC_DEPRECATED("use ARDUINO_LMIC_VERSION_GET_PRE()") = 0 };
+
+/// \brief deprecated name for ARDUINO_LMIC_VERSION_GET_PRE().
+#define	ARDUINO_LMIC_VERSION_GET_LOCAL(v)	\
+	(ARDUINO_LMIC_VERSION_GET_PRE(v) + ARDUINO_LMIC_VERSION_GET_LOCAL_is_deprecated)
+
+/// \brief convert a semantic version to an ordinal integer.
+#define ARDUINO_LMIC_VERSION_TO_ORDINAL(v)  \
+        (((v) & 0xFFFFFF00u) | (((v) - 1) & 0xFFu))
+
+/// \brief compare two semantic versions
+/// \return \c true if \p a is less than \p b (as a semantic version).
+#define ARDUINO_LMIC_VERSION_COMPARE_LT(a, b)   \
+        (ARDUINO_LMIC_VERSION_TO_ORDINAL(a) < ARDUINO_LMIC_VERSION_TO_ORDINAL(b))
+
+/// \brief compare two semantic versions
+/// \return \c true if \p a is less than or equal to \p b (as a semantic version).
+#define ARDUINO_LMIC_VERSION_COMPARE_LE(a, b)   \
+        (ARDUINO_LMIC_VERSION_TO_ORDINAL(a) <= ARDUINO_LMIC_VERSION_TO_ORDINAL(b))
+
+/// \brief compare two semantic versions
+/// \return \c true if \p a is greater than \p b (as a semantic version).
+#define ARDUINO_LMIC_VERSION_COMPARE_GT(a, b)   \
+        (ARDUINO_LMIC_VERSION_TO_ORDINAL(a) > ARDUINO_LMIC_VERSION_TO_ORDINAL(b))
+
+/// \brief compare two semantic versions
+/// \return \c true if \p a is greater than or equal to \p b (as a semantic version).
+#define ARDUINO_LMIC_VERSION_COMPARE_GE(a, b)   \
+        (ARDUINO_LMIC_VERSION_TO_ORDINAL(a) >= ARDUINO_LMIC_VERSION_TO_ORDINAL(b))
 
 #endif /* _lmic_env_h_ */

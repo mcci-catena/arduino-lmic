@@ -75,7 +75,7 @@ void tx(const char *str, osjobcb_t func) {
 // Enable rx mode and call func when a packet is received
 void rx(osjobcb_t func) {
   LMIC.osjob.func = func;
-  LMIC.rxtime = os_getTime(); // RX _now_
+  LMIC.nextRxTime = os_getTime(); // RX _now_
   // Enable "continuous" RX (e.g. without a timeout, still stops after
   // receiving a packet)
   os_radio(RADIO_RXON);

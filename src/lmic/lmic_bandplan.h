@@ -118,6 +118,10 @@
 # error "LMICbandplan_convFreq() not defined by bandplan"
 #endif
 
+#if !defined(LMICbandplan_queryMaxRx1DrOffset)
+# error "LMICbandplan_queryMaxRx1DrOffset() not defined by bandplan"
+#endif
+
 #if !defined(LMICbandplan_setRx1Params)
 # error "LMICbandplan_setRx1Params() not defined by bandplan"
 #endif

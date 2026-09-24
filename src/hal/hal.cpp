@@ -1,6 +1,6 @@
 /*******************************************************************************
  * Copyright (c) 2015 Matthijs Kooijman
- * Copyright (c) 2018-2024 MCCI Corporation
+ * Copyright (c) 2018-2026 MCCI Corporation
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
@@ -568,6 +568,20 @@ bit_t lmic_hal_queryUsingDIO2AsRfSwitch(void) {
 
 bit_t lmic_hal_queryUsingDIO3AsTCXOSwitch(void) {
     return pHalConfig->queryUsingDIO3AsTCXOSwitch();
+}
+
+// Verify C++ and C sentinel values for SX126x crystal trim match.
+static_assert(
+    Arduino_LMIC::HalConfiguration_t::kSX126xXtalTrimUseDefault == LMIC_HAL_SX126X_XTAL_TRIM_USE_DEFAULT,
+    "C++ and C sentinel values for SX126x crystal trim must match"
+    );
+
+uint8_t lmic_hal_querySX126xXTATrim(void) {
+    return pHalConfig->querySX126xXTATrim();
+}
+
+uint8_t lmic_hal_querySX126xXTBTrim(void) {
+    return pHalConfig->querySX126xXTBTrim();
 }
 
 uint8_t lmic_hal_getTxPowerPolicy(

@@ -224,4 +224,10 @@
 # define LMIC_ENABLE_arbitrary_clock_error 0	/* PARAM */
 #endif
 
+// LMIC_ENABLE_class_c
+// Define this non-zero to include Class C support in the code.
+#if !defined(LMIC_ENABLE_class_c)
+# define LMIC_ENABLE_class_c 0	/* PARAM */
+#endif
+
 #endif // _lmic_config_h_

@@ -110,7 +110,7 @@ Function:
         Encode a floating point number into a uint16_t using only 12 bits.
 
 Definition:
-        uint16_t LMIC_f2sflt16(
+        uint16_t LMIC_f2sflt12(
                 float f
                 );
 
@@ -270,7 +270,7 @@ Function:
         Encode positive floating point number into a uint16_t using only 12 bits.
 
 Definition:
-        uint16_t LMIC_f2sflt16(
+        uint16_t LMIC_f2uflt12(
                 float f
                 );
 

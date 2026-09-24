@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2014-2016 IBM Corporation.
- * Copyright (c) 2018-2024 MCCI Corporation
+ * Copyright (c) 2018-2026 MCCI Corporation
  * All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -57,16 +57,23 @@ LMIC_BEGIN_DECLS
 #define ASSERT(cond) /**/
 #endif
 
-#define os_clearMem(a,b)   memset(a,0,b)
-#define os_copyMem(a,b,c)  memcpy(a,b,c)
+/// \private
+/// \brief Clear buffer
+#define os_clearMem(pDest,nDest)    memset(pDest,0,nDest)
+
+/// \brief Copy buffer
+/// \param pDest [out]  receives data to be copied
+/// \param pSrc [in]    source of data
+/// \param nSrc [in]    number of bytes of data
+///
+/// \note Buffers must be non-overlapping. Pointers must be non-NULL.
+#define os_copyMem(pDest,pSrc,nSrc) memcpy(pDest,pSrc,nSrc)
 
 typedef     struct osjob_t osjob_t;
 typedef      struct band_t band_t;
 typedef   struct chnldef_t chnldef_t;
 typedef   struct rxsched_t rxsched_t;
 typedef   struct bcninfo_t bcninfo_t;
-typedef        const u1_t* xref2cu1_t;
-typedef              u1_t* xref2u1_t;
 
 // int32_t == s4_t is long on some platforms; and someday
 // we will want 64-bit ostime_t. So, we will use a macro for the
@@ -86,10 +93,6 @@ typedef              u1_t* xref2u1_t;
 
 #define DECL_ON_LMIC_EVENT LMIC_DECLARE_FUNCTION_WEAK(void, onEvent, (ev_t e))
 
-extern u4_t AESAUX[];
-extern u4_t AESKEY[];
-#define AESkey ((u1_t*)AESKEY)
-#define AESaux ((u1_t*)AESAUX)
 #define FUNC_ADDR(func) (&(func))
 
 u1_t radio_rand1 (void);
@@ -194,6 +197,9 @@ void os_setCallback (xref2osjob_t job, osjobcb_t cb);
 #ifndef os_setTimedCallback
 void os_setTimedCallback (xref2osjob_t job, ostime_t time, osjobcb_t cb);
 #endif
+#ifndef os_setIdleJobFunction
+bit_t os_setIdleJobFunction(osjob_t *job, osjobcb_t cb);
+#endif
 #ifndef os_clearCallback
 void os_clearCallback (xref2osjob_t job);
 #endif
@@ -209,6 +215,9 @@ uint os_getTimeSecs (void);
 #ifndef os_radio
 void os_radio (u1_t mode);
 #endif
+#ifndef os_radio_v2
+void os_radio_v2 (u1_t mode, xref2osjob_t job);
+#endif
 #ifndef os_getBattLevel
 u1_t os_getBattLevel (void);
 #endif
@@ -222,7 +231,7 @@ bit_t os_queryTimeCriticalJobs(ostime_t time);
 u4_t os_rlsbf4 (xref2cu1_t buf);
 #endif
 #ifndef os_wlsbf4
-//! Write 32-bit quntity into buffer in little endian byte order.
+//! Write 32-bit quantity into buffer in little endian byte order.
 void os_wlsbf4 (xref2u1_t buf, u4_t value);
 #endif
 #ifndef os_rmsbf4
@@ -230,7 +239,7 @@ void os_wlsbf4 (xref2u1_t buf, u4_t value);
 u4_t os_rmsbf4 (xref2cu1_t buf);
 #endif
 #ifndef os_wmsbf4
-//! Write 32-bit quntity into buffer in big endian byte order.
+//! Write 32-bit quantity into buffer in big endian byte order.
 void os_wmsbf4 (xref2u1_t buf, u4_t value);
 #endif
 #ifndef os_rlsbf2
@@ -315,25 +324,6 @@ u2_t os_crc16 (xref2cu1_t d, uint len);
 
     // Declare a table
     #define CONST_TABLE(type, name) const type RESOLVE_TABLE(name)
-#endif
-
-// ======================================================================
-// AES support
-// !!Keep in sync with lorabase.hpp!!
-
-#ifndef AES_ENC  // if AES_ENC is defined as macro all other values must be too
-#define AES_ENC       0x00
-#define AES_DEC       0x01
-#define AES_MIC       0x02
-#define AES_CTR       0x04
-#define AES_MICNOAUX  0x08
-#endif
-#ifndef AESkey  // if AESkey is defined as macro all other values must be too
-extern xref2u1_t AESkey;
-extern xref2u1_t AESaux;
-#endif
-#ifndef os_aes
-u4_t os_aes (u1_t mode, xref2u1_t buf, u2_t len);
 #endif
 
 // ======================================================================

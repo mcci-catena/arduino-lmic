@@ -78,7 +78,7 @@ const lmic_pinmap lmic_pins = {
 // Just like Feather M0 LoRa, but uses SPI at 1MHz; and that's only
 // because MCCI doesn't have a test board; probably higher frequencies
 // will work.
-// /!\ By default Feather 32u4's pin 6 and DIO1 are not connected. Please 
+// /!\ By default Feather 32u4's pin 6 and DIO1 are not connected. Please
 // ensure they are connected.
 const lmic_pinmap lmic_pins = {
     .nss = 8,
@@ -199,7 +199,7 @@ void tx(const char *str, osjobcb_t func) {
 // Enable rx mode and call func when a packet is received
 void rx(osjobcb_t func) {
   LMIC.osjob.func = func;
-  LMIC.rxtime = os_getTime(); // RX _now_
+  LMIC.nextRxTime = os_getTime(); // RX _now_
   // Enable "continuous" RX (e.g. without a timeout, still stops after
   // receiving a packet)
   os_radio(RADIO_RXON);

@@ -17,10 +17,13 @@ env:
 
 # specify the events that trigger runs.
 on:
-  # pull requests (default settings)
+  # pull requests (default settings): builds the PR merge commit
   pull_request:
-  # pushes (default settings)
+  # pushes to main and to tags only. A feature branch with an open PR
+  # would otherwise build twice, once here and once as the PR.
   push:
+    branches: [main]
+    tags: ['v*']
   # repository operations
   repository_dispatch:
   schedule:
@@ -30,17 +33,38 @@ on:
 # what to do:
 jobs:
   
-  # define a job named "arduinocli"
+  # One job per architecture and board group. The wrap script in
+  # mcci-catena-ci reads MCCI_CI_BOARDS and MCCI_CI_REGIONS; where they are
+  # empty it builds its full list. One board per job keeps each job to a few
+  # minutes instead of one 30-minute job per architecture (issue #1079).
   arduinocli:
     # select a target OS
     runs-on:  ubuntu-latest
-    name: ${{ matrix.arch }}
+    name: ${{ matrix.name }}
 
     strategy:
       fail-fast: false
       matrix:
-        arch: [samd, stm32, esp32, avr]
-        # get info about all the configs.
+        include:
+          - { name: avr,        arch: avr,   boards: "",               regions: "" }
+          - { name: esp32-us915,   arch: esp32, boards: "",            regions: us915 }
+          - { name: esp32-au915,   arch: esp32, boards: "",            regions: au915 }
+          - { name: esp32-as923,   arch: esp32, boards: "",            regions: as923 }
+          - { name: esp32-as923jp, arch: esp32, boards: "",            regions: as923jp }
+          - { name: esp32-eu868,   arch: esp32, boards: "",            regions: eu868 }
+          - { name: esp32-kr920,   arch: esp32, boards: "",            regions: kr920 }
+          - { name: esp32-in866,   arch: esp32, boards: "",            regions: in866 }
+          - { name: samd-4450,  arch: samd,  boards: mcci_catena_4450, regions: "" }
+          - { name: samd-4410,  arch: samd,  boards: mcci_catena_4410, regions: "" }
+          - { name: samd-4420,  arch: samd,  boards: mcci_catena_4420, regions: "" }
+          - { name: samd-4460,  arch: samd,  boards: mcci_catena_4460, regions: "" }
+          - { name: samd-4470,  arch: samd,  boards: mcci_catena_4470, regions: "" }
+          - { name: stm32-4610, arch: stm32, boards: mcci_catena_4610, regions: "" }
+          - { name: stm32-4612, arch: stm32, boards: mcci_catena_4612, regions: "" }
+          - { name: stm32-4618, arch: stm32, boards: mcci_catena_4618, regions: "" }
+          - { name: stm32-4630, arch: stm32, boards: mcci_catena_4630, regions: "" }
+          - { name: stm32-4801, arch: stm32, boards: mcci_catena_4801, regions: "" }
+          - { name: stm32-4802, arch: stm32, boards: mcci_catena_4802, regions: "" }
 
     # step-by-step
     steps:
@@ -81,6 +105,23 @@ jobs:
         run: tree -d $(realpath .)
 
       - name: Compile examples
+        env:
+          MCCI_CI_BOARDS: ${{ matrix.boards }}
+          MCCI_CI_REGIONS: ${{ matrix.regions }}
         run: bash mcci-catena-ci/arduino-lmic-regress-wrap.sh -l libraries/${{env.MCCI_CI_LIBRARY}} -a ${{ matrix.arch }}
+
+  # The one check the branch rulesets require. It passes only when every
+  # matrix job passed, so the rulesets need not list the job names and the
+  # matrix can change without touching them.
+  result:
+    name: Arduino CI result
+    needs: arduinocli
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the matrix result
+        run: |
+          echo "matrix result: ${{ needs.arduinocli.result }}"
+          test "${{ needs.arduinocli.result }}" = success
 
 ### end of file ###

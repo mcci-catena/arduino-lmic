@@ -26,7 +26,7 @@ namespace Arduino_LMIC {
 /* these types should match the types used by the LMIC */
 typedef	int32_t	ostime_t;
 
-// this type is used when we need to represent a threee-state signal
+// this type is used when we need to represent a three-state signal
 enum class ThreeState_t : uint8_t {
 	Off = 0,
 	On = 1,
@@ -95,6 +95,13 @@ public:
 	virtual bool queryUsingDcdc(void) { return false; }
 	virtual bool queryUsingDIO2AsRfSwitch(void) { return false; }
 	virtual bool queryUsingDIO3AsTCXOSwitch(void) { return false; }
+
+	// SX126x crystal oscillator trim (registers XTATrim/XTBTrim, 0x0911/0x0912).
+	// Valid trim values are 0x00-0x3F; chip reset default is 0x05 for both.
+	// Return kSX126xXtalTrimUseDefault to leave the chip reset value untouched.
+	static constexpr uint8_t kSX126xXtalTrimUseDefault = 0xFF;
+	virtual uint8_t querySX126xXTATrim(void) { return kSX126xXtalTrimUseDefault; }
+	virtual uint8_t querySX126xXTBTrim(void) { return kSX126xXtalTrimUseDefault; }
 
 	// compute desired transmit power policy.  HopeRF needs
 	// (and previous versions of this library always chose)

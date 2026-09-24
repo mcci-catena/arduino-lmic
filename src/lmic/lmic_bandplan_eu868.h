@@ -69,6 +69,12 @@ void LMICeu868_setBcnRxParams(void);
 u4_t LMICeu868_convFreq(xref2cu1_t ptr);
 #define LMICbandplan_convFreq(ptr)      LMICeu868_convFreq(ptr)
 
+static inline u1_t
+LMICeu868_queryMaxRx1DrOffset(void) {
+        return 5;
+}
+#define LMICbandplan_queryMaxRx1DrOffset() LMICeu868_queryMaxRx1DrOffset()
+
 void LMICeu868_initJoinLoop(void);
 #define LMICbandplan_initJoinLoop()     LMICeu868_initJoinLoop()
 

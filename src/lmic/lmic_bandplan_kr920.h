@@ -69,6 +69,12 @@ void LMICkr920_setBcnRxParams(void);
 u4_t LMICkr920_convFreq(xref2cu1_t ptr);
 #define LMICbandplan_convFreq(ptr)      LMICkr920_convFreq(ptr)
 
+static inline u1_t
+LMICkr920_queryMaxRx1DrOffset(void) {
+        return 5;
+}
+#define LMICbandplan_queryMaxRx1DrOffset() LMICkr920_queryMaxRx1DrOffset()
+
 void LMICkr920_initJoinLoop(void);
 #define LMICbandplan_initJoinLoop()     LMICkr920_initJoinLoop()
 
