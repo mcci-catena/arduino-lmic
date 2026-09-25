@@ -289,8 +289,14 @@ static inline void LMIC_setRX2DataRate(dr_t dr) {
 /// \return the number of bytes loaded, which is less than \p len if \p len
 ///	exceeds the frame buffer.
 static inline u1_t LMIC_setRawTxData(const u1_t *pData, u1_t len) {
-	if (len > MAX_LEN_FRAME)
-		len = MAX_LEN_FRAME;
+	// MAX_LEN_FRAME is an int enumerator, usually 255. Comparing a u1_t
+	// against it directly draws -Wtype-limits ("always false") in that
+	// configuration; comparing against a u1_t holding the same value does not,
+	// and still clamps when MAX_LEN_FRAME is configured to be less than 255.
+	u1_t const maxLen = MAX_LEN_FRAME;
+
+	if (len > maxLen)
+		len = maxLen;
 	os_copyMem(LMIC.frame, pData, len);
 	LMIC.dataLen = len;
 	return len;

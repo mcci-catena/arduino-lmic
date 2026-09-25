@@ -122,15 +122,15 @@ void LMICeu868_initDefaultChannels(bit_t join) {
                 LMIC.channelDrMap[fu] = DR_RANGE_MAP(EU868_DR_SF12, EU868_DR_SF7);
         }
 
-        (void) LMIC_setupBand(BAND_MILLI, 14 /* dBm */, 1000 /* 0.1% */);
-        (void) LMIC_setupBand(BAND_CENTI, 14 /* dBm */,  100 /* 1% */);
-        (void) LMIC_setupBand(BAND_DECI,  27 /* dBm */,   10 /* 10% */);
+        (void) LMIC_setupChannelGroup(BAND_MILLI, 14 /* dBm */, 1000 /* 0.1% */);
+        (void) LMIC_setupChannelGroup(BAND_CENTI, 14 /* dBm */,  100 /* 1% */);
+        (void) LMIC_setupChannelGroup(BAND_DECI,  27 /* dBm */,   10 /* 10% */);
 }
 
-bit_t LMIC_setupBand(u1_t bandidx, s1_t txpow, u2_t txcap) {
-        if (bandidx > BAND_AUX) return 0;
-        //band_t* b = &LMIC.bands[bandidx];
-        xref2band_t b = &LMIC.bands[bandidx];
+bit_t LMIC_setupChannelGroup(u1_t group, s1_t txpow, u2_t txcap) {
+        if (group > BAND_AUX) return 0;
+        //band_t* b = &LMIC.bands[group];
+        xref2band_t b = &LMIC.bands[group];
         b->txpow = txpow;
         b->txcap = txcap;
         b->avail = os_getTime();
