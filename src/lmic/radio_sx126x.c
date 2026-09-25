@@ -901,6 +901,26 @@ static void txfsk(void) {
     setTx(timeout);
 }
 
+///
+/// \brief complete the current radio request
+///
+/// \details
+///     Mark the radio idle and schedule the job that os_radio_v2() recorded
+///     for this request. Every path that finishes a request goes through
+///     here, so a caller's own job is honored, not only the LMIC's.
+///
+static void radio_complete(void) {
+    LMIC.radio.state = LMIC_RADIO_EV_NONE;
+
+    osjob_t *pJob = LMIC.radio.pRadioDoneJob;
+    if (pJob != NULL) {
+        LMIC.radio.pRadioDoneJob = NULL;
+        os_setCallback(pJob, pJob->func);
+    } else {
+        LMICOS_logEvent("null LMIC.radio.pRadioDoneJob");
+    }
+}
+
 // start transmitter (buf=LMIC.frame, len=LMIC.dataLen)
 static void starttx(void) {
     // SX127x sets sleep however this doesn't appear to be necessary for SX126x
@@ -914,8 +934,8 @@ static void starttx(void) {
 #endif
 
         if (rssi.max_rssi >= LMIC.lbt_dbmax) {
-            // complete the request by scheduling the job
-            os_setCallback(&LMIC.osjob, LMIC.osjob.func);
+            // channel busy: complete the request without transmitting
+            radio_complete();
             return;
         }
     }
@@ -1030,13 +1050,9 @@ static void rxlora(u1_t rxmode) {
 }
 
 static void rxfsk(u1_t rxmode) {
-    // only single or continuous rx (no noise sampling)
-    if (rxmode == RXMODE_SCAN) {
-        // indicate no bytes received.
-        LMIC.dataLen = 0;
-        // complete the request by scheduling the job.
-        os_setCallback(&LMIC.osjob, LMIC.osjob.func);
-    }
+    // only single or continuous rx. (The SX127x driver has an RSSI-sampling
+    // mode that completes at once; this driver has no such mode, and
+    // RXMODE_SCAN is the continuous receive used for RADIO_RXON.)
 
     // Send configuration commands to radio
     radio_config();
@@ -1422,17 +1438,8 @@ void radio_irq_handler_v2(u1_t dio, ostime_t now) {
     }
     setSleep(0);
 
-    // mark radio as done
-    LMIC.radio.state = LMIC_RADIO_EV_NONE;
-
-    // run os job (use pRadioDoneJob if set, otherwise use legacy LMIC.osjob)
-    osjob_t *pJob = LMIC.radio.pRadioDoneJob;
-    if (pJob != NULL) {
-        LMIC.radio.pRadioDoneJob = NULL;
-        os_setCallback(pJob, pJob->func);
-    } else {
-        os_setCallback(&LMIC.osjob, LMIC.osjob.func);
-    }
+    // mark the radio idle and schedule the requester's job
+    radio_complete();
 #endif /* ! CFG_TxContinuousMode */
 }
 
