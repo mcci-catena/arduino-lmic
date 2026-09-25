@@ -110,18 +110,30 @@ jobs:
           MCCI_CI_REGIONS: ${{ matrix.regions }}
         run: bash mcci-catena-ci/arduino-lmic-regress-wrap.sh -l libraries/${{env.MCCI_CI_LIBRARY}} -a ${{ matrix.arch }}
 
+  # Unit tests of the core, built with the host gcc and run natively; see
+  # test/host/Makefile. A few seconds per region.
+  host-tests:
+    name: host tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and run for every region
+        run: make -C test/host all-regions
+
   # The one check the branch rulesets require. It passes only when every
-  # matrix job passed, so the rulesets need not list the job names and the
-  # matrix can change without touching them.
+  # matrix job and the host tests passed, so the rulesets need not list the
+  # job names and the matrix can change without touching them.
   result:
     name: Arduino CI result
-    needs: arduinocli
+    needs: [arduinocli, host-tests]
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - name: Check the matrix result
+      - name: Check the results
         run: |
           echo "matrix result: ${{ needs.arduinocli.result }}"
+          echo "host tests:    ${{ needs.host-tests.result }}"
           test "${{ needs.arduinocli.result }}" = success
+          test "${{ needs.host-tests.result }}" = success
 
 ### end of file ###

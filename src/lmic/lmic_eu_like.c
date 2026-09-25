@@ -29,6 +29,7 @@
 #define LMIC_DR_LEGACY 0
 
 #include "lmic_bandplan.h"
+#include "lmic_session_state.h"
 
 #if CFG_LMIC_EU_like
 
@@ -350,6 +351,114 @@ bit_t LMIC_queryChannel(u1_t channel, lmic_channel_info_t *pInfo) {
         pInfo->enabled = (LMIC.channelMap & (1u << channel)) != 0;
         pInfo->isDefault = channel < LMIC_queryNumDefaultChannels();
         pInfo->bandwidth = LMICeulike_bandwidthFromDrMap(pInfo->drMap);
+        return 1;
+}
+
+//
+// Session state: the configurable-channel variant
+//
+
+#if !defined(DISABLE_MCMD_DlChannelReq)
+static u4_t getChannelDlFreq(u1_t ch) { return LMIC.channelDlFreq[ch]; }
+static void setChannelDlFreq(u1_t ch, u4_t f) { LMIC.channelDlFreq[ch] = f; }
+#else
+static u4_t getChannelDlFreq(u1_t ch) { LMIC_UNREFERENCED_PARAMETER(ch); return 0; }
+static void setChannelDlFreq(u1_t ch, u4_t f) { LMIC_UNREFERENCED_PARAMETER(ch); LMIC_UNREFERENCED_PARAMETER(f); }
+#endif
+
+// offsets within the variant; see the layout in lmic_session_state.h
+enum {
+        SS_KIND = 0,
+        SS_SIZE = 1,
+        SS_GROUPS = 4,
+        SS_CHMAP = 8,
+        SS_SHUFFLE = 10,
+        SS_DRMAP = 12,
+        SS_UPFREQ = 44,
+        SS_DLFREQ = 92,
+        SS_GROUP_TABLE = 140,
+        SS_GROUP_ENTRY = 8,
+        SS_VARIANT_SIZE = 172,
+};
+
+// 24-bit frequency, most-significant byte first, in units of 100 Hz.
+static void putFreq24(u1_t *p, u4_t freqHz) {
+        u4_t const v = freqHz / 100;
+        p[0] = (u1_t)(v >> 16);
+        p[1] = (u1_t)(v >> 8);
+        p[2] = (u1_t)v;
+}
+
+static u4_t getFreq24(const u1_t *p) {
+        return (((u4_t)p[0] << 16) | ((u4_t)p[1] << 8) | p[2]) * 100;
+}
+
+void LMICeulike_saveChannelState(u1_t *pVariant, ostime_t now) {
+        u4_t groups = 0;
+
+        pVariant[SS_KIND] = LMIC_SESSION_STATE_CHANNELS_CONFIGURABLE;
+        pVariant[SS_SIZE] = SS_VARIANT_SIZE;
+
+        for (u1_t ch = 0; ch < MAX_CHANNELS; ++ch) {
+                u4_t const freqGroup = LMIC.channelFreq[ch];
+
+                groups |= (freqGroup & 3) << (2 * ch);
+                os_wlsbf2(pVariant + SS_DRMAP + 2 * ch, LMIC.channelDrMap[ch]);
+                putFreq24(pVariant + SS_UPFREQ + 3 * ch, freqGroup & ~(u4_t)3);
+                putFreq24(pVariant + SS_DLFREQ + 3 * ch, getChannelDlFreq(ch));
+        }
+        os_wlsbf4(pVariant + SS_GROUPS, groups);
+        os_wlsbf2(pVariant + SS_CHMAP, LMIC.channelMap);
+        os_wlsbf2(pVariant + SS_SHUFFLE, LMIC.channelShuffleMap);
+
+        for (u1_t g = 0; g < MAX_BANDS; ++g) {
+                u1_t * const q = pVariant + SS_GROUP_TABLE + SS_GROUP_ENTRY * g;
+                band_t const * const pGroup = &LMIC.bands[g];
+                ostime_t const delta = pGroup->avail - now;
+
+                os_wlsbf2(q, pGroup->txcap);
+                q[2] = (u1_t)pGroup->txpow;
+                q[3] = pGroup->lastchnl;
+                os_wlsbf4(q + 4, delta > 0 ? (u4_t)delta : 0);
+        }
+}
+
+bit_t LMICeulike_restoreChannelState(const u1_t *pVariant, ostime_t now, u1_t version) {
+        if (pVariant[SS_KIND] != LMIC_SESSION_STATE_CHANNELS_CONFIGURABLE ||
+            pVariant[SS_SIZE] != SS_VARIANT_SIZE)
+                return 0;
+
+        // the channels LMIC_reset() left enabled are the region defaults; leave them alone.
+        u2_t const resetMap = LMIC.channelMap;
+        u4_t const groups = os_rlsbf4(pVariant + SS_GROUPS);
+
+        LMIC.channelMap |= os_rlsbf2(pVariant + SS_CHMAP);
+        LMIC.channelShuffleMap = os_rlsbf2(pVariant + SS_SHUFFLE);
+
+        for (u1_t ch = 0; ch < MAX_CHANNELS; ++ch) {
+                if ((resetMap & (1u << ch)) != 0)
+                        continue;
+
+                (void) LMIC_setupChannel(
+                        ch,
+                        getFreq24(pVariant + SS_UPFREQ + 3 * ch),
+                        os_rlsbf2(pVariant + SS_DRMAP + 2 * ch),
+                        (s1_t)((groups >> (2 * ch)) & 3)
+                        );
+                setChannelDlFreq(ch, getFreq24(pVariant + SS_DLFREQ + 3 * ch));
+        }
+
+        for (u1_t g = 0; g < MAX_BANDS; ++g) {
+                const u1_t * const q = pVariant + SS_GROUP_TABLE + SS_GROUP_ENTRY * g;
+                band_t * const pGroup = &LMIC.bands[g];
+
+                // V1 saved txpow into this slot; keep the region default then.
+                if (version >= LMIC_SESSION_STATE_TAG_V2)
+                        pGroup->txcap = os_rlsbf2(q);
+                pGroup->txpow = (s1_t)q[2];
+                pGroup->lastchnl = q[3];
+                pGroup->avail = now + (ostime_t)os_rlsbf4(q + 4);
+        }
         return 1;
 }
 
