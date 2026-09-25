@@ -25,6 +25,7 @@ extern "C"{
 
 #include "lmic/lmic.h"
 #include "lmic/lmic_accessors.h"
+#include "lmic/lmic_session_state.h"
 #include "lmic/lmic_bandplan.h"
 #include "lmic/lmic_util.h"
 

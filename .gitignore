@@ -52,3 +52,6 @@ doxygen
 
 # a place for things we're working on
 scratch/
+
+# host unit test build products
+test/host/build/
