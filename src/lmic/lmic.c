@@ -112,6 +112,19 @@ void os_wlsbf4 (xref2u1_t buf, u4_t v) {
 }
 #endif
 
+#if !defined(os_rlsbf8)
+uint64_t os_rlsbf8 (xref2cu1_t buf) {
+    return (uint64_t)os_rlsbf4(buf) | (((uint64_t)os_rlsbf4(buf+4))<<32);
+}
+#endif
+
+#if !defined(os_wlsbf8)
+void os_wlsbf8 (xref2u1_t buf, uint64_t v) {
+    os_wlsbf4(buf, (u4_t)v);
+    os_wlsbf4(buf+4, (u4_t)(v >> 32));
+}
+#endif
+
 #if !defined(os_wmsbf4)
 void os_wmsbf4 (xref2u1_t buf, u4_t v) {
     buf[3] = v;

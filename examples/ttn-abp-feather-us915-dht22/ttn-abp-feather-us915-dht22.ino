@@ -129,11 +129,11 @@ void onEvent (ev_t ev) {
             break;
         case EV_TXCOMPLETE:
             Serial.println(F("EV_TXCOMPLETE (includes waiting for RX windows)"));
-            if (LMIC.txrxFlags & TXRX_ACK)
+            if (LMIC_getTxrxFlags() & TXRX_ACK)
               Serial.println(F("Received ack"));
-            if (LMIC.dataLen) {
+            if (LMIC_getFRMPayloadLen()) {
               Serial.println(F("Received "));
-              Serial.println(LMIC.dataLen);
+              Serial.println(LMIC_getFRMPayloadLen());
               Serial.println(F(" bytes of payload"));
             }
             // Schedule next transmission
@@ -184,7 +184,7 @@ void onEvent (ev_t ev) {
 
 void do_send(osjob_t* j){
     // Check if there is not a current TX/RX job running
-    if (LMIC.opmode & OP_TXRXPEND) {
+    if (LMIC_getOpmode() & OP_TXRXPEND) {
         Serial.println(F("OP_TXRXPEND, not sending"));
     } else {
         // read the temperature from the DHT22
@@ -265,7 +265,7 @@ void setup() {
     LMIC_setLinkCheckMode(0);
 
     // TTN uses SF9 for its RX2 window.
-    LMIC.dn2Dr = DR_SF9;
+    LMIC_setRX2DataRate(DR_SF9);
 
     // Set data rate and transmit power for uplink
     LMIC_setDrTxpow(DR_SF7,14);
