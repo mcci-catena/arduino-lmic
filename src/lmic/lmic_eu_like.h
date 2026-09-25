@@ -116,5 +116,22 @@ void LMICeulike_setRx1Freq(void);
 bit_t LMICeulike_isDataRateFeasible(dr_t dr);
 #define LMICbandplan_isDataRateFeasible(dr) LMICeulike_isDataRateFeasible(dr)
 
+/// \brief write the configurable-channel variant of the session state blob.
+///
+/// \param pVariant	the 172 bytes at offset 44 of the blob, already zeroed.
+/// \param now		the time the blob is being saved; time fields are stored as deltas.
+void LMICeulike_saveChannelState(u1_t *pVariant, ostime_t now);
+#define LMICbandplan_saveChannelState(p, now)	LMICeulike_saveChannelState(p, now)
+
+/// \brief apply the configurable-channel variant of a session state blob.
+///
+/// \param pVariant	the 172 bytes at offset 44 of the blob.
+/// \param now		the time the blob is being restored.
+/// \param version	the blob's header tag; V1 leaves the group duty-cycle divisors alone.
+///
+/// \return zero, changing nothing, if the variant is not the configurable kind.
+bit_t LMICeulike_restoreChannelState(const u1_t *pVariant, ostime_t now, u1_t version);
+#define LMICbandplan_restoreChannelState(p, now, v)	LMICeulike_restoreChannelState(p, now, v)
+
 
 #endif // _lmic_eu_like_h_
