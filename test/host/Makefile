@@ -50,7 +50,7 @@ CORE_CXX := $(TOP)/src/aes/ideetron/AES-128_V10.cpp
 CORE_OBJS := $(patsubst $(TOP)/%.c,$(BUILD)/core/%.o,$(CORE_C)) \
              $(patsubst $(TOP)/%.cpp,$(BUILD)/core/%.o,$(CORE_CXX))
 
-TESTS := test_session_state
+TESTS := test_ostime_conv test_session_state
 TEST_BINS := $(patsubst %,$(BUILD)/%,$(TESTS))
 
 .PHONY: all test all-regions clean
