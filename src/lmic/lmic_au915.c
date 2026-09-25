@@ -321,6 +321,28 @@ void LMICau915_initJoinLoop(void) {
 }
 
 //
+// Channel query
+//
+
+// uplink frequency of a channel index, Hz; zero if out of range.
+u4_t LMICau915_queryChannelUplinkFreq(u1_t channel) {
+        if (channel < 64)
+                return AU915_125kHz_UPFBASE + channel * AU915_125kHz_UPFSTEP;
+        else if (channel < 72)
+                return AU915_500kHz_UPFBASE + (channel - 64) * AU915_500kHz_UPFSTEP;
+        else
+                return 0;
+}
+
+// RX1 downlink frequency for a channel index, Hz; zero if out of range.
+u4_t LMICau915_queryChannelDownlinkFreq(u1_t channel) {
+        if (channel < 72)
+                return AU915_500kHz_DNFBASE + (channel & 0x7) * AU915_500kHz_DNFSTEP;
+        else
+                return 0;
+}
+
+//
 // END: AU915 related stuff
 //
 // ================================================================================

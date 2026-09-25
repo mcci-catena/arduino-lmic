@@ -142,10 +142,10 @@ LMICas923_resetDefaultChannels(void) {
 }
 
 
-bit_t LMIC_setupBand(u1_t bandidx, s1_t txpow, u2_t txcap) {
-        if (bandidx > BAND_MILLI) return 0;
-        //band_t* b = &LMIC.bands[bandidx];
-        xref2band_t b = &LMIC.bands[bandidx];
+bit_t LMIC_setupChannelGroup(u1_t group, s1_t txpow, u2_t txcap) {
+        if (group > BAND_MILLI) return 0;
+        //band_t* b = &LMIC.bands[group];
+        xref2band_t b = &LMIC.bands[group];
         b->txpow = txpow;
         b->txcap = txcap;
         b->avail = os_getTime();
