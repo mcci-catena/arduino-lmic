@@ -174,6 +174,7 @@ void lmic_printf(const char *fmt, ...) {
 
 osjob_t txjob;
 osjob_t timeoutjob;
+osjob_t radiojob;   // completion job for os_radio_v2(); the LMIC keeps LMIC.osjob for itself
 static void tx_func (osjob_t* job);
 
 // Transmit the given string and call the given function afterwards
@@ -184,25 +185,23 @@ void tx(const char *str, osjobcb_t func) {
   delay(1);
 
   // prepare data
-  LMIC.dataLen = 0;
-  while (*str)
-    LMIC.frame[LMIC.dataLen++] = *str++;
+  LMIC_setRawTxData((const u1_t *)str, (u1_t)strlen(str));
 
   // set completion function.
-  LMIC.osjob.func = func;
+  radiojob.func = func;
 
   // start the transmission
-  os_radio(RADIO_TX);
+  os_radio_v2(RADIO_TX, &radiojob);
   Serial.println("TX");
 }
 
 // Enable rx mode and call func when a packet is received
 void rx(osjobcb_t func) {
-  LMIC.osjob.func = func;
-  LMIC.nextRxTime = os_getTime(); // RX _now_
+  radiojob.func = func;
+  LMIC_setNextRxTime(os_getTime()); // RX _now_
   // Enable "continuous" RX (e.g. without a timeout, still stops after
   // receiving a packet)
-  os_radio(RADIO_RXON);
+  os_radio_v2(RADIO_RXON, &radiojob);
   Serial.println("RX");
 }
 
@@ -224,9 +223,14 @@ static void rx_func (osjob_t* job) {
   os_setTimedCallback(&txjob, os_getTime() + ms2osticks(TX_INTERVAL/2), tx_func);
 
   Serial.print("Got ");
-  Serial.print(LMIC.dataLen);
+  Serial.print(LMIC_getFRMPayloadLen());
   Serial.println(" bytes");
-  Serial.write(LMIC.frame, LMIC.dataLen);
+  {
+  const u1_t *pData;
+  u1_t nData;
+  LMIC_getRawRxData(&pData, &nData);
+  Serial.write(pData, nData);
+  }
   Serial.println();
 
   // Restart RX
@@ -281,13 +285,13 @@ void setup() {
 
 #if defined(CFG_eu868)
   // Use a frequency in the g3 which allows 10% duty cycling.
-  LMIC.freq = 869525000;
+  LMIC_setFrequency(869525000);
   // Use a medium spread factor. This can be increased up to SF12 for
   // better range, but then, the interval should be (significantly)
   // raised to comply with duty cycle limits as well.
-  LMIC.datarate = DR_SF9;
+  LMIC_setDataRate(DR_SF9);
   // Maximum TX power
-  LMIC.txpow = 27;
+  LMIC_setRadioTxPower(27);
 #elif defined(CFG_us915)
   // make it easier for test, by pull the parameters up to the top of the
   // block. Ideally, we'd use the serial port to drive this; or have
@@ -319,33 +323,33 @@ void setup() {
         {
         if (kUplinkChannel < 64)
                 {
-                LMIC.freq = US915_125kHz_UPFBASE +
-                            kUplinkChannel * US915_125kHz_UPFSTEP;
+                LMIC_setFrequency(US915_125kHz_UPFBASE +
+                            kUplinkChannel * US915_125kHz_UPFSTEP);
                 uBandwidth = 125;
                 }
         else
                 {
-                LMIC.freq = US915_500kHz_UPFBASE +
-                            (kUplinkChannel - 64) * US915_500kHz_UPFSTEP;
+                LMIC_setFrequency(US915_500kHz_UPFBASE +
+                            (kUplinkChannel - 64) * US915_500kHz_UPFSTEP);
                 uBandwidth = 500;
                 }
         }
   else
         {
         // downlink channel
-        LMIC.freq = US915_500kHz_DNFBASE +
-                    kDownlinkChannel * US915_500kHz_DNFSTEP;
+        LMIC_setFrequency(US915_500kHz_DNFBASE +
+                    kDownlinkChannel * US915_500kHz_DNFSTEP);
         uBandwidth = 500;
         }
 
   // Use a suitable spreading factor
   if (uBandwidth < 500)
-        LMIC.datarate = US915_DR_SF7;         // DR4
+        LMIC_setDataRate(US915_DR_SF7);         // DR4
   else
-        LMIC.datarate = US915_DR_SF12CR;      // DR8
+        LMIC_setDataRate(US915_DR_SF12CR);      // DR8
 
   // default tx power for US: 21 dBm
-  LMIC.txpow = 21;
+  LMIC_setRadioTxPower(21);
 #elif defined(CFG_au915)
   // make it easier for test, by pull the parameters up to the top of the
   // block. Ideally, we'd use the serial port to drive this; or have
@@ -377,33 +381,33 @@ void setup() {
         {
         if (kUplinkChannel < 64)
                 {
-                LMIC.freq = AU915_125kHz_UPFBASE +
-                            kUplinkChannel * AU915_125kHz_UPFSTEP;
+                LMIC_setFrequency(AU915_125kHz_UPFBASE +
+                            kUplinkChannel * AU915_125kHz_UPFSTEP);
                 uBandwidth = 125;
                 }
         else
                 {
-                LMIC.freq = AU915_500kHz_UPFBASE +
-                            (kUplinkChannel - 64) * AU915_500kHz_UPFSTEP;
+                LMIC_setFrequency(AU915_500kHz_UPFBASE +
+                            (kUplinkChannel - 64) * AU915_500kHz_UPFSTEP);
                 uBandwidth = 500;
                 }
         }
   else
         {
         // downlink channel
-        LMIC.freq = AU915_500kHz_DNFBASE +
-                    kDownlinkChannel * AU915_500kHz_DNFSTEP;
+        LMIC_setFrequency(AU915_500kHz_DNFBASE +
+                    kDownlinkChannel * AU915_500kHz_DNFSTEP);
         uBandwidth = 500;
         }
 
   // Use a suitable spreading factor
   if (uBandwidth < 500)
-        LMIC.datarate = AU915_DR_SF7;         // DR4
+        LMIC_setDataRate(AU915_DR_SF7);         // DR4
   else
-        LMIC.datarate = AU915_DR_SF12CR;      // DR8
+        LMIC_setDataRate(AU915_DR_SF12CR);      // DR8
 
   // default tx power for AU: 30 dBm
-  LMIC.txpow = 30;
+  LMIC_setRadioTxPower(30);
 #elif defined(CFG_as923)
 // make it easier for test, by pull the parameters up to the top of the
 // block. Ideally, we'd use the serial port to drive this; or have
@@ -417,22 +421,21 @@ void setup() {
         const static uint8_t kChannel = 0;
         uint32_t uBandwidth;
 
-        LMIC.freq = AS923_F1 + kChannel * 200000;
+        LMIC_setFrequency(AS923_F1 + kChannel * 200000);
         uBandwidth = 125;
 
         // Use a suitable spreading factor
         if (uBandwidth == 125)
-                LMIC.datarate = AS923_DR_SF7;         // DR7
+                LMIC_setDataRate(AS923_DR_SF7);         // DR7
         else
-                LMIC.datarate = AS923_DR_SF7B;        // DR8
+                LMIC_setDataRate(AS923_DR_SF7B);        // DR8
 
         // default tx power for AS: 21 dBm
-        LMIC.txpow = 16;
+        LMIC_setRadioTxPower(16);
 
         if (LMIC_COUNTRY_CODE == LMIC_COUNTRY_CODE_JP)
                 {
-                LMIC.lbt_ticks = us2osticks(AS923JP_LBT_US);
-                LMIC.lbt_dbmax = AS923JP_LBT_DB_MAX;
+                LMIC_setLbt(us2osticks(AS923JP_LBT_US), AS923JP_LBT_DB_MAX);
                 }
 #elif defined(CFG_kr920)
 // make it easier for test, by pull the parameters up to the top of the
@@ -447,17 +450,16 @@ void setup() {
         const static uint8_t kChannel = 0;
         uint32_t uBandwidth;
 
-        LMIC.freq = KR920_F1 + kChannel * 200000;
+        LMIC_setFrequency(KR920_F1 + kChannel * 200000);
         uBandwidth = 125;
 
-        LMIC.datarate = KR920_DR_SF7;         // DR7
+        LMIC_setDataRate(KR920_DR_SF7);         // DR7
         // default tx power for KR: 14 dBm
-        LMIC.txpow = KR920_TX_EIRP_MAX_DBM;
-        if (LMIC.freq < KR920_F14DBM)
-          LMIC.txpow = KR920_TX_EIRP_MAX_DBM_LOW;
+        LMIC_setRadioTxPower(KR920_TX_EIRP_MAX_DBM);
+        if (LMIC_getFrequency() < KR920_F14DBM)
+          LMIC_setRadioTxPower(KR920_TX_EIRP_MAX_DBM_LOW);
 
-        LMIC.lbt_ticks = us2osticks(KR920_LBT_US);
-        LMIC.lbt_dbmax = KR920_LBT_DB_MAX;
+        LMIC_setLbt(us2osticks(KR920_LBT_US), KR920_LBT_DB_MAX);
 #elif defined(CFG_in866)
 // make it easier for test, by pull the parameters up to the top of the
 // block. Ideally, we'd use the serial port to drive this; or have
@@ -471,28 +473,28 @@ void setup() {
         const static uint8_t kChannel = 0;
         uint32_t uBandwidth;
 
-        LMIC.freq = IN866_F1 + kChannel * 200000;
+        LMIC_setFrequency(IN866_F1 + kChannel * 200000);
         uBandwidth = 125;
 
-        LMIC.datarate = IN866_DR_SF7;         // DR7
+        LMIC_setDataRate(IN866_DR_SF7);         // DR7
         // default tx power for IN: 30 dBm
-        LMIC.txpow = IN866_TX_EIRP_MAX_DBM;
+        LMIC_setRadioTxPower(IN866_TX_EIRP_MAX_DBM);
 #else
 # error Unsupported LMIC regional configuration.
 #endif
 
 
   // disable RX IQ inversion
-  LMIC.noRXIQinversion = true;
+  LMIC_setNoRxIqInversion(true);
 
   // This sets CR 4/5, BW125 (except for EU/AS923 DR_SF7B, which uses BW250)
-  LMIC.rps = updr2rps(LMIC.datarate);
+  LMIC_setRps(updr2rps(LMIC_getDataRate()));
 
-  Serial.print("Frequency: "); Serial.print(LMIC.freq / 1000000);
-            Serial.print("."); Serial.print((LMIC.freq / 100000) % 10);
+  Serial.print("Frequency: "); Serial.print(LMIC_getFrequency() / 1000000);
+            Serial.print("."); Serial.print((LMIC_getFrequency() / 100000) % 10);
             Serial.print("MHz");
-  Serial.print("  LMIC.datarate: "); Serial.print(LMIC.datarate);
-  Serial.print("  LMIC.txpow: "); Serial.println(LMIC.txpow);
+  Serial.print("  LMIC_getDataRate(): "); Serial.print(LMIC_getDataRate());
+  Serial.print("  LMIC_getRadioTxPower(): "); Serial.println(LMIC_getRadioTxPower());
   Serial.println("Started");
   Serial.flush();
 
