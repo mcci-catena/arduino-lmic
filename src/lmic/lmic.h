@@ -900,16 +900,93 @@ DECLARE_LMIC; //!< \internal
 
 //! Construct a bit map of allowed datarates from drlo to drhi (both included).
 #define DR_RANGE_MAP(drlo,drhi) (((u2_t)0xFFFF<<(drlo)) & ((u2_t)0xFFFF>>(15-(drhi))))
-bit_t LMIC_setupBand (u1_t bandidx, s1_t txpow, u2_t txcap);
-bit_t LMIC_setupChannel (u1_t channel, u4_t freq, u2_t drmap, s1_t band);
+/// \brief set the duty-cycle limit and maximum power of a channel group (configurable-channel regions).
+///
+/// A channel group is the set of channels that share one regulatory
+/// duty-cycle limit and power limit; a channel belongs to a group by its
+/// frequency.
+///
+/// \param group	channel group index, 0..MAX_BANDS-1.
+/// \param txpow	maximum transmit power for the group, dBm.
+/// \param txcap	duty-cycle divisor: the group may be used 1/txcap of the time.
+///
+/// \return non-zero if \p group names a group in this region. Fixed-channel
+///	regions have no groups and return non-zero without doing anything.
+bit_t LMIC_setupChannelGroup (u1_t group, s1_t txpow, u2_t txcap);
+
+/// \brief deprecated name for LMIC_setupChannelGroup().
+static inline bit_t LMIC_setupBand (u1_t bandidx, s1_t txpow, u2_t txcap) LMIC_DEPRECATED("use LMIC_setupChannelGroup()");
+static inline bit_t LMIC_setupBand (u1_t bandidx, s1_t txpow, u2_t txcap) {
+	return LMIC_setupChannelGroup(bandidx, txpow, txcap);
+}
+
+/// \brief define or redefine a channel (configurable-channel regions).
+///
+/// \param channel	channel index, from LMIC_queryNumDefaultChannels() to MAX_CHANNELS-1.
+///			Default channels cannot be changed.
+/// \param freq		uplink frequency in Hz; zero disables the channel.
+/// \param drmap	bit i set if data rate i is allowed; zero means the region default.
+/// \param group	channel group index, or -1 to choose the group from the frequency.
+///
+/// \return non-zero if the channel was set. Fixed-channel regions return zero.
+bit_t LMIC_setupChannel (u1_t channel, u4_t freq, u2_t drmap, s1_t group);
+
+/// \brief disable a channel.
+///
+/// \return non-zero if \p channel was valid (and, in fixed-channel regions,
+///	was enabled before the call).
 bit_t LMIC_disableChannel (u1_t channel);
-bit_t LMIC_enableSubBand(u1_t band);
+
+/// \brief enable a channel.
+///
+/// \return non-zero if \p channel was valid (and, in fixed-channel regions,
+///	was disabled before the call).
 bit_t LMIC_enableChannel(u1_t channel);
+
+/// \brief enable the eight 125 kHz channels and one 500 kHz channel of a sub-band (fixed-channel regions).
+bit_t LMIC_enableSubBand(u1_t band);
+
+/// \brief disable the eight 125 kHz channels and one 500 kHz channel of a sub-band (fixed-channel regions).
 bit_t LMIC_disableSubBand(u1_t band);
+
+/// \brief enable one sub-band and disable all others (fixed-channel regions).
 bit_t LMIC_selectSubBand(u1_t band);
 
 //! \brief get the number of (fixed) default channels before the programmable channels.
 u1_t  LMIC_queryNumDefaultChannels(void);
+
+/// \brief the bandwidth of a channel, as reported by LMIC_queryChannel().
+typedef enum lmic_channel_bandwidth_e {
+	LMIC_CHANNEL_BW_125kHz = 0,
+	LMIC_CHANNEL_BW_250kHz,
+	LMIC_CHANNEL_BW_500kHz,
+	LMIC_CHANNEL_BW_BY_DATARATE,	///< varies with the data rate; see \c drMap and the region's DR table
+} lmic_channel_bandwidth_t;
+
+enum { LMIC_CHANNEL_NO_GROUP = 0xFF };	///< \c group value when the region has no channel groups
+
+/// \brief description of one channel, filled in by LMIC_queryChannel().
+typedef struct lmic_channel_info_s {
+	u4_t	uplinkFreq;	///< uplink frequency, Hz; zero if the channel is not defined.
+	u4_t	downlinkFreq;	///< RX1 downlink frequency, Hz.
+	u2_t	drMap;		///< bit i set if data rate i may be used on this channel.
+	u1_t	group;		///< channel group index (duty-cycle class), or \c LMIC_CHANNEL_NO_GROUP.
+	u1_t	bandwidth;	///< a \c lmic_channel_bandwidth_t value.
+	bit_t	enabled;	///< non-zero if the channel is enabled.
+	bit_t	isDefault;	///< non-zero if the channel is fixed by the region and cannot be changed.
+} lmic_channel_info_t;
+
+/// \brief return the number of channel indices in the active region (16, 72 or 96).
+u1_t  LMIC_queryChannelCount(void);
+
+/// \brief describe a channel.
+///
+/// \param channel	channel index, 0..LMIC_queryChannelCount()-1.
+/// \param pInfo	receives the description.
+///
+/// \return non-zero if \p channel is a valid index for the active region;
+///	zero otherwise, and \p *pInfo is not changed.
+bit_t LMIC_queryChannel(u1_t channel, lmic_channel_info_t *pInfo);
 
 //! \brief check whether the LMIC is ready for a transmit packet
 bit_t LMIC_queryTxReady(void);

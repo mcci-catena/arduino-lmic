@@ -76,4 +76,12 @@ void LMICau915_updateTx(ostime_t txbeg);
 bit_t LMICau915_validDR(dr_t dr);
 #define LMICbandplan_validDR(dr)        LMICau915_validDR(dr)
 
+/// \brief uplink frequency of a channel index, Hz; zero if out of range.
+u4_t LMICau915_queryChannelUplinkFreq(u1_t channel);
+#define LMICbandplan_queryChannelUplinkFreq(ch)   LMICau915_queryChannelUplinkFreq(ch)
+
+/// \brief RX1 downlink frequency for a channel index, Hz; zero if out of range.
+u4_t LMICau915_queryChannelDownlinkFreq(u1_t channel);
+#define LMICbandplan_queryChannelDownlinkFreq(ch) LMICau915_queryChannelDownlinkFreq(ch)
+
 #endif // _lmic_bandplan_au915_h_
