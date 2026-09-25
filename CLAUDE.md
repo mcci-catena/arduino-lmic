@@ -10,7 +10,11 @@ MCCI's Arduino port of the IBM LMIC (LoRaWAN-MAC-in-C) framework, v6.0.0. Suppor
 
 This is an Arduino library -- there is no standalone build. Compilation happens through Arduino IDE, arduino-cli, or PlatformIO.
 
-**CI (GitHub Actions):** `.github/workflows/ci-arduinocli.yml` builds across samd, stm32, esp32, avr architectures using arduino-cli. PlatformIO builds via `ci/platformio.sh`.
+**CI (GitHub Actions):** `.github/workflows/ci-arduinocli.yml` builds with arduino-cli, one job per board for samd and stm32, one per region for esp32, and one for avr; the build lists live in `mcci-catena/mcci-catena-ci` (`arduino-lmic-regress-wrap.sh`), and the workflow narrows them per job with `MCCI_CI_BOARDS` and `MCCI_CI_REGIONS`. A `result` job ("Arduino CI result") passes only if every matrix job passed; it is the one check the branch rulesets require. A full run takes about 7 minutes. PlatformIO builds via `ci/platformio.sh`.
+
+A `pull_request` run uses the workflow file from the PR's head branch. If a PR was branched before a workflow change, update it first so its checks match the ruleset: `gh api -X PUT repos/mcci-catena/arduino-lmic/pulls/NNNN/update-branch`. A first-time contributor's fork PR needs its workflow run approved (`gh run list --status action_required`, then `gh api -X POST .../actions/runs/ID/approve`).
+
+**To compile-test locally** across several boards, use `scratch/compile-check.sh` (not checked in; see its `-h`).
 
 **To compile an example locally with arduino-cli:**
 ```bash
@@ -53,16 +57,49 @@ Key suppression/redirection macros: `ARDUINO_LMIC_PROJECT_CONFIG_H_SUPPRESS`, `A
 
 ## Workflow
 
-All changes go through pull requests, never direct pushes to main. This applies even for small fixes -- it sets a good example for contributors.
+Two long-lived branches:
+
+- **`main`** is the V6 line (6.1.x). Non-breaking changes only. Releases are tagged here. The Doxygen pages and the README badges follow it.
+- **`v7-devel`** is the V7 line (7.0.0-preN). Breaking changes go here. It is always a superset of `main`: after anything merges to `main`, forward-merge `main` into `v7-devel`. At the V7 release, `v7-devel` merges into `main`, which is a fast-forward if the forward merges kept up.
+
+Both branches have rulesets: every change goes through a pull request, the "Arduino CI result" check must pass, and there is no force-push, no deletion, and no bypass list, so this applies to maintainers too. The name `master` is retired and cannot be recreated.
+
+**Non-breaking change** (V6.1 and V7 both get it): branch from `main`, PR to `main`, then forward-merge.
 
 ```
 git checkout -b issueNNNN main
 # ... make changes, commit ...
 git push -u origin issueNNNN
-gh pr create --title "Short description (fixes #NNNN)" --body "..."
+gh pr create --base main --title "Short description (fixes #NNNN)" --body "..."
 # wait for CI
 gh pr merge PRNUM --merge --delete-branch
 ```
+
+**V7-only change**: branch from `v7-devel`, PR to `v7-devel`.
+
+```
+git checkout -b issueNNNN-v7 v7-devel
+# ... make changes, commit ...
+git push -u origin issueNNNN-v7
+gh pr create --base v7-devel --title "Short description (fixes #NNNN)" --body "..."
+```
+
+**Forward merge** of `main` into `v7-devel`, by PR like everything else:
+
+```
+git checkout -b fwd-main-v7devel v7-devel
+git merge --no-ff origin/main
+# expected conflicts: src/lmic/lmic_version.h (keep v7-devel's 7.0.0-preN)
+#                     CHANGELOG.md (keep both sections, V7 above V6)
+git checkout --ours src/lmic/lmic_version.h && git add src/lmic/lmic_version.h
+git commit
+git push -u origin fwd-main-v7devel
+gh pr create --base v7-devel --title "Merge main into v7-devel" --body "..."
+```
+
+Never merge `v7-devel` into `main` before the V7 release. Do not create a branch named `master`.
+
+When merging by script, never pipe `gh pr merge` (that hides its exit status), and let `--delete-branch` do the deletion; do not delete the branch by hand.
 
 ## Code Conventions
 
@@ -99,6 +136,8 @@ During development, version bumps follow these rules:
 - **Feature additions**: `X.(Y+1).0-preN` (e.g., 6.1.0-pre1)
 - **Breaking changes**: `(X+1).0.0-preN` (e.g., 7.0.0-pre1)
 
+Each line keeps its own number and its own `pre` counter: `main` is 6.1.0-preN, `v7-devel` is 7.0.0-preN. The commit that sets 7.0.0-pre1 is the first commit on `v7-devel` after the branch point. A forward merge keeps `v7-devel`'s number; that is the one-line conflict in `lmic_version.h`.
+
 The pre-release counter (`pre` field) increments with each version bump commit. On a feature branch, if you fix a bug in passing, bump `preN` -- don't change the patch/minor/major level mid-branch. The patch/minor/major level is set once when the branch is created and reflects the nature of the *most significant* change on the branch.
 
 At release time, `pre` resets to 0 and `library.properties` is updated to match.
@@ -122,11 +161,14 @@ To prepare a release (using `gh` CLI where possible):
    - Update Word doc, rename with new version, regenerate PDF and redline
    - Update filename references in `doc/README.md` and `README.md`
    - Or defer to next release
-7. **Create PR, get CI green, merge**
-8. **Tag and create release:**
+7. **Create PR against `main`, get CI green, merge**
+8. **Tag and create release** (annotated tag, always):
    ```bash
-   git tag v$VERSION
+   git tag -a v$VERSION -m "v$VERSION"
    git push origin v$VERSION
    gh release create v$VERSION --title "v$VERSION: short description" --generate-notes
    ```
 9. **Verify:** Arduino Library Manager picks up new version (may take hours)
+10. **Forward-merge** `main` into `v7-devel` so the release commit is on both lines.
+
+For the V7 release: forward-merge `main` one last time, then open a PR from `v7-devel` to `main` (a fast-forward if the forward merges kept up), and follow the steps above on `main`. If V6 needs a patch after that, cut `v6.x-maint` from the last v6 tag at that time.
