@@ -141,24 +141,24 @@ public:
             auto const pn = &m_queue[m_tail];
             pn->job = LMIC.osjob;
             pn->time = os_getTime();
-            pn->txend = LMIC.txend;
-            pn->rxtime = LMIC.rxtime;
-            pn->globalDutyAvail = LMIC.globalDutyAvail;
+            pn->txend = LMIC_getTxend();
+            pn->rxtime = LMIC_getRxtime();
+            pn->globalDutyAvail = LMIC_getGlobalDutyAvail();
             pn->event = event;
             pn->pMessage = pMessage;
             pn->datum = datum;
             pn->nLateRx = LMIC.radio.rxlate_count;
             pn->ticksLateRx = LMIC.radio.rxlate_ticks;
-            pn->freq = LMIC.freq;
-            pn->opmode = LMIC.opmode;
-            pn->fcntDn = (u2_t) LMIC.seqnoDn;
-            pn->fcntUp = (u2_t) LMIC.seqnoUp;
-            pn->rxsyms = LMIC.rxsyms;
-            pn->rps = LMIC.rps;
-            pn->txChnl = LMIC.txChnl;
-            pn->datarate = LMIC.datarate;
-            pn->txrxFlags = LMIC.txrxFlags;
-            pn->saveIrqFlags = LMIC.saveIrqFlags;
+            pn->freq = LMIC_getFrequency();
+            pn->opmode = LMIC_getOpmode();
+            pn->fcntDn = (u2_t) LMIC_getFCntDown();
+            pn->fcntUp = (u2_t) LMIC_getFCntUp();
+            pn->rxsyms = LMIC_getRxsyms();
+            pn->rps = LMIC_getRps();
+            pn->txChnl = LMIC_getTxChIndex();
+            pn->datarate = LMIC_getDataRate();
+            pn->txrxFlags = LMIC_getTxrxFlags();
+            pn->saveIrqFlags = LMIC_getSaveIrqFlags();
             m_tail = i;
             return true;
         } else {
@@ -619,7 +619,7 @@ lmic_txmessage_cb_t sendComplete;
 
 void do_send(osjob_t* j){
     // Check if there is not a current TX/RX job running
-    if (LMIC.opmode & OP_TXRXPEND) {
+    if (LMIC_getOpmode() & OP_TXRXPEND) {
         Serial.println(F("OP_TXRXPEND, not sending"));
         sendComplete(j, 0);
     } else if (g_fTestMode) {
@@ -789,7 +789,7 @@ void loop() {
         lastWasTxStart = false;
     }
 
-    if ((LMIC.opmode & OP_TXRXPEND) == 0 &&
+    if ((LMIC_getOpmode() & OP_TXRXPEND) == 0 &&
         !os_queryTimeCriticalJobs(ms2osticks(1000))) {
            eventPrintAll();
     }

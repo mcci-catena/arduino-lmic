@@ -319,10 +319,6 @@ static void setStandby(u1_t stdbyConfig) {
     lmic_hal_spi_write(SetStandby, &stdbyConfig, SX126X_STDBYCONFIG_LEN);
 }
 
-static void setFs(void) {
-    lmic_hal_spi_write(SetFs, NULL, 0);
-}
-
 // TODO handle the bit bashing as a macro to allow functions to be called with ms rather than 3 bytes
 static void setTx(u1_t timeout[SX126X_TIMEOUT_LEN]) {
     lmic_hal_spi_write(SetTx, timeout, SX126X_TIMEOUT_LEN);
@@ -742,12 +738,6 @@ static u1_t getStatus(void) {
     return status;
 }
 
-static void getDeviceErrors(xref2cu1_t errorBuf) {
-    u1_t nop = SX126X_NOP;
-    u1_t errors[2];
-    lmic_hal_spi_read_sx126x(GetDeviceErrors, &nop, 1, errors, 2);
-}
-
 static void clearDeviceErrors(void) {
     u1_t buf[2] = {0};
     lmic_hal_spi_write(ClearDeviceErrors, buf, 2);
@@ -758,10 +748,11 @@ static void getRxBufferStatus(xref2u1_t rxBufferStatus) {
     lmic_hal_spi_read_sx126x(GetRxBufferStatus, &nop, 1, rxBufferStatus, SX126X_RXBUFFERSTATUS_LEN);
 }
 
-static void getPacketStatus(xref2u1_t rxBufferStatus) {
+// read the packet status into packetStatus[SX126X_PACKETSTATUS_LEN].
+// LoRa: RssiPkt, SnrPkt, SignalRssiPkt. FSK: RxStatus, RssiSync, RssiAvg.
+static void getPacketStatus(xref2u1_t packetStatus) {
     u1_t nop = SX126X_NOP;
-    u1_t buf[SX126X_PACKETSTATUS_LEN];
-    lmic_hal_spi_read_sx126x(GetPacketStatus, &nop, 1, buf, SX126X_PACKETSTATUS_LEN);
+    lmic_hal_spi_read_sx126x(GetPacketStatus, &nop, 1, packetStatus, SX126X_PACKETSTATUS_LEN);
 }
 
 // Perform radio configuration commands required at the start of tx and rx
@@ -901,6 +892,26 @@ static void txfsk(void) {
     setTx(timeout);
 }
 
+///
+/// \brief complete the current radio request
+///
+/// \details
+///     Mark the radio idle and schedule the job that os_radio_v2() recorded
+///     for this request. Every path that finishes a request goes through
+///     here, so a caller's own job is honored, not only the LMIC's.
+///
+static void radio_complete(void) {
+    LMIC.radio.state = LMIC_RADIO_EV_NONE;
+
+    osjob_t *pJob = LMIC.radio.pRadioDoneJob;
+    if (pJob != NULL) {
+        LMIC.radio.pRadioDoneJob = NULL;
+        os_setCallback(pJob, pJob->func);
+    } else {
+        LMICOS_logEvent("null LMIC.radio.pRadioDoneJob");
+    }
+}
+
 // start transmitter (buf=LMIC.frame, len=LMIC.dataLen)
 static void starttx(void) {
     // SX127x sets sleep however this doesn't appear to be necessary for SX126x
@@ -914,8 +925,8 @@ static void starttx(void) {
 #endif
 
         if (rssi.max_rssi >= LMIC.lbt_dbmax) {
-            // complete the request by scheduling the job
-            os_setCallback(&LMIC.osjob, LMIC.osjob.func);
+            // channel busy: complete the request without transmitting
+            radio_complete();
             return;
         }
     }
@@ -1030,13 +1041,9 @@ static void rxlora(u1_t rxmode) {
 }
 
 static void rxfsk(u1_t rxmode) {
-    // only single or continuous rx (no noise sampling)
-    if (rxmode == RXMODE_SCAN) {
-        // indicate no bytes received.
-        LMIC.dataLen = 0;
-        // complete the request by scheduling the job.
-        os_setCallback(&LMIC.osjob, LMIC.osjob.func);
-    }
+    // only single or continuous rx. (The SX127x driver has an RSSI-sampling
+    // mode that completes at once; this driver has no such mode, and
+    // RXMODE_SCAN is the continuous receive used for RADIO_RXON.)
 
     // Send configuration commands to radio
     radio_config();
@@ -1397,8 +1404,9 @@ void radio_irq_handler_v2(u1_t dio, ostime_t now) {
             u1_t *pFrame = (LMIC.radio.pFrame != NULL) ? LMIC.radio.pFrame : LMIC.frame;
             readBuffer(rxBufferStatusRaw[1], pFrame, LMIC.dataLen);
             // read rx quality parameters
+            getPacketStatus(packetStatusRaw);
             LMIC.snr  = 0;              // SX126x doesn't give SNR for FSK.
-            u1_t const rRssi = packetStatusRaw[2]; // - RSSI [dB] * 2
+            u1_t const rRssi = packetStatusRaw[2]; // RssiAvg: - RSSI [dB] * 2
             s2_t rssi = -rRssi / 2;
             LMIC.rssi = (s1_t) (RSSI_OFF + (rssi < -196 ? -196 : rssi > 63 ? 63 : rssi)); // RSSI [dBm] (-196...+63)
         } else if (flags & IRQ_LORA_RXTOUT_MASK) {
@@ -1422,17 +1430,8 @@ void radio_irq_handler_v2(u1_t dio, ostime_t now) {
     }
     setSleep(0);
 
-    // mark radio as done
-    LMIC.radio.state = LMIC_RADIO_EV_NONE;
-
-    // run os job (use pRadioDoneJob if set, otherwise use legacy LMIC.osjob)
-    osjob_t *pJob = LMIC.radio.pRadioDoneJob;
-    if (pJob != NULL) {
-        LMIC.radio.pRadioDoneJob = NULL;
-        os_setCallback(pJob, pJob->func);
-    } else {
-        os_setCallback(&LMIC.osjob, LMIC.osjob.func);
-    }
+    // mark the radio idle and schedule the requester's job
+    radio_complete();
 #endif /* ! CFG_TxContinuousMode */
 }
 

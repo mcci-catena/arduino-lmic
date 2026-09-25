@@ -155,11 +155,11 @@ void onEvent (ev_t ev) {
             break;
         case EV_TXCOMPLETE:
             Serial.println(F("EV_TXCOMPLETE (includes waiting for RX windows)"));
-            if (LMIC.txrxFlags & TXRX_ACK)
+            if (LMIC_getTxrxFlags() & TXRX_ACK)
               Serial.println(F("Received ack"));
-            if (LMIC.dataLen) {
+            if (LMIC_getFRMPayloadLen()) {
               Serial.print(F("Received "));
-              Serial.print(LMIC.dataLen);
+              Serial.print(LMIC_getFRMPayloadLen());
               Serial.println(F(" bytes of payload"));
             }
             // Schedule next transmission
@@ -211,7 +211,7 @@ void onEvent (ev_t ev) {
 
 void do_send(osjob_t* j){
     // Check if there is not a current TX/RX job running
-    if (LMIC.opmode & OP_TXRXPEND) {
+    if (LMIC_getOpmode() & OP_TXRXPEND) {
         Serial.println(F("OP_TXRXPEND, not sending"));
     } else {
         // Prepare upstream data transmission at the next possible time.
