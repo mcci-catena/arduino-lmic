@@ -284,9 +284,29 @@ static inline void LMIC_setRX2DataRate(dr_t dr) {
 	LMIC.dn2Dr = dr;
 }
 
-/// \brief set the length of the frame to send raw (the data is already in the frame buffer).
-static inline void LMIC_setRawTxLen(u1_t len) {
+/// \brief load the frame buffer for a raw transmission.
+///
+/// \return the number of bytes loaded, which is less than \p len if \p len
+///	exceeds the frame buffer.
+static inline u1_t LMIC_setRawTxData(const u1_t *pData, u1_t len) {
+	if (len > MAX_LEN_FRAME)
+		len = MAX_LEN_FRAME;
+	os_copyMem(LMIC.frame, pData, len);
 	LMIC.dataLen = len;
+	return len;
+}
+
+/// \brief get the frame received in raw mode (no LoRaWAN framing).
+///
+/// On return, \p *ppData points at the frame and \p *pLen holds its length.
+static inline void LMIC_getRawRxData(const u1_t **ppData, u1_t *pLen) {
+	*ppData = LMIC.frame;
+	*pLen = LMIC.dataLen;
+}
+
+/// \brief set the time the next raw receive starts (use \c os_getTime() for now).
+static inline void LMIC_setNextRxTime(ostime_t t) {
+	LMIC.nextRxTime = t;
 }
 
 LMIC_END_DECLS
