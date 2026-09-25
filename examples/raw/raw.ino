@@ -58,6 +58,7 @@ void onEvent (ev_t ev) {
 
 osjob_t txjob;
 osjob_t timeoutjob;
+osjob_t radiojob;   // completion job for os_radio_v2(); the LMIC keeps LMIC.osjob for itself
 static void tx_func (osjob_t* job);
 
 // Transmit the given string and call the given function afterwards
@@ -65,18 +66,18 @@ void tx(const char *str, osjobcb_t func) {
   os_radio(RADIO_RST); // Stop RX first
   delay(1); // Wait a bit, without this os_radio below asserts, apparently because the state hasn't changed yet
   LMIC_setRawTxData((const u1_t *)str, (u1_t)strlen(str));
-  LMIC.osjob.func = func;
-  os_radio(RADIO_TX);
+  radiojob.func = func;
+  os_radio_v2(RADIO_TX, &radiojob);
   Serial.println("TX");
 }
 
 // Enable rx mode and call func when a packet is received
 void rx(osjobcb_t func) {
-  LMIC.osjob.func = func;
+  radiojob.func = func;
   LMIC_setNextRxTime(os_getTime()); // RX _now_
   // Enable "continuous" RX (e.g. without a timeout, still stops after
   // receiving a packet)
-  os_radio(RADIO_RXON);
+  os_radio_v2(RADIO_RXON, &radiojob);
   Serial.println("RX");
 }
 

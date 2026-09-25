@@ -174,6 +174,7 @@ void lmic_printf(const char *fmt, ...) {
 
 osjob_t txjob;
 osjob_t timeoutjob;
+osjob_t radiojob;   // completion job for os_radio_v2(); the LMIC keeps LMIC.osjob for itself
 static void tx_func (osjob_t* job);
 
 // Transmit the given string and call the given function afterwards
@@ -187,20 +188,20 @@ void tx(const char *str, osjobcb_t func) {
   LMIC_setRawTxData((const u1_t *)str, (u1_t)strlen(str));
 
   // set completion function.
-  LMIC.osjob.func = func;
+  radiojob.func = func;
 
   // start the transmission
-  os_radio(RADIO_TX);
+  os_radio_v2(RADIO_TX, &radiojob);
   Serial.println("TX");
 }
 
 // Enable rx mode and call func when a packet is received
 void rx(osjobcb_t func) {
-  LMIC.osjob.func = func;
+  radiojob.func = func;
   LMIC_setNextRxTime(os_getTime()); // RX _now_
   // Enable "continuous" RX (e.g. without a timeout, still stops after
   // receiving a packet)
-  os_radio(RADIO_RXON);
+  os_radio_v2(RADIO_RXON, &radiojob);
   Serial.println("RX");
 }
 

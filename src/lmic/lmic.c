@@ -112,6 +112,22 @@ void os_wlsbf4 (xref2u1_t buf, u4_t v) {
 }
 #endif
 
+#if !defined(os_rlsbf8)
+uint64_t os_rlsbf8 (xref2cu1_t buf) {
+    // TODO(tmm@mcci.com): not yet implemented.
+    LMIC_UNREFERENCED_PARAMETER(buf);
+    return 0;
+}
+#endif
+
+#if !defined(os_wlsbf8)
+void os_wlsbf8 (xref2u1_t buf, uint64_t v) {
+    // TODO(tmm@mcci.com): not yet implemented.
+    LMIC_UNREFERENCED_PARAMETER(buf);
+    LMIC_UNREFERENCED_PARAMETER(v);
+}
+#endif
+
 #if !defined(os_wmsbf4)
 void os_wmsbf4 (xref2u1_t buf, u4_t v) {
     buf[3] = v;
