@@ -93,6 +93,8 @@ git merge --no-ff origin/main
 #                     CHANGELOG.md (keep both sections, V7 above V6)
 git checkout --ours src/lmic/lmic_version.h && git add src/lmic/lmic_version.h
 git commit
+# then advance v7-devel's pre counter in src/lmic/lmic_version.h, as its own commit
+git commit -m "Advance version to 7.0.0-preN"
 git push -u origin fwd-main-v7devel
 gh pr create --base v7-devel --title "Merge main into v7-devel" --body "..."
 ```
@@ -136,7 +138,7 @@ During development, version bumps follow these rules:
 - **Feature additions**: `X.(Y+1).0-preN` (e.g., 6.1.0-pre1)
 - **Breaking changes**: `(X+1).0.0-preN` (e.g., 7.0.0-pre1)
 
-Each line keeps its own number and its own `pre` counter: `main` is 6.1.0-preN, `v7-devel` is 7.0.0-preN. The commit that sets 7.0.0-pre1 is the first commit on `v7-devel` after the branch point. A forward merge keeps `v7-devel`'s number; that is the one-line conflict in `lmic_version.h`.
+Each line keeps its own number and its own `pre` counter: `main` is 6.1.0-preN, `v7-devel` is 7.0.0-preN. The commit that sets 7.0.0-pre1 is the first commit on `v7-devel` after the branch point. Every PR to `v7-devel`, including a forward merge, advances its `pre` counter, the same as on `main`. In a forward merge, resolve the `lmic_version.h` conflict by keeping `v7-devel`'s line and then advancing it.
 
 The pre-release counter (`pre` field) increments with each version bump commit. On a feature branch, if you fix a bug in passing, bump `preN` -- don't change the patch/minor/major level mid-branch. The patch/minor/major level is set once when the branch is created and reflects the nature of the *most significant* change on the branch.
 
