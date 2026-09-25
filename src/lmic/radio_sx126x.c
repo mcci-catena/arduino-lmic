@@ -319,10 +319,6 @@ static void setStandby(u1_t stdbyConfig) {
     lmic_hal_spi_write(SetStandby, &stdbyConfig, SX126X_STDBYCONFIG_LEN);
 }
 
-static void setFs(void) {
-    lmic_hal_spi_write(SetFs, NULL, 0);
-}
-
 // TODO handle the bit bashing as a macro to allow functions to be called with ms rather than 3 bytes
 static void setTx(u1_t timeout[SX126X_TIMEOUT_LEN]) {
     lmic_hal_spi_write(SetTx, timeout, SX126X_TIMEOUT_LEN);
@@ -742,12 +738,6 @@ static u1_t getStatus(void) {
     return status;
 }
 
-static void getDeviceErrors(xref2cu1_t errorBuf) {
-    u1_t nop = SX126X_NOP;
-    u1_t errors[2];
-    lmic_hal_spi_read_sx126x(GetDeviceErrors, &nop, 1, errors, 2);
-}
-
 static void clearDeviceErrors(void) {
     u1_t buf[2] = {0};
     lmic_hal_spi_write(ClearDeviceErrors, buf, 2);
@@ -758,10 +748,11 @@ static void getRxBufferStatus(xref2u1_t rxBufferStatus) {
     lmic_hal_spi_read_sx126x(GetRxBufferStatus, &nop, 1, rxBufferStatus, SX126X_RXBUFFERSTATUS_LEN);
 }
 
-static void getPacketStatus(xref2u1_t rxBufferStatus) {
+// read the packet status into packetStatus[SX126X_PACKETSTATUS_LEN].
+// LoRa: RssiPkt, SnrPkt, SignalRssiPkt. FSK: RxStatus, RssiSync, RssiAvg.
+static void getPacketStatus(xref2u1_t packetStatus) {
     u1_t nop = SX126X_NOP;
-    u1_t buf[SX126X_PACKETSTATUS_LEN];
-    lmic_hal_spi_read_sx126x(GetPacketStatus, &nop, 1, buf, SX126X_PACKETSTATUS_LEN);
+    lmic_hal_spi_read_sx126x(GetPacketStatus, &nop, 1, packetStatus, SX126X_PACKETSTATUS_LEN);
 }
 
 // Perform radio configuration commands required at the start of tx and rx
@@ -1413,8 +1404,9 @@ void radio_irq_handler_v2(u1_t dio, ostime_t now) {
             u1_t *pFrame = (LMIC.radio.pFrame != NULL) ? LMIC.radio.pFrame : LMIC.frame;
             readBuffer(rxBufferStatusRaw[1], pFrame, LMIC.dataLen);
             // read rx quality parameters
+            getPacketStatus(packetStatusRaw);
             LMIC.snr  = 0;              // SX126x doesn't give SNR for FSK.
-            u1_t const rRssi = packetStatusRaw[2]; // - RSSI [dB] * 2
+            u1_t const rRssi = packetStatusRaw[2]; // RssiAvg: - RSSI [dB] * 2
             s2_t rssi = -rRssi / 2;
             LMIC.rssi = (s1_t) (RSSI_OFF + (rssi < -196 ? -196 : rssi > 63 ? 63 : rssi)); // RSSI [dBm] (-196...+63)
         } else if (flags & IRQ_LORA_RXTOUT_MASK) {
