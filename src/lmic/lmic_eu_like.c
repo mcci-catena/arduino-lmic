@@ -294,4 +294,63 @@ LMICeulike_txDoneFSK(ostime_t delay, osjobcb_t func) {
         os_setTimedCallback(&LMIC.osjob, LMIC.nextRxTime - os_getRadioRxRampup(), func);
 }
 
+//
+// Channel query
+//
+
+// the bandwidth implied by a channel's data-rate map, or "by data rate" if mixed.
+static u1_t LMICeulike_bandwidthFromDrMap(u2_t drMap) {
+        u1_t result = LMIC_CHANNEL_BW_BY_DATARATE;
+
+        for (dr_t dr = 0; dr < 16; ++dr) {
+                if ((drMap & (1u << dr)) == 0)
+                        continue;
+
+                rps_t const rps = updr2rps(dr);
+                u1_t bw;
+
+                if (getSf(rps) == FSK)
+                        return LMIC_CHANNEL_BW_BY_DATARATE;
+
+                switch (getBw(rps)) {
+                case BW125: bw = LMIC_CHANNEL_BW_125kHz; break;
+                case BW250: bw = LMIC_CHANNEL_BW_250kHz; break;
+                case BW500: bw = LMIC_CHANNEL_BW_500kHz; break;
+                default:    return LMIC_CHANNEL_BW_BY_DATARATE;
+                }
+
+                if (result == LMIC_CHANNEL_BW_BY_DATARATE)
+                        result = bw;
+                else if (result != bw)
+                        return LMIC_CHANNEL_BW_BY_DATARATE;
+        }
+        return result;
+}
+
+u1_t LMIC_queryChannelCount(void) {
+        return MAX_CHANNELS;
+}
+
+bit_t LMIC_queryChannel(u1_t channel, lmic_channel_info_t *pInfo) {
+        if (channel >= MAX_CHANNELS || pInfo == NULL)
+                return 0;
+
+        u4_t const freqBand = LMIC.channelFreq[channel];
+
+        pInfo->uplinkFreq = freqBand & ~(u4_t)3;
+        pInfo->group = (u1_t)(freqBand & 3);
+#if !defined(DISABLE_MCMD_DlChannelReq)
+        pInfo->downlinkFreq = LMIC.channelDlFreq[channel] != 0
+                                ? LMIC.channelDlFreq[channel]
+                                : pInfo->uplinkFreq;
+#else
+        pInfo->downlinkFreq = pInfo->uplinkFreq;
+#endif
+        pInfo->drMap = LMIC.channelDrMap[channel];
+        pInfo->enabled = (LMIC.channelMap & (1u << channel)) != 0;
+        pInfo->isDefault = channel < LMIC_queryNumDefaultChannels();
+        pInfo->bandwidth = LMICeulike_bandwidthFromDrMap(pInfo->drMap);
+        return 1;
+}
+
 #endif // CFG_LMIC_EU_like
