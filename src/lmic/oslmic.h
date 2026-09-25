@@ -250,6 +250,14 @@ u2_t os_rlsbf2 (xref2cu1_t buf);
 //! Write 16-bit quantity into buffer in little endian byte order.
 void os_wlsbf2 (xref2u1_t buf, u2_t value);
 #endif
+#ifndef os_rlsbf8
+//! Read 64-bit quantity from given pointer in little endian byte order.
+uint64_t os_rlsbf8 (xref2cu1_t buf);
+#endif
+#ifndef os_wlsbf8
+//! Write 64-bit quantity into buffer in little endian byte order.
+void os_wlsbf8 (xref2u1_t buf, uint64_t value);
+#endif
 
 //! Get random number (default impl for u2_t).
 #ifndef os_getRndU2
