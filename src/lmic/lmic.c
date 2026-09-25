@@ -114,17 +114,14 @@ void os_wlsbf4 (xref2u1_t buf, u4_t v) {
 
 #if !defined(os_rlsbf8)
 uint64_t os_rlsbf8 (xref2cu1_t buf) {
-    // TODO(tmm@mcci.com): not yet implemented.
-    LMIC_UNREFERENCED_PARAMETER(buf);
-    return 0;
+    return (uint64_t)os_rlsbf4(buf) | (((uint64_t)os_rlsbf4(buf+4))<<32);
 }
 #endif
 
 #if !defined(os_wlsbf8)
 void os_wlsbf8 (xref2u1_t buf, uint64_t v) {
-    // TODO(tmm@mcci.com): not yet implemented.
-    LMIC_UNREFERENCED_PARAMETER(buf);
-    LMIC_UNREFERENCED_PARAMETER(v);
+    os_wlsbf4(buf, (u4_t)v);
+    os_wlsbf4(buf+4, (u4_t)(v >> 32));
 }
 #endif
 
