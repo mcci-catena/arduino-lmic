@@ -128,7 +128,7 @@ void radio_monitor_rssi(ostime_t n, oslmic_radio_rssi_t *pRssi);
 //! platform jitter and latency, as well as the speed of the LMIC when running
 //! on this plaform. It's not used directly; clients call os_getRadioRxRampup(),
 //! which might adaptively vary this based on observed timeouts.
-#define RX_RAMPUP_DEFAULT  (us2osticks(10000))
+#define RX_RAMPUP_DEFAULT  (us2osticksCeil(10000))
 #endif
 
 #ifndef TX_RAMPUP
