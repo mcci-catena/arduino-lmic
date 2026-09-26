@@ -1525,9 +1525,11 @@ void os_radio_v2(u1_t mode, osjob_t *pJob) {
         return;
     }
 
-    // handle requests while radio is active: cancel.
+    // handle requests while radio is active: cancel. This driver clears the
+    // state on completion, so the test is the same as != NONE today; it is
+    // written this way to match radio_sx127x.c (#1096).
     if (mode != RADIO_RST) {
-        if (LMIC.radio.state != LMIC_RADIO_EV_NONE) {
+        if (os_radio_isStateActive(LMIC.radio.state)) {
             LMICOS_logEventUint32("request while radio active", LMIC.radio.state);
             // recurse and kill the pending activity
             os_radio_reset();
