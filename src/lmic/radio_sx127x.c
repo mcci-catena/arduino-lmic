@@ -1594,9 +1594,12 @@ void os_radio_v2 (u1_t mode, osjob_t *pJob) {
         return;
     }
 
-    // handle requests while radio is active: cancel.
+    // handle requests while radio is active: cancel. A completed operation
+    // leaves its START and DONE bits set; that is not active, and resetting
+    // the radio for it costs a mode change, a TCXO cycle and a 1 ms wait
+    // inside the RX_RAMPUP budget (#1096).
     if (mode != RADIO_RST) {
-        if (LMIC.radio.state != LMIC_RADIO_EV_NONE) {
+        if (os_radio_isStateActive(LMIC.radio.state)) {
             LMICOS_logEventUint32("request while radio active", LMIC.radio.state);
             // recurse and kill the pending activity
             os_radio_reset();
