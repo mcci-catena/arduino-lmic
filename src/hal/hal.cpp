@@ -453,6 +453,8 @@ void lmic_hal_printf_init() {
 #else // defined(__AVR)
 static int uart_putchar (char c, FILE *)
 {
+    if (c == '\n')
+        LMIC_PRINTF_TO.write('\r') ;
     LMIC_PRINTF_TO.write(c) ;
     return 0 ;
 }
