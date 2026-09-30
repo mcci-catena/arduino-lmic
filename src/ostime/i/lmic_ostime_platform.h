@@ -18,7 +18,14 @@ Author:
 #ifndef _lmic_ostime_platform_h_
 #define _lmic_ostime_platform_h_
 
+// Arduino.h is C++; this header can be reached from inside an extern "C" block.
+#ifdef __cplusplus
+extern "C++" {
+#endif
 #include <Arduino.h>
+#ifdef __cplusplus
+}
+#endif
 
 /*
 
