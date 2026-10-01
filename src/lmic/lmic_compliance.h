@@ -20,16 +20,14 @@ Description:
 #ifndef _lmic_compliance_h_	/* prevent multiple includes */
 #define _lmic_compliance_h_
 
-#ifdef __cplusplus
-extern "C"{
-#endif
-
 #ifndef _lmic_h_
 # include "lmic.h"
 #endif
 
 #include <stdbool.h>
 #include <stdint.h>
+
+LMIC_BEGIN_DECLS
 
 typedef struct lmic_compliance_s lmic_compliance_t;
 
@@ -131,8 +129,6 @@ struct lmic_compliance_s {
 
 extern lmic_compliance_t LMIC_Compliance;
 
-#ifdef __cplusplus
-} // extern "C"
-#endif
+LMIC_END_DECLS
 
 #endif /* _lmic_compliance_h_ */
