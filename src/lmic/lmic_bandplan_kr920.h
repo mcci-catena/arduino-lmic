@@ -33,6 +33,8 @@
 # include "lmic_eu_like.h"
 #endif
 
+LMIC_BEGIN_DECLS
+
 // return maximum frame length (including PHY header) for this data rate (kr920); 0 --> not valid dr.
 uint8_t LMICkr920_maxFrameLen(uint8_t dr);
 // return maximum frame length (including PHY header) for this data rate; 0 --> not valid dr.
@@ -97,5 +99,7 @@ void LMICkr920_updateTx(ostime_t txbeg);
 #undef LMICbandplan_validDR
 bit_t LMICkr920_validDR(dr_t dr);
 #define LMICbandplan_validDR(dr)        LMICkr920_validDR(dr)
+
+LMIC_END_DECLS
 
 #endif // _lmic_kr920_h_

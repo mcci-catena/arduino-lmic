@@ -33,7 +33,9 @@
 # include "lmic.h"
 #endif
 
-// make sure we want US-like code
+LMIC_BEGIN_DECLS
+
+// make sure we want EU-like code
 #if !CFG_LMIC_EU_like
 # error "lmic not configured for EU-like bandplan"
 #endif
@@ -133,5 +135,6 @@ void LMICeulike_saveChannelState(u1_t *pVariant, ostime_t now);
 bit_t LMICeulike_restoreChannelState(const u1_t *pVariant, ostime_t now, u1_t version);
 #define LMICbandplan_restoreChannelState(p, now, v)	LMICeulike_restoreChannelState(p, now, v)
 
+LMIC_END_DECLS
 
 #endif // _lmic_eu_like_h_

@@ -33,6 +33,8 @@
 # include "lmic_eu_like.h"
 #endif
 
+LMIC_BEGIN_DECLS
+
 // return maximum frame length (including PHY header) for this data rate (as923); 0 --> not valid dr.
 uint8_t LMICas923_maxFrameLen(uint8_t dr);
 // return maximum frame length (including PHY header) for this data rate; 0 --> not valid dr.
@@ -117,5 +119,7 @@ ostime_t LMICas923_nextJoinTime(ostime_t now);
 #undef LMICbandplan_validDR
 bit_t LMICas923_validDR(dr_t dr);
 #define LMICbandplan_validDR(dr)        LMICas923_validDR(dr)
+
+LMIC_END_DECLS
 
 #endif // _lmic_bandplan_as923_h_

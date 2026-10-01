@@ -29,6 +29,12 @@
 #ifndef _lmic_us_like_h_
 # define _lmic_us_like_h_
 
+#ifndef _lmic_env_h_
+# include "lmic_env.h"
+#endif
+
+LMIC_BEGIN_DECLS
+
 // make sure we want US-like code
 #if !CFG_LMIC_US_like
 # error "lmic not configured for us-like bandplan"
@@ -130,5 +136,7 @@ void LMICuslike_saveChannelState(u1_t *pVariant, ostime_t now);
 /// \return zero, changing nothing, if the variant is not the 72-channel fixed kind.
 bit_t LMICuslike_restoreChannelState(const u1_t *pVariant, ostime_t now, u1_t version);
 #define LMICbandplan_restoreChannelState(p, now, v)	LMICuslike_restoreChannelState(p, now, v)
+
+LMIC_END_DECLS
 
 #endif // _lmic_us_like_h_
