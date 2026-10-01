@@ -49,6 +49,8 @@
 # error "CFG_... not properly set for bandplan"
 #endif
 
+LMIC_BEGIN_DECLS
+
 // check post-conditions
 #ifndef DNW2_SAFETY_ZONE
 # error "DNW2_SAFETY_ZONE not defined by bandplan"
@@ -257,5 +259,6 @@ static inline dr_t  decDR    (dr_t dr) { return TABLE_GET_U1(_DR2RPS_CRC, dr  )=
 static inline dr_t  assertDR (dr_t dr) { return TABLE_GET_U1(_DR2RPS_CRC, dr+1)==ILLEGAL_RPS ? (dr_t)DR_DFLTMIN : dr; }   // force into a valid DR
 static inline dr_t  lowerDR  (dr_t dr, u1_t n) { while(n--){dr=decDR(dr);} return dr; } // decrease data rate by n steps
 
+LMIC_END_DECLS
 
 #endif // _lmic_bandplan_h_

@@ -37,6 +37,8 @@
 # include "lmic_us_like.h"
 #endif
 
+LMIC_BEGIN_DECLS
+
 // return maximum frame length (including PHY header) for this data rate (us915); 0 --> not valid dr.
 uint8_t LMICus915_maxFrameLen(uint8_t dr);
 // return maximum frame length (including PHY header) for this data rate; 0 --> not valid dr.
@@ -83,5 +85,7 @@ u4_t LMICus915_queryChannelUplinkFreq(u1_t channel);
 /// \brief RX1 downlink frequency for a channel index, Hz; zero if out of range.
 u4_t LMICus915_queryChannelDownlinkFreq(u1_t channel);
 #define LMICbandplan_queryChannelDownlinkFreq(ch) LMICus915_queryChannelDownlinkFreq(ch)
+
+LMIC_END_DECLS
 
 #endif // _lmic_bandplan_us915_h_
