@@ -1,6 +1,6 @@
 /*
 
-Module:  getconfig_catena5230.cpp
+Module:  getpinmap_catena5230.cpp
 
 Function:
         Arduino-LMIC C++ HAL pinmaps for various boards
@@ -13,9 +13,7 @@ Author:
 
 */
 
-#if defined(ARDUINO_MCCI_CATENA_5230) || \
-    /* legacy names */ \
-    defined(ARDUINO_CATENA_5230)
+#if defined(ARDUINO_MCCI_CATENA_5230)
 
 #include <arduino_lmic_hal_boards.h>
 #include <Arduino.h>
@@ -64,11 +62,10 @@ static const HalPinmap_t myPinmap =
         .dio = {
                 HalConfiguration_Catena5230_t::PIN_SX1262_DIO1,    // DIO1 (IRQ) is D25
                 LMIC_UNUSED_PIN,        // DIO2 is not used
-                // HalConfiguration_Catena5230_t::PIN_SX1262_DIO1,    // DIO1 (IRQ) is D25
                 LMIC_UNUSED_PIN,        // DIO3 is not used
                },
         .rxtx_rx_active = 0,
-        .rssi_cal = 10,
+        .rssi_cal = 10,         // UNVERIFIED: Heltec V3 value; not measured on the Catena 5230
         .spi_freq = 8000000,     /* 8MHz */
         .pConfig = &myConfig
         };
@@ -80,4 +77,4 @@ const HalPinmap_t *GetPinmap_Catena5230(void)
 
 }; // namespace Arduino_LMIC
 
-#endif /* defined(ARDUINO_CATENA_4611) || defined(ARDUINO_CATENA_5230) */
+#endif /* defined(ARDUINO_MCCI_CATENA_5230) */
