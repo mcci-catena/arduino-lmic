@@ -23,6 +23,10 @@ Author:
 
 namespace Arduino_LMIC {
 
+// Power: VDD_RF and VDD_MCU are tied to +VDD (no switch), and PA0 is a
+// plain GPIO (A3), so no begin()/setModuleActive() override is needed.
+// The TCXO is powered from the SX1262's DIO3 (see
+// queryUsingDIO3AsTCXOSwitch() below), so PIN_TCXO_VDD is unused.
 class HalConfiguration_Catena5230_t : public HalConfiguration_t
         {
 public:
