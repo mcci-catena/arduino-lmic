@@ -209,7 +209,8 @@
 
 // ----------------------------------------
 // GetStatus        **  Chapter 13 GetStatus
-#define SX126x_GETSTATUS_CHIPMODE_MASK 0x07 // Bits 6:4
+#define SX126x_GETSTATUS_CHIPMODE_MASK  0x70 // Bits 6:4
+#define SX126x_GETSTATUS_CHIPMODE_SHIFT 4
 #define SX126x_CHIPMODE_STDBY_RC       0x02
 #define SX126x_CHIPMODE_STDBY_XOSC     0x03
 #define SX126x_CHIPMODE_FS             0x04
@@ -251,6 +252,46 @@
 static u1_t randbuf[SX126X_RAND_SEED_LEN];
 static u4_t randround;
 static u1_t randseed[SX126X_RAND_SEED_LEN];
+
+// SX126x driver state: the start of the concrete (driver-specific) part of
+// the radio object; LMIC.radio is the portable part. Kept small; RAM is tight.
+// (reset by radio_init() and by cold-start sleep; used by radio_config_warm())
+typedef struct sx126x_state_s {
+    /// bit 0: radio_config_cold() has run since the radio last lost its
+    /// configuration. bits 3..1: image-calibration band last used (1..5),
+    /// 0 if none.
+    u1_t        configState;
+} sx126x_state_t;
+
+static sx126x_state_t sx126xState;
+
+enum {
+    SX126X_CONFIGSTATE_CONFIGURED = 0x01,
+    SX126X_CONFIGSTATE_BAND_SHIFT = 1,
+    SX126X_CONFIGSTATE_BAND_MASK  = 0x07 << SX126X_CONFIGSTATE_BAND_SHIFT,
+};
+
+// the radio has lost its configuration and calibration
+static inline void configStateReset(void) {
+    sx126xState.configState = 0;
+}
+
+static inline bit_t configStateIsConfigured(void) {
+    return (sx126xState.configState & SX126X_CONFIGSTATE_CONFIGURED) != 0;
+}
+
+static inline void configStateSetConfigured(void) {
+    sx126xState.configState |= SX126X_CONFIGSTATE_CONFIGURED;
+}
+
+static inline u1_t configStateGetImageCalBand(void) {
+    return (sx126xState.configState & SX126X_CONFIGSTATE_BAND_MASK) >> SX126X_CONFIGSTATE_BAND_SHIFT;
+}
+
+static inline void configStateSetImageCalBand(u1_t band) {
+    sx126xState.configState = (u1_t)((sx126xState.configState & ~SX126X_CONFIGSTATE_BAND_MASK) |
+                                     ((band << SX126X_CONFIGSTATE_BAND_SHIFT) & SX126X_CONFIGSTATE_BAND_MASK));
+}
 
 // ----------------------------------------
 // Chapter 13.2: Registers and Buffer Access Functions
@@ -356,28 +397,38 @@ static void calibrate(u1_t calibParam) {
     lmic_hal_spi_write(Calibrate, &calibParam, SX126X_CALIBPARAM_LEN);
 }
 
-static void calibrateImage(void) {
-    u1_t calFreq[2];
-
+// Fill in the CalibrateImage parameters for LMIC.freq, and return the band
+// number (1..5; never 0, which means "not calibrated").
+static u1_t getImageCalParams(u1_t calFreq[2]) {
     // Values from Table 9-2 of data sheet
     // It appears the correct range of LMIC.freq is managed in LMIC
     if (LMIC.freq > 902000000) {
         calFreq[0] = 0xE1;
         calFreq[1] = 0xE9;
+        return 5;
     } else if (LMIC.freq > 863000000) {
         calFreq[0] = 0xD7;
         calFreq[1] = 0xDB;
+        return 4;
     } else if (LMIC.freq > 779000000) {
         calFreq[0] = 0xC1;
         calFreq[1] = 0xC5;
+        return 3;
     } else if (LMIC.freq > 470000000) {
         calFreq[0] = 0x75;
         calFreq[1] = 0x81;
+        return 2;
     } else {
         calFreq[0] = 0x6B;
         calFreq[1] = 0x6F;
+        return 1;
     }
+}
 
+static void calibrateImage(void) {
+    u1_t calFreq[2];
+
+    configStateSetImageCalBand(getImageCalParams(calFreq));
     lmic_hal_spi_write(CalibrateImage, calFreq, SX126X_IMAGECALPARAM_LEN);
 }
 
@@ -755,15 +806,33 @@ static void getPacketStatus(xref2u1_t packetStatus) {
     lmic_hal_spi_read_sx126x(GetPacketStatus, &nop, 1, packetStatus, SX126X_PACKETSTATUS_LEN);
 }
 
-// Perform radio configuration commands required at the start of tx and rx
-void radio_config(void) {
-    // Perform necessary operations from STDBY_RC mode
-    if ((getStatus() | SX126x_GETSTATUS_CHIPMODE_MASK) != SX126x_CHIPMODE_STDBY_RC) {
-        // Assume we've woken from sleep
-        while (lmic_hal_radio_spi_is_busy());
+// true if the chip is in STDBY_RC (#1009: test the mode field, bits 6:4)
+static bit_t isChipModeStdbyRc(void) {
+    return (getStatus() & SX126x_GETSTATUS_CHIPMODE_MASK) ==
+           (SX126x_CHIPMODE_STDBY_RC << SX126x_GETSTATUS_CHIPMODE_SHIFT);
+}
+
+// Put the radio in STDBY_RC, if it isn't there already. This stops any RX
+// or TX in progress, and keeps the configuration.
+static void enterStandbyRc(void) {
+    if (! isChipModeStdbyRc()) {
         setStandby(STDBY_RC);
     }
+}
 
+// Put the radio to sleep with cold start, its lowest-current sleep. It loses
+// its configuration and calibration, so the next operation must start with
+// radio_config_cold(). Sleep must be entered from STDBY_RC.
+static void enterColdSleep(void) {
+    enterStandbyRc();
+    setSleep(0);
+    configStateReset();
+}
+
+// Configuration needed after a reset or a wake from cold-start sleep. On a
+// board with a TCXO this starts the TCXO and calibrates, which takes most of
+// the RX ramp-up budget (#1108). The radio must be in STDBY_RC.
+static void radio_config_cold(void) {
     // If the board has RfSwitch, switch on
     if (lmic_hal_queryUsingDIO2AsRfSwitch()) {
         setDio2AsRfSwitchCtrl();
@@ -799,6 +868,33 @@ void radio_config(void) {
         clearDeviceErrors();
     }
 
+    configStateSetConfigured();
+}
+
+// Configuration required at the start of each tx and rx. After a reset or
+// cold-start sleep this does the full configuration. If the radio was only
+// stopped (for example, a Class C receive cancelled for an RX window), it
+// keeps its configuration, and only the image calibration is redone, and only
+// if the band has changed.
+static void radio_config_warm(void) {
+    // Perform necessary operations from STDBY_RC mode
+    if (! isChipModeStdbyRc()) {
+        // Assume we've woken from sleep
+        while (lmic_hal_radio_spi_is_busy());
+        setStandby(STDBY_RC);
+    }
+
+    if (! configStateIsConfigured()) {
+        radio_config_cold();
+    } else if (lmic_hal_queryUsingDIO3AsTCXOSwitch()) {
+        u1_t calFreq[2];
+
+        if (getImageCalParams(calFreq) != configStateGetImageCalBand()) {
+            calibrateImage();
+            clearDeviceErrors();
+        }
+    }
+
     // Return to standby, using the 32MHz oscillator
     setStandby(STDBY_XOSC);
 }
@@ -806,7 +902,7 @@ void radio_config(void) {
 // Chapter 14.2: Circuit configuration for basic tx operation
 static void txlora(void) {
     // Send configuration commands to radio
-    radio_config();
+    radio_config_warm();
     setPacketType(PACKET_TYPE_LORA);
     setRfFrequency();
     setTxParams();
@@ -858,7 +954,7 @@ static void txlora(void) {
 
 static void txfsk(void) {
     // Send configuration commands to radio
-    radio_config();
+    radio_config_warm();
     setPacketType(PACKET_TYPE_GFSK);
     setRfFrequency();
     setTxParams();
@@ -964,7 +1060,7 @@ static void rxlate(u4_t nLate) {
 // Chapter 14.3: Circuit configuration for basic rx operation
 static void rxlora(u1_t rxmode) {
     // Send configuration commands to radio
-    radio_config();
+    radio_config_warm();
     setPacketType(PACKET_TYPE_LORA);
     setRfFrequency();
 
@@ -1046,7 +1142,7 @@ static void rxfsk(u1_t rxmode) {
     // RXMODE_SCAN is the continuous receive used for RADIO_RXON.)
 
     // Send configuration commands to radio
-    radio_config();
+    radio_config_warm();
     setPacketType(PACKET_TYPE_GFSK);
     setRfFrequency();
 
@@ -1106,7 +1202,7 @@ static void startrx(u1_t rxmode) {
 // Get random seed from registers
 void randomNumber(xref2u1_t randbuf) {
     // Send configuration commands to radio
-    radio_config();
+    radio_config_warm();
 
     u1_t rxTimeoutContinuous[SX126X_TIMEOUT_LEN] = {
         0xFF,
@@ -1158,6 +1254,9 @@ static void requestModuleActive(bit_t state) {
 //! Generally, all these are satisfied by a call to `lmic_hal_init_with_pinmap()`.
 //!
 int radio_init(void) {
+    // the reset below loses the radio's configuration and calibration
+    configStateReset();
+
     requestModuleActive(1);
 
     // manually reset radio
@@ -1179,11 +1278,7 @@ int radio_init(void) {
     randbuf[0] = 16; // set initial index
     randround = 0;
 
-    // Sleep needs to be entered from standby_RC mode
-    if ((getStatus() | SX126x_GETSTATUS_CHIPMODE_MASK) != SX126x_CHIPMODE_STDBY_RC) {
-        setStandby(STDBY_RC);
-    }
-    setSleep(0);
+    enterColdSleep();
     return 1;
 }
 
@@ -1277,11 +1372,8 @@ void radio_monitor_rssi(ostime_t nTicks, oslmic_radio_rssi_t *pRssi) {
         notDone = now - (tBegin + nTicks) < 0;
     } while (notDone);
 
-    // put radio back to sleep. Sleep needs to be entered from standby_RC mode
-    if ((getStatus() | SX126x_GETSTATUS_CHIPMODE_MASK) != SX126x_CHIPMODE_STDBY_RC) {
-        setStandby(STDBY_RC);
-    }
-    setSleep(0);
+    // put radio back to sleep
+    enterColdSleep();
 
     // compute the results
     pRssi->max_rssi = (s2_t) (-rssiMax / 2);
@@ -1424,11 +1516,7 @@ void radio_irq_handler_v2(u1_t dio, ostime_t now) {
     clearIrqStatus(clearAllIrq);
 
     // go from standby to sleep
-    // Sleep needs to be entered from standby_RC mode
-    if ((getStatus() | SX126x_GETSTATUS_CHIPMODE_MASK) != SX126x_CHIPMODE_STDBY_RC) {
-        setStandby(STDBY_RC);
-    }
-    setSleep(0);
+    enterColdSleep();
 
     // mark the radio idle and schedule the requester's job
     radio_complete();
@@ -1461,12 +1549,15 @@ static inline bit_t os_radio_isStateActive(lmic_radio_state_t state) {
 ///
 /// \brief Reset the radio and clear state
 ///
-static void os_radio_reset(void) {
-    // Sleep needs to be entered from standby_RC mode
-    if ((getStatus() | SX126x_GETSTATUS_CHIPMODE_MASK) != SX126x_CHIPMODE_STDBY_RC) {
-        setStandby(STDBY_RC);
-    }
-    setSleep(0x00);
+/// \param fSleep put the radio in cold-start sleep if true. If false (an
+///     operation cancelled for a new request), only stop it, so it keeps its
+///     configuration for the request that follows (#1108).
+///
+static void os_radio_reset(bit_t fSleep) {
+    if (fSleep)
+        enterColdSleep();
+    else
+        enterStandbyRc();
     LMIC.radio.state = LMIC_RADIO_EV_NONE;
     LMIC.radio.pRadioDoneJob = NULL;
 }
@@ -1531,8 +1622,8 @@ void os_radio_v2(u1_t mode, osjob_t *pJob) {
     if (mode != RADIO_RST) {
         if (os_radio_isStateActive(LMIC.radio.state)) {
             LMICOS_logEventUint32("request while radio active", LMIC.radio.state);
-            // recurse and kill the pending activity
-            os_radio_reset();
+            // kill the pending activity; the new request follows at once
+            os_radio_reset(0);
         }
         // record job
         LMIC.radio.pRadioDoneJob = pJob;
@@ -1540,7 +1631,7 @@ void os_radio_v2(u1_t mode, osjob_t *pJob) {
 
     switch (mode) {
       case RADIO_RST:
-        os_radio_reset();
+        os_radio_reset(1);
         break;
 
       case RADIO_TX:
@@ -1575,6 +1666,13 @@ void os_radio_v2(u1_t mode, osjob_t *pJob) {
 }
 
 ostime_t os_getRadioRxRampup(void) {
+    // With a TCXO, each RX after cold-start sleep starts the TCXO and
+    // calibrates; that measured 28.8 to 29.5 ms on a Catena 5230 (#1108).
+    // The margin also covers a tick source that runs from an RC oscillator,
+    // such as the STM32L0's HSI16 (factory trimmed to about 1% at 25 C, and
+    // worse over temperature).
+    if (lmic_hal_queryUsingDIO3AsTCXOSwitch())
+        return us2osticksCeil(32000);
     return RX_RAMPUP_DEFAULT + us2osticks(12480); // SX126x is 780 ticks slower than SX127x to wake from sleep @ 240MHz
 }
 #endif // defined(CFG_sx1261_radio) || defined(CFG_sx1262_radio)
