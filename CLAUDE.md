@@ -113,6 +113,11 @@ When merging by script, never pipe `gh pr merge` (that hides its exit status), a
 - Compile-time config uses `CFG_*` prefix; feature toggles use `LMIC_ENABLE_*` or `DISABLE_*`
 - MIT license; maintain original IBM copyright notices; MCCI contributions attributed with year
 
+## Timing Analysis
+
+- Never use `LMIC_DEBUG_LEVEL` (or the `LMIC_DEBUG_PRINTF` output it enables) to investigate timing: late RX windows (`LMIC.radio.rxlate_count`), scheduling, or radio setup. The prints run inside the code being timed and change what they measure; turning them on makes timing worse, not clearer. `LMIC_DEBUG_LEVEL` is slated for removal; don't add new uses.
+- Instrument with the event log instead: `LMICOS_logEvent()` and `LMICOS_logEventUint32()` record an event cheaply, and the sketch prints the log later, outside the timed path (the compliance example shows how).
+
 ## Key Documentation
 
 - `doc/README.md` -- documentation index with links to all docs
