@@ -186,11 +186,7 @@ public:
 
 private:
     unsigned m_head, m_tail;
-#if defined(__AVR__)
     eventnode_t m_queue[32];
-#else
-    eventnode_t m_queue[64];
-#endif
     osjob_t m_job;
 };
 

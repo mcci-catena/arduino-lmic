@@ -1098,8 +1098,6 @@ static void rxlora(u1_t rxmode) {
 
     // now instruct the radio to receive
     if (rxmode == RXMODE_SINGLE) {
-        // TIMING: ticks of slack left before rxtime when setup is finished
-        LMICOS_logEventUint32("rx slack", (u4_t)(LMIC.radio.rxtime - os_getTime()));
         u4_t nLate = lmic_hal_waitUntil(LMIC.radio.rxtime);
         u1_t rxTimeoutSingle[SX126X_TIMEOUT_LEN] = {
             0x00,
