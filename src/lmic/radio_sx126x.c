@@ -1667,9 +1667,12 @@ void os_radio_v2(u1_t mode, osjob_t *pJob) {
 
 ostime_t os_getRadioRxRampup(void) {
     // With a TCXO, each RX after cold-start sleep starts the TCXO and
-    // calibrates; that measured 28.8 ms on a Catena 5230 (#1108).
+    // calibrates; that measured 28.8 to 29.5 ms on a Catena 5230 (#1108).
+    // The margin also covers a tick source that runs from an RC oscillator,
+    // such as the STM32L0's HSI16 (factory trimmed to about 1% at 25 C, and
+    // worse over temperature).
     if (lmic_hal_queryUsingDIO3AsTCXOSwitch())
-        return us2osticksCeil(30000);
+        return us2osticksCeil(32000);
     return RX_RAMPUP_DEFAULT + us2osticks(12480); // SX126x is 780 ticks slower than SX127x to wake from sleep @ 240MHz
 }
 #endif // defined(CFG_sx1261_radio) || defined(CFG_sx1262_radio)
