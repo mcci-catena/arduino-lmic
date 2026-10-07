@@ -751,12 +751,14 @@ void printVersionFragment(char sep, uint8_t v) {
     Serial.print(unsigned(v));
 }
 
+// print x.y.z, or x.y.z-preN if the local field is non-zero.
 void printVersion(uint32_t v) {
     printVersionFragment(0, uint8_t(v >> 24u));
     printVersionFragment('.', uint8_t(v >> 16u));
     printVersionFragment('.', uint8_t(v >> 8u));
     if (uint8_t(v) != 0) {
-        printVersionFragment('.', uint8_t(v));
+        Serial.print(F("-pre"));
+        printVersionFragment(0, uint8_t(v));
     }
 }
 
