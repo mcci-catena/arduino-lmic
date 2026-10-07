@@ -203,6 +203,19 @@ bit_t lmic_hal_radio_spi_is_busy() {
 }
 #endif // (defined(CFG_sx1261_radio) || defined(CFG_sx1262_radio))
 
+#if (defined(CFG_sx1261_radio) || defined(CFG_sx1262_radio))
+// TIMING: wait for BUSY low before an SPI command. If the wait lasted more
+// than one tick (a 1-tick reading can be just a tick boundary), log it:
+// datum is the opcode in bits 31..24 and the ticks spent waiting in bits 23..0.
+static void lmic_hal_spi_wait_not_busy(u1_t cmd) {
+    const u4_t tStart = os_getTime();
+    while (lmic_hal_radio_spi_is_busy());
+    const u4_t tSpin = os_getTime() - tStart;
+    if (tSpin > 1)
+        LMICOS_logEventUint32("busy spin", ((u4_t)cmd << 24) | (tSpin & 0xFFFFFF));
+}
+#endif // (defined(CFG_sx1261_radio) || defined(CFG_sx1262_radio))
+
 static void lmic_hal_spi_trx(u1_t cmd, u1_t* buf, size_t len, bit_t is_read) {
     uint32_t spi_freq;
     u1_t nss = plmic_pins->nss;
@@ -216,7 +229,7 @@ static void lmic_hal_spi_trx(u1_t cmd, u1_t* buf, size_t len, bit_t is_read) {
 
     // SX126x modems use BUSY pin. Only interact with SPI when BUSY goes LOW 
 #if (defined(CFG_sx1261_radio) || defined(CFG_sx1262_radio))
-    while (lmic_hal_radio_spi_is_busy());
+    lmic_hal_spi_wait_not_busy(cmd);
 #endif
 
     SPI.transfer(cmd);
@@ -253,7 +266,7 @@ void lmic_hal_spi_read_sx126x(u1_t cmd, u1_t* addr, size_t addr_len, u1_t* buf, 
     SPI.beginTransaction(settings);
     digitalWrite(nss, 0);
 
-    while (lmic_hal_radio_spi_is_busy());
+    lmic_hal_spi_wait_not_busy(cmd);
 
     SPI.transfer(cmd);
 
