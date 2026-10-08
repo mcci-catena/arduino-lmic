@@ -37,6 +37,12 @@ Author:
 |
 \****************************************************************************/
 
+// LPTIM1 wakes the CPU from Stop mode through this EXTI line (line 29 on
+// the STM32L0). The overflow interrupt must be able to do so; otherwise
+// overflows during Stop are lost (the ARRM flag holds only one), and the
+// time falls behind by about 2 s for each one (#1116).
+#define	LMIC_OsTime_Stm32L0Lptim_EXTI_IMR_WAKEUP	EXTI_IMR_IM29
+
 /****************************************************************************\
 |
 |	Manifest constants & typedefs.
@@ -57,8 +63,11 @@ typedef struct LMIC_OsTime_Stm32L0Lptim_Config_s
 	u4_t		rCfg;			///< expected CFG value
 	u4_t		rArr;			///< expected ARR value
 	u4_t		rIer;			///< expected IER value
-	volatile u4_t	rCntExtended;		///< the upper 16 bits of the count, with
-						///< bits 15..0 cleared.
+	volatile uint64_t rCntExtended;		///< the count above bit 15 (the
+						///< number of overflows times 0x10000),
+						///< with bits 15..0 cleared. 64 bits, so
+						///< ticks64() doesn't wrap; os_getTime()
+						///< uses the low 32 bits.
 	} LMIC_OsTime_Stm32L0Lptim_Config_t;
 
 #define	LMIC_OsTime_Stm32L0Lptim_LPTIM1_INT_PRIORITY	0	// interrupt priority to set for LPTIM.
@@ -161,6 +170,11 @@ LMIC_OsTime_Stm32L0Lptim_initialize(
 		/* wait for the write to synchronize */;
 	pLptim->ICR = LPTIM_ICR_ARROKCF;
 
+	// let the overflow interrupt wake the CPU from Stop mode. The EXTI
+	// reset value happens to allow this, but don't depend on it. The
+	// cost is a short wake-up every 2 s while the application sleeps.
+	EXTI->IMR |= LMIC_OsTime_Stm32L0Lptim_EXTI_IMR_WAKEUP;
+
 	// prepare for interrupts
 	NVIC_SetPriority(LPTIM1_IRQn, LMIC_OsTime_Stm32L0Lptim_LPTIM1_INT_PRIORITY);
 
@@ -186,17 +200,22 @@ LMIC_OsTime_Stm32L0Lptim_initialize(
 
 /*
 
-Name:	LMIC_OsTime_Stm32L0Lptim_ticks()
+Name:	LMIC_OsTime_Stm32L0Lptim_ticks64()
 
 Function:
-	Return the current time as a 32-bit tick count.
+	Return the current time as a 64-bit tick count.
 
 Definition:
-	u4_t LMIC_OsTime_Stm32L0Lptim_ticks(
+	uint64_t LMIC_OsTime_Stm32L0Lptim_ticks64(
 		void
 		);
 
 Description:
+	The count of LSE cycles since initialize(), extended in software
+	from LPTIM1's 16 bits. It doesn't wrap in practice (2^64 ticks at
+	32768 Hz is millions of years), so an application can derive
+	millisecond or microsecond counts from it that wrap at 2^32, as
+	Arduino's millis() and micros() do.
 
 Returns:
 	A time counter in units of LMIC ticks, such that there are
@@ -204,8 +223,8 @@ Returns:
 
 */
 
-u4_t LMIC_ABI_STD
-LMIC_OsTime_Stm32L0Lptim_ticks(
+uint64_t LMIC_ABI_STD
+LMIC_OsTime_Stm32L0Lptim_ticks64(
 	void
 	)
 	{
@@ -247,13 +266,14 @@ LMIC_OsTime_Stm32L0Lptim_ticks(
 	if (pLptim->CFGR != savedConfig.rCfg ||
 	    pLptim->CR != LPTIM_CR_ENABLE ||
 	    pLptim->ARR != savedConfig.rArr ||
-	    pLptim->IER !=savedConfig.rIer)
+	    pLptim->IER !=savedConfig.rIer ||
+	    (EXTI->IMR & LMIC_OsTime_Stm32L0Lptim_EXTI_IMR_WAKEUP) == 0)
 		{
 		lmic_hal_failed("unexpected change to LPTIM1 config: " __FILE__, __LINE__);
 		}
 
 	/* now: read the register to initialized */
-	u4_t rCntExtendedCandidate = savedConfig.rCntExtended;
+	uint64_t rCntExtendedCandidate = savedConfig.rCntExtended;
 	u4_t rCntCandidate = pLptim->CNT & 0xFFFFu;
 
 	/* the double read can go faster if we're preemptible. */
@@ -262,7 +282,7 @@ LMIC_OsTime_Stm32L0Lptim_ticks(
 		for (;;)
 			{
 			u4_t const rCntNow = pLptim->CNT & 0xFFFFu;
-			u4_t const rCntExtendedNow = savedConfig.rCntExtended;
+			uint64_t const rCntExtendedNow = savedConfig.rCntExtended;
 
 			if (rCntNow == rCntCandidate && rCntExtendedNow == rCntExtendedCandidate)
 				break;
@@ -289,7 +309,7 @@ LMIC_OsTime_Stm32L0Lptim_ticks(
 		for (;;)
 			{
 			u4_t const rCntNow = pLptim->CNT & 0xFFFFu;
-			u4_t const rCntExtendedNow = savedConfig.rCntExtended;
+			uint64_t const rCntExtendedNow = savedConfig.rCntExtended;
 			bool const fArrmNow = !! (pLptim->ISR & LPTIM_ISR_ARRM);
 
 			if (rCntNow == rCntCandidate && rCntExtendedNow == rCntExtendedCandidate && fArrmCandidate == fArrmNow)
@@ -317,6 +337,37 @@ LMIC_OsTime_Stm32L0Lptim_ticks(
 
 	// finally: prepare the result and return.
 	return rCntCandidate | rCntExtendedCandidate;
+	}
+
+/*
+
+Name:	LMIC_OsTime_Stm32L0Lptim_ticks()
+
+Function:
+	Return the current time as a 32-bit tick count.
+
+Definition:
+	u4_t LMIC_OsTime_Stm32L0Lptim_ticks(
+		void
+		);
+
+Description:
+	The low 32 bits of LMIC_OsTime_Stm32L0Lptim_ticks64(). This is the
+	LMIC's os_getTime(); it wraps every 2^32 ticks (about 36.4 hours),
+	and the LMIC compares times by signed difference.
+
+Returns:
+	A time counter in units of LMIC ticks, such that there are
+	LMIC_OSTICKS_PER_SEC ticks per real-time second.
+
+*/
+
+u4_t LMIC_ABI_STD
+LMIC_OsTime_Stm32L0Lptim_ticks(
+	void
+	)
+	{
+	return (u4_t) LMIC_OsTime_Stm32L0Lptim_ticks64();
 	}
 
 /*

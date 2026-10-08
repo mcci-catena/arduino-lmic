@@ -35,8 +35,11 @@ LMIC_BEGIN_DECLS
 	the LSE directly, keeps counting through Stop mode, and is accurate
 	to the crystal.
 
-	LPTIM1 counts 16 bits; this driver extends the count to 32 bits in
-	software.
+	LPTIM1 counts 16 bits; this driver extends the count to 64 bits in
+	software, from the overflow interrupt (every 2 s). That interrupt
+	must wake the CPU from Stop mode, so the driver enables LPTIM1's
+	EXTI wake-up line. os_getTime() returns the low 32 bits;
+	LMIC_OsTime_Stm32L0Lptim_ticks64() returns all of them.
 
 */
 /// \{
@@ -59,6 +62,12 @@ LMIC_BEGIN_DECLS
 
 // Declare our method functions in a standard way (avoiding drift).
 LMIC_OsTime_DECLARE_DRIVER_FNS(Stm32L0Lptim);
+
+/// \brief return the full 64-bit tick count (LSE cycles since initialization).
+uint64_t LMIC_ABI_STD
+LMIC_OsTime_Stm32L0Lptim_ticks64(
+	void
+	);
 
 // One of our post conditions is to define all the time conversion
 // macros. This driver has no reason to do anything special, so we
