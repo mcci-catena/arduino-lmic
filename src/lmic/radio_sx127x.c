@@ -1065,6 +1065,41 @@ static void rxlora (u1_t rxmode) {
 #endif
 }
 
+// FSK frames are limited to what the 64-byte FIFO holds, since nothing
+// reads the FIFO during reception: the length byte plus 63 bytes.
+enum { FSK_RX_MAX_PAYLOAD = 63 };
+
+// The backstop completes a single-window FSK receive that hasn't finished
+// when the radio's own timeouts plus the longest frame should have ended
+// it. It should never fire; if it does, it keeps the MAC from waiting
+// forever for a radio interrupt (#1122).
+static osjob_t fskBackstopJob;
+
+static void fskBackstopFn (osjob_t *pJob) {
+    LMIC_API_PARAMETER(pJob);
+
+    if ((LMIC.radio.state & (LMIC_RADIO_EV_RXSTART | LMIC_RADIO_EV_RXDONE)) != LMIC_RADIO_EV_RXSTART)
+        return;
+
+    LMICOS_logEventUint32("FSK rx backstop", ((u2_t)readReg(FSKRegIrqFlags2) << 8) | readReg(FSKRegIrqFlags1));
+    LMIC.radio.dataLen = 0;
+    opmode(OPMODE_STANDBY);
+    opmode(OPMODE_SLEEP);
+    radio_complete(LMIC_RADIO_EV_RXDONE | LMIC_RADIO_EV_RXTIMEOUT | LMIC_RADIO_EV_RXUNKNOWN);
+}
+
+static void fskBackstopStart (void) {
+    // preamble/sync timeout (0xFF * 16 bits at 50 kbps, 81.6 ms), then
+    // the longest frame (5 + 3 + 1 + 255 + 2 bytes at 160 us), then 20 ms
+    ostime_t const delay = us2osticks(81600 + 266u * 160u) + ms2osticks(20);
+
+    os_setTimedCallback(&fskBackstopJob, os_getTime() + delay, fskBackstopFn);
+}
+
+static void fskBackstopStop (void) {
+    os_clearCallback(&fskBackstopJob);
+}
+
 static void rxfsk (u1_t rxmode) {
     // only single or continuous rx (no noise sampling)
     if (rxmode == RXMODE_RSSI) {
@@ -1072,6 +1107,7 @@ static void rxfsk (u1_t rxmode) {
         LMIC.radio.dataLen = 0;
         // complete the request by scheduling the job.
         radio_complete(LMIC_RADIO_EV_RXDONE);
+        return;
     }
 
     // select FSK modem (from sleep mode)
@@ -1094,8 +1130,18 @@ static void rxfsk (u1_t rxmode) {
     writeReg(FSKRegPreambleDetect, 0xAA); // enable, 2 bytes, 10 chip errors
     // set preamble timeout
     writeReg(FSKRegRxTimeout2, 0xFF);//(LMIC.radio.rxsyms+1)/2);
-    // set bitrate, autoclear CRC
+    // set sync timeout, so a preamble (or noise taken for one) that isn't
+    // followed by the sync word ends in a Timeout interrupt instead of
+    // leaving the receiver running with no interrupt (#1122).
+    // XXX(#1122): confirm on hardware where this timer starts counting.
+    writeReg(FSKRegRxTimeout3, 0xFF);
+    // set bitrate; keep the FIFO on a CRC error (PayloadReady still comes,
+    // and the IRQ handler checks CrcOk)
     setupFskRxTx(1);
+    // In variable-length mode RegPayloadLength is the longest frame the
+    // receiver accepts. Left unset, it held the last FSK transmit's length
+    // (or 0x40), and longer frames were dropped with no interrupt (#1122).
+    writeReg(FSKRegPayloadLength, FSK_RX_MAX_PAYLOAD);
 
     // configure DIO mapping DIO0=PayloadReady DIO1=NOP DIO2=TimeOut
     writeReg(RegDioMapping1, MAP_DIO0_FSK_READY|MAP_DIO1_FSK_NOP|MAP_DIO2_FSK_TIMEOUT);
@@ -1107,6 +1153,7 @@ static void rxfsk (u1_t rxmode) {
     if (rxmode == RXMODE_SINGLE) {
         u4_t nLate = lmic_hal_waitUntil(LMIC.radio.rxtime); // busy wait until exact rx time
         opmode(OPMODE_RX); // no single rx mode available in FSK
+        fskBackstopStart();
         LMICOS_logEventUint32("+Rx FSK", nLate);
         rxlate(nLate);
     } else {
@@ -1474,6 +1521,9 @@ void radio_irq_handler_v2 (u1_t dio, ostime_t now) {
         writeReg(LORARegIrqFlags, 0xFF);
     } else { // FSK modem
         u1_t flags1 = readReg(FSKRegIrqFlags1);
+
+        // the interrupt arrived, so the backstop isn't needed
+        fskBackstopStop();
         u1_t flags2 = readReg(FSKRegIrqFlags2);
 
         LMICOS_logEventUint32("*radio_irq_handler_v2: FSK", ((u2_t)flags2 << 8) | flags1);
@@ -1488,10 +1538,19 @@ void radio_irq_handler_v2 (u1_t dio, ostime_t now) {
 
             // save exact rx time
             LMIC.radio.rxtime = now;
-            // read the PDU and inform the MAC that we received something
-            LMIC.radio.dataLen = readReg(FSKRegPayloadLength);
-            // now read the FIFO
-            readBuf(RegFifo, LMIC.radio.pFrame, LMIC.radio.dataLen);
+            if ((flags2 & IRQ_FSK2_CRCOK_MASK) == 0) {
+                // bad CRC (the radio has stripped the CRC bytes): drop it
+                LMICOS_logEventUint32("FSK CRC error", ((u2_t)flags2 << 8) | flags1);
+                LMIC.radio.dataLen = 0;
+            } else {
+                // In variable-length mode the first FIFO byte is the
+                // payload length; RegPayloadLength is only the RX maximum.
+                u1_t len = readReg(RegFifo);
+                if (len > FSK_RX_MAX_PAYLOAD)
+                    len = FSK_RX_MAX_PAYLOAD;
+                LMIC.radio.dataLen = len;
+                readBuf(RegFifo, LMIC.radio.pFrame, len);
+            }
             // read rx quality parameters
             LMIC.snr  = 0;              // SX127x doesn't give SNR for FSK.
             LMIC.rssi = -64 + RSSI_OFF; // SX127x doesn't give packet RSSI for FSK,
@@ -1521,6 +1580,7 @@ void radio_irq_handler_v2 (u1_t dio, ostime_t now) {
 }
 
 static void os_radio_reset(void) {
+    fskBackstopStop();
     // put radio to sleep
     LMICOS_logEvent("os_radio_reset");
     opmode(OPMODE_SLEEP);
