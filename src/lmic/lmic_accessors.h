@@ -305,9 +305,12 @@ static inline u1_t LMIC_setRawTxData(const u1_t *pData, u1_t len) {
 /// \brief get the frame received in raw mode (no LoRaWAN framing).
 ///
 /// On return, \p *ppData points at the frame and \p *pLen holds its length.
+/// A raw receive started with os_radio_v2() leaves its result in LMIC.radio;
+/// only the MAC copies it to LMIC.dataLen, so read it from LMIC.radio (#1125).
 static inline void LMIC_getRawRxData(const u1_t **ppData, u1_t *pLen) {
-	*ppData = LMIC.frame;
-	*pLen = LMIC.dataLen;
+	// LMIC.radio.pFrame is NULL until the first os_radio() call
+	*ppData = LMIC.radio.pFrame != NULL ? LMIC.radio.pFrame : LMIC.frame;
+	*pLen = LMIC.radio.dataLen;
 }
 
 /// \brief set the time the next raw receive starts (use \c os_getTime() for now).
