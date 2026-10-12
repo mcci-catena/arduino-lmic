@@ -1152,11 +1152,22 @@ static void rxlora(u1_t rxmode) {
 #endif
 }
 
+// Extra receive time, in FSK bytes, for a downlink that starts late.
+// rxsyms covers only the MAC's 2 ms margin and clock drift, which leaves
+// FSK windows about 4 ms long. An RWC5020B starts its RX2 FSK downlinks
+// about 1.6 ms after the nominal time, so its sync word ended after the
+// window closed (#1123). 63 bytes is about 10 ms, close to the length of
+// an SF7 LoRa window. The timer stops at the sync word, so this costs
+// receive time only in windows that carry no frame.
+#ifndef LMIC_SX126X_FSK_RX_EXTRA_BYTES
+# define LMIC_SX126X_FSK_RX_EXTRA_BYTES 63
+#endif
+
 // FSK sends one byte in 160 us, 10.24 ticks of the radio's 15.625 us timer.
-// The receive timeout covers rxsyms bytes plus the 5-byte preamble and
-// 3-byte sync word.
+// The receive timeout covers rxsyms bytes, the 5-byte preamble and 3-byte
+// sync word, and LMIC_SX126X_FSK_RX_EXTRA_BYTES.
 static u4_t fskRxTimeoutRtc(rxsyms_t rxsyms) {
-    return ((u4_t)rxsyms + 5 + 3) * 1024u / 100u + 1;
+    return ((u4_t)rxsyms + 5 + 3 + LMIC_SX126X_FSK_RX_EXTRA_BYTES) * 1024u / 100u + 1;
 }
 
 // The backstop completes a single-window FSK receive that has not finished
