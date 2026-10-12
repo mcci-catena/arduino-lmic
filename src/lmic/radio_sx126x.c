@@ -369,22 +369,25 @@ static void setTx(u1_t timeout[SX126X_TIMEOUT_LEN]) {
     lmic_hal_spi_write(SetTx, timeout, SX126X_TIMEOUT_LEN);
 }
 
+// true while a receive started with a timeout (neither 0 nor 0xFFFFFF) is
+// running; see rxTimeoutEnd().
+static bit_t fRxTimeoutActive;
+
 // TODO handle the bit bashing as a macro to allow functions to be called with ms rather than 3 bytes
 static void setRx(u1_t timeout[SX126X_TIMEOUT_LEN]) {
+    u4_t const t = ((u4_t)timeout[0] << 16) | ((u4_t)timeout[1] << 8) | timeout[2];
+
+    fRxTimeoutActive = (t != 0 && t != 0xFFFFFF);
     lmic_hal_spi_write(SetRx, timeout, SX126X_TIMEOUT_LEN);
+}
 
-    // Workaround 15.3 - Implicit Header Mode Timeout Behaviour
-    // It is advised to add the following commands after ANY Rx with Timeout active sequence,
-    // which stop the RTC and clear the timeout event, if any.
-    u1_t hasTimeout = 0;
-    for (u1_t i = 0; i < SX126X_TIMEOUT_LEN; i++) {
-        if ((timeout[i] != 0x00) && (timeout[i] !=0xFF)) {
-            hasTimeout = 1;
-            break;
-        }
-    }
-
-    if (hasTimeout) {
+// Workaround 15.3 - Implicit Header Mode Timeout Behaviour.
+// After any receive that ran with a timeout, stop the RTC and clear the
+// timeout event, if any. This must run when the receive has ended: run
+// right after SetRx, it stops the RTC, and the timeout never fires (#1123).
+static void rxTimeoutEnd(void) {
+    if (fRxTimeoutActive) {
+        fRxTimeoutActive = 0;
         writeRegister(RTCControl, 0x00);
         writeRegister(EventMask, (readRegister(EventMask) | 0x02));
     }
@@ -755,7 +758,7 @@ static void setPacketParams(u1_t packetType, u1_t frameLength, u1_t invertIQ) {
         // GFSK PacketParam9 - WhiteningEnable
         packetParams[8] = 0x01;
 
-        lmic_hal_spi_write(SetPacketParams, packetParams, SX126X_LORA_PACKETPARAMS_LEN);
+        lmic_hal_spi_write(SetPacketParams, packetParams, SX126X_GFSK_PACKETPARAMS_LEN);
 
         // Sync word is directly programmed into the device through simple register access.
         writeRegister(SyncWord0, 0xC1);
@@ -822,6 +825,8 @@ static void enterStandbyRc(void) {
     if (! isChipModeStdbyRc()) {
         setStandby(STDBY_RC);
     }
+    // any receive has now ended
+    rxTimeoutEnd();
 }
 
 // Put the radio to sleep with cold start, its lowest-current sleep. It loses
@@ -1147,6 +1152,44 @@ static void rxlora(u1_t rxmode) {
 #endif
 }
 
+// FSK sends one byte in 160 us, 10.24 ticks of the radio's 15.625 us timer.
+// The receive timeout covers rxsyms bytes plus the 5-byte preamble and
+// 3-byte sync word.
+static u4_t fskRxTimeoutRtc(rxsyms_t rxsyms) {
+    return ((u4_t)rxsyms + 5 + 3) * 1024u / 100u + 1;
+}
+
+// The backstop completes a single-window FSK receive that has not finished
+// by the time the radio's own timeout plus the longest frame should have
+// ended it. It should never fire; if it does, it keeps the MAC from waiting
+// forever for a radio interrupt (#1122, #1123).
+static osjob_t fskBackstopJob;
+
+static void fskBackstopFn(osjob_t *pJob) {
+    LMIC_API_PARAMETER(pJob);
+
+    if ((LMIC.radio.state & (LMIC_RADIO_EV_RXSTART | LMIC_RADIO_EV_RXDONE)) != LMIC_RADIO_EV_RXSTART)
+        return;
+
+    LMICOS_logEventUint32("FSK rx backstop", getIrqStatus());
+    clearIrqStatus(0x03FF);
+    fRxContinuous = 0;
+    LMIC.radio.dataLen = 0;
+    enterColdSleep();
+    radio_complete(LMIC_RADIO_EV_RXDONE | LMIC_RADIO_EV_RXTIMEOUT | LMIC_RADIO_EV_RXUNKNOWN);
+}
+
+static void fskBackstopStart(u4_t timeoutRtc) {
+    // timeout, then the longest frame (255 bytes plus length and CRC), then 20 ms
+    ostime_t const delay = us2osticks((timeoutRtc * 15625u) / 1000u + (255u + 3u) * 160u) + ms2osticks(20);
+
+    os_setTimedCallback(&fskBackstopJob, os_getTime() + delay, fskBackstopFn);
+}
+
+static void fskBackstopStop(void) {
+    os_clearCallback(&fskBackstopJob);
+}
+
 static void rxfsk(u1_t rxmode) {
     // only single or continuous rx. (The SX127x driver has an RSSI-sampling
     // mode that completes at once; this driver has no such mode, and
@@ -1167,8 +1210,9 @@ static void rxfsk(u1_t rxmode) {
 
     lmic_hal_pin_rxtx(0);
 
-    // Set DioIrq params to DIO1
-    u2_t dioMask = RxDone | Timeout;
+    // Set DioIrq params to DIO1. A frame with a bad CRC raises CrcErr; route
+    // it to DIO1 as well, so the handler sees it and drops the frame (#1123).
+    u2_t dioMask = RxDone | Timeout | CrcErr;
     u2_t noMask = 0;
     u2_t clearAllIrq = 0x03FF;
     clearIrqStatus(clearAllIrq);
@@ -1176,13 +1220,24 @@ static void rxfsk(u1_t rxmode) {
 
     // now instruct the radio to receive
     if (rxmode == RXMODE_SINGLE) {
-        u4_t nLate = lmic_hal_waitUntil(LMIC.radio.rxtime); // busy wait until exact rx time
+        // A timeout of 0 would receive until a frame arrives, so an empty
+        // window would never end (#1123). For FSK, LMIC.radio.rxsyms counts
+        // bytes (dr2hsym() is half a byte); allow that many, plus the
+        // preamble and sync word of a frame that starts at the nominal time.
+        // The radio stops the timer at the sync word, so a frame that has
+        // started always runs to RxDone or CrcErr.
+        u4_t const timeout = fskRxTimeoutRtc(LMIC.radio.rxsyms);
         u1_t rxTimeoutSingle[SX126X_TIMEOUT_LEN] = {
-            0x00,
-            0x00,
-            0x00
+            (u1_t)(timeout >> 16),
+            (u1_t)(timeout >> 8),
+            (u1_t)timeout
         };
+        u1_t const stopOnPreamble = 0;     // stop the timer at the sync word
+
+        lmic_hal_spi_write(StopTimerOnPreamble, &stopOnPreamble, 1);
+        u4_t nLate = lmic_hal_waitUntil(LMIC.radio.rxtime); // busy wait until exact rx time
         setRx(rxTimeoutSingle);
+        fskBackstopStart(timeout);
         LMICOS_logEventUint32("+Rx FSK", nLate);
         rxlate(nLate);
     } else {
@@ -1495,7 +1550,21 @@ void radio_irq_handler_v2(u1_t dio, ostime_t now) {
         return;
     }
 
-    if (flags & IRQ_LORA_TXDONE_MASK) {
+    // the interrupt arrived, so the backstop isn't needed
+    fskBackstopStop();
+
+    if (! fLora && (rawFlags & CrcErr) != 0) {
+        // FSK frame with a bad CRC (LoRa downlinks carry no CRC). The radio
+        // has stripped the CRC; drop the frame. A continuous receive keeps
+        // going; a single window reports that nothing arrived.
+        LMICOS_logEventUint32("FSK CRC error", rawFlags);
+        if (fRxContinuous) {
+            rxRestartContinuous();
+            return;
+        }
+        event = LMIC_RADIO_EV_RXDONE;
+        LMIC.radio.dataLen = 0;
+    } else if (flags & IRQ_LORA_TXDONE_MASK) {
         event = LMIC_RADIO_EV_TXDONE;
         // save exact tx time
         LMIC.txend = fLora ? now - us2osticks(43) : now; // LoRa TXDONE FIXUP
@@ -1571,6 +1640,7 @@ void radio_irq_handler_v2(u1_t dio, ostime_t now) {
 ///     configuration for the request that follows (#1108).
 ///
 static void os_radio_reset(bit_t fSleep) {
+    fskBackstopStop();
     fRxContinuous = 0;
     if (fSleep)
         enterColdSleep();
