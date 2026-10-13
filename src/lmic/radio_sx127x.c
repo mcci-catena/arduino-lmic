@@ -349,6 +349,7 @@
 #define MAP_DIO2_LORA_NOP      0x0C  // ----11--
 
 #define MAP_DIO0_FSK_READY     0x00  // 00------ (packet sent / payload ready)
+#define MAP_DIO1_FSK_FIFOLEVEL 0x00  // --00---- (FIFO level above threshold)
 #define MAP_DIO1_FSK_NOP       0x30  // --11----
 #define MAP_DIO2_FSK_TXNOP     0x04  // ----01--
 #define MAP_DIO2_FSK_TIMEOUT   0x08  // ----10--
@@ -1065,9 +1066,100 @@ static void rxlora (u1_t rxmode) {
 #endif
 }
 
-// FSK frames are limited to what the 64-byte FIFO holds, since nothing
-// reads the FIFO during reception: the length byte plus 63 bytes.
-enum { FSK_RX_MAX_PAYLOAD = 63 };
+// The radio's FIFO holds 64 bytes, but an FSK frame can carry up to 255
+// (the length byte, then the payload); at 50 kbps a byte takes 160 us.
+// During FSK receive DIO1 is FifoLevel, with the threshold at 0, so it
+// rises when the length byte arrives. The IRQ handler must run within
+// 63 bytes (about 10 ms) of that, or the FIFO overruns and the frame is
+// lost. The handler then stays, reading bytes as they arrive, until the
+// frame ends: up to 42 ms for a 255-byte frame, during which nothing else
+// runs. It doesn't return between bytes, because the radio's FIFO would
+// overrun while the HAL waited for the next FifoLevel edge, and because
+// a polled HAL misses an edge that falls and rises again between polls
+// (#1122).
+enum { FSK_RX_FIFO_THRESH = 0 };
+
+// While it reads the frame, the handler reads this many bytes at a time
+// when the FIFO holds more, so it can catch up if it started late.
+enum { FSK_RX_BURST = 32 };
+
+// The handler gives up on a frame if no byte arrives for this long.
+enum { FSK_RX_DWELL_MS = 10 };
+
+// MAX_LEN_FRAME as a u1_t, so comparisons with it don't warn when it is 255
+static u1_t const fskRxMaxLen = MAX_LEN_FRAME;
+
+// progress of the FSK frame being received
+static u1_t fskRxLen;       // length byte, valid once fskRxHaveLen is set
+static u1_t fskRxCount;     // payload bytes read so far
+static bit_t fskRxHaveLen;
+
+static void fskRxReset (void) {
+    fskRxLen = 0;
+    fskRxCount = 0;
+    fskRxHaveLen = 0;
+}
+
+// Store one byte from the FIFO. The first is the length; payload bytes
+// that don't fit in the frame buffer are discarded, and the IRQ handler
+// drops the frame.
+static void fskRxPut (u1_t b) {
+    if (! fskRxHaveLen) {
+        fskRxLen = b;
+        fskRxHaveLen = 1;
+    } else if (fskRxCount < fskRxLen) {
+        if (fskRxCount < fskRxMaxLen)
+            LMIC.radio.pFrame[fskRxCount] = b;
+        ++fskRxCount;
+    }
+}
+
+// Read the FIFO until it is empty.
+static void fskRxDrain (void) {
+    while ((readReg(FSKRegIrqFlags2) & IRQ_FSK2_FIFOEMPTY_MASK) == 0)
+        fskRxPut(readReg(RegFifo));
+}
+
+// Read the frame as it arrives, until PayloadReady or FifoOverrun is set.
+// The last payload byte stays in the FIFO, because the radio clears
+// PayloadReady when the FIFO empties. Returns 0 if no byte arrived for
+// FSK_RX_DWELL_MS.
+static bit_t fskRxDwell (void) {
+    ostime_t tLast = os_getTime();
+
+    // FifoLevel now means at least FSK_RX_BURST bytes are waiting
+    writeReg(FSKRegFifoThresh, FSK_RX_BURST - 1);
+
+    for (;;) {
+        u1_t const flags2 = readReg(FSKRegIrqFlags2);
+
+        if (flags2 & (IRQ_FSK2_PAYLOADREADY_MASK | IRQ_FSK2_FIFOOVERRUN_MASK))
+            return 1;
+
+        if ((flags2 & IRQ_FSK2_FIFOLEVEL_MASK) != 0 &&
+            fskRxHaveLen && fskRxLen - fskRxCount > FSK_RX_BURST) {
+            u1_t buf[FSK_RX_BURST];
+
+            readBuf(RegFifo, buf, FSK_RX_BURST);
+            for (u1_t i = 0; i < FSK_RX_BURST; ++i)
+                fskRxPut(buf[i]);
+            tLast = os_getTime();
+        } else if ((flags2 & IRQ_FSK2_FIFOEMPTY_MASK) == 0 &&
+                   ! (fskRxHaveLen && fskRxCount + 1 >= fskRxLen)) {
+            fskRxPut(readReg(RegFifo));
+            tLast = os_getTime();
+        } else if (os_getTime() - tLast > ms2osticks(FSK_RX_DWELL_MS)) {
+            return 0;
+        }
+    }
+}
+
+// whether the FSK IRQ flags show a transmit or receive has ended
+static bit_t fskIrqDone (u1_t flags1, u1_t flags2) {
+    return (flags2 & (IRQ_FSK2_PACKETSENT_MASK | IRQ_FSK2_PAYLOADREADY_MASK |
+                      IRQ_FSK2_FIFOOVERRUN_MASK)) != 0 ||
+           (flags1 & IRQ_FSK1_TIMEOUT_MASK) != 0;
+}
 
 // The backstop completes a single-window FSK receive that hasn't finished
 // when the radio's own timeouts plus the longest frame should have ended
@@ -1139,12 +1231,17 @@ static void rxfsk (u1_t rxmode) {
     // and the IRQ handler checks CrcOk)
     setupFskRxTx(1);
     // In variable-length mode RegPayloadLength is the longest frame the
-    // receiver accepts. Left unset, it held the last FSK transmit's length
-    // (or 0x40), and longer frames were dropped with no interrupt (#1122).
-    writeReg(FSKRegPayloadLength, FSK_RX_MAX_PAYLOAD);
+    // receiver accepts; the radio drops a longer one with no interrupt.
+    // Left unset, it held the last FSK transmit's length (or 0x40) (#1122).
+    writeReg(FSKRegPayloadLength, 0xFF);
+    // DIO1 (FifoLevel) rises when the FIFO holds more than this
+    writeReg(FSKRegFifoThresh, FSK_RX_FIFO_THRESH);
+    // clear FifoOverrun from an earlier receive (it also clears the FIFO)
+    writeReg(FSKRegIrqFlags2, IRQ_FSK2_FIFOOVERRUN_MASK);
+    fskRxReset();
 
-    // configure DIO mapping DIO0=PayloadReady DIO1=NOP DIO2=TimeOut
-    writeReg(RegDioMapping1, MAP_DIO0_FSK_READY|MAP_DIO1_FSK_NOP|MAP_DIO2_FSK_TIMEOUT);
+    // configure DIO mapping DIO0=PayloadReady DIO1=FifoLevel DIO2=TimeOut
+    writeReg(RegDioMapping1, MAP_DIO0_FSK_READY|MAP_DIO1_FSK_FIFOLEVEL|MAP_DIO2_FSK_TIMEOUT);
 
     // enable antenna switch for RX
     lmic_hal_pin_rxtx(0);
@@ -1521,10 +1618,28 @@ void radio_irq_handler_v2 (u1_t dio, ostime_t now) {
         writeReg(LORARegIrqFlags, 0xFF);
     } else { // FSK modem
         u1_t flags1 = readReg(FSKRegIrqFlags1);
-
-        // the interrupt arrived, so the backstop isn't needed
-        fskBackstopStop();
         u1_t flags2 = readReg(FSKRegIrqFlags2);
+
+        if (! fskIrqDone(flags1, flags2)) {
+            // FifoLevel: a frame has started. If no receive is active, or
+            // the FIFO is empty, it's a late edge from a receive that has
+            // ended (the polled HAL can deliver one after the next receive
+            // has started).
+            if (! os_radio_isRxActive(LMIC.radio.state) ||
+                (flags2 & IRQ_FSK2_FIFOEMPTY_MASK) != 0)
+                return;
+
+            // read the frame as it arrives; if it stops, the "unexpected"
+            // path below ends the receive
+            if (! fskRxDwell())
+                LMICOS_logEventUint32("FSK rx stopped", ((u2_t)fskRxLen << 8) | fskRxCount);
+            now = os_getTime();
+            flags1 = readReg(FSKRegIrqFlags1);
+            flags2 = readReg(FSKRegIrqFlags2);
+        }
+
+        // the receive or transmit is over, so the backstop isn't needed
+        fskBackstopStop();
 
         LMICOS_logEventUint32("*radio_irq_handler_v2: FSK", ((u2_t)flags2 << 8) | flags1);
 
@@ -1538,18 +1653,17 @@ void radio_irq_handler_v2 (u1_t dio, ostime_t now) {
 
             // save exact rx time
             LMIC.radio.rxtime = now;
+            // read the rest of the frame (the radio has stripped the CRC)
+            fskRxDrain();
+            LMIC.radio.dataLen = 0;
             if ((flags2 & IRQ_FSK2_CRCOK_MASK) == 0) {
-                // bad CRC (the radio has stripped the CRC bytes): drop it
                 LMICOS_logEventUint32("FSK CRC error", ((u2_t)flags2 << 8) | flags1);
-                LMIC.radio.dataLen = 0;
+            } else if (! fskRxHaveLen || fskRxCount != fskRxLen) {
+                LMICOS_logEventUint32("FSK short frame", ((u2_t)fskRxLen << 8) | fskRxCount);
+            } else if (fskRxLen > fskRxMaxLen) {
+                LMICOS_logEventUint32("FSK frame too long", fskRxLen);
             } else {
-                // In variable-length mode the first FIFO byte is the
-                // payload length; RegPayloadLength is only the RX maximum.
-                u1_t len = readReg(RegFifo);
-                if (len > FSK_RX_MAX_PAYLOAD)
-                    len = FSK_RX_MAX_PAYLOAD;
-                LMIC.radio.dataLen = len;
-                readBuf(RegFifo, LMIC.radio.pFrame, len);
+                LMIC.radio.dataLen = fskRxLen;
             }
             // read rx quality parameters
             LMIC.snr  = 0;              // SX127x doesn't give SNR for FSK.
@@ -1558,6 +1672,11 @@ void radio_irq_handler_v2 (u1_t dio, ostime_t now) {
         } else if( flags1 & IRQ_FSK1_TIMEOUT_MASK ) {
             event = LMIC_RADIO_EV_RXDONE | LMIC_RADIO_EV_RXTIMEOUT;
             // indicate timeout
+            LMIC.radio.dataLen = 0;
+        } else if( flags2 & IRQ_FSK2_FIFOOVERRUN_MASK ) {
+            // the IRQ handler didn't empty the FIFO in time: the frame is lost
+            LMICOS_logEventUint32("FSK FIFO overrun", ((u2_t)fskRxLen << 8) | fskRxCount);
+            event = LMIC_RADIO_EV_RXDONE;
             LMIC.radio.dataLen = 0;
         } else {
             // we're not sure why we're here... treat as timeout.
