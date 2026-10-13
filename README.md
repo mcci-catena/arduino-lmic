@@ -267,6 +267,7 @@ This library provides several examples.
 The library must track precise timing for opening RX1 and RX2 receive windows after uplink transmissions. Key points:
 
 - Call `os_runloop_once()` frequently, especially during transmit/receive cycles. Use `os_queryTimeCriticalJobs(ms2osticks(n))` to check if the LMIC needs attention within `n` milliseconds.
+- FSK receive on SX127x radios is tighter still. The radio's FIFO holds 64 bytes, which fill in about 10 ms at 50 kbps, so `os_runloop_once()` must run within 10 ms of the start of an FSK downlink, or the frame is lost. The LMIC then stays in the radio driver, reading the frame as it arrives, for the frame's air time (up to 42 ms for a 255-byte frame).
 - By default, the library polls DIO pins. Optionally, define `LMIC_USE_INTERRUPTS` for hardware interrupt-driven timing (requires DIO pins wired to interrupt-capable Arduino pins).
 - For boards with inaccurate oscillators (100-4000 ppm), call `LMIC_setClockError()` to widen the receive window. See [Timing](doc/timing.md) for the full discussion including `LMIC_setClockError()` API reference and interrupt implementation details.
 
