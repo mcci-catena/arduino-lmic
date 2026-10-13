@@ -47,8 +47,9 @@ function _lmic_filter {
 			"stm32:ttn-otaa-feather-us915.ino")
 				return 1
 				;;
-			# compliance-otaa-halconfig exceeds flash on AVR (feather32u4)
-			"avr:compliance-otaa-halconfig.ino")
+			# these exceed flash on AVR (feather32u4)
+			"avr:compliance-otaa-halconfig.ino" | \
+			"avr:helium-otaa.ino")
 				return 1
 				;;
 			*)
