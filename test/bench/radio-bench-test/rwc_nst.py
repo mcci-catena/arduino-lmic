@@ -13,8 +13,9 @@
 #
 # Usage:
 #     Uses rwclib from mcci-catena/rwc-python-api. Run it from that
-#     repository's examples/ directory (rwclib writes its log to ../logs/),
-#     with this file copied or linked there:
+#     repository's examples/ directory, with this file copied or linked
+#     there, so it finds rwclib in the parent directory. (Before v1.0.5,
+#     rwclib also needed examples/ to write its log to ../logs/.)
 #
 #     python rwc_nst.py --address <tester-ip> --port <port> setup
 #     python rwc_nst.py --address <tester-ip> --port <port> run
@@ -26,9 +27,9 @@
 #     50 kbps, +/-25 kHz, sync word C1 94 C1, PN9 whitening, inverted
 #     CCITT CRC, carrying the tester's NST payload (16 bytes by default).
 #
-#     Notes on rwclib: rf_settxfrequency() accepts whole MHz only, and
-#     nst_tx_setsyncword() checks its value against 1..8, so this script
-#     sends the SCPI commands itself.
+#     The script sends SCPI commands itself, because before v1.0.5
+#     rwclib's rf_settxfrequency() accepted whole MHz only and its getters
+#     used queries the tester NAKs (rwc-python-api#14).
 #
 
 import argparse
