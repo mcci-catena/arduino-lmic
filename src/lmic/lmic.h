@@ -991,6 +991,22 @@ bit_t LMIC_queryChannel(u1_t channel, lmic_channel_info_t *pInfo);
 //! \brief check whether the LMIC is ready for a transmit packet
 bit_t LMIC_queryTxReady(void);
 
+/// \brief find a data rate that can carry a frame.
+///
+/// Starting at \p dr, step to faster data rates until one has a maximum
+/// frame length that holds a data frame with \p payloadSize bytes of
+/// payload (header, FPort and MIC, but no FOpts). The search stops at the
+/// first data rate the region doesn't allow. LMIC_sendWithCallback() uses
+/// this to raise the data rate when a frame doesn't fit; an application
+/// can call it first, to split the message instead.
+///
+/// \param dr		the data rate to start from, normally LMIC.datarate.
+/// \param payloadSize	the number of bytes of application payload.
+///
+/// \return the data rate found; \p dr if none fits, or if \p payloadSize
+///	is larger than MAX_LEN_PAYLOAD.
+dr_t  LMIC_feasibleDataRateForFrame(dr_t dr, u1_t payloadSize);
+
 void  LMIC_setDrTxpow   (dr_t dr, s1_t txpow);  // set default/start DR/txpow
 void  LMIC_setAdrMode   (bit_t enabled);        // set ADR mode (if mobile turn off)
 
