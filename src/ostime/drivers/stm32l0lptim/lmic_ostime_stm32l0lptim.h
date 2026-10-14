@@ -18,6 +18,7 @@ Author:
 #ifndef _lmic_ostime_stm32l0lptim_h_
 #define _lmic_ostime_stm32l0lptim_h_
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #ifndef _lmic_ostime_interface_h_
@@ -69,6 +70,23 @@ uint64_t LMIC_ABI_STD LMIC_OsTime_Stm32L0Lptim_ticks64(void);
 
 /// \brief defined if LMIC_OsTime_Stm32L0Lptim_ticks64() exists.
 #define LMIC_OsTime_Stm32L0Lptim_HAS_TICKS64	1
+
+/// \brief called from the LPTIM1 interrupt when an armed wake fires (#1120).
+typedef void LMIC_ABI_STD
+LMIC_OsTime_Stm32L0Lptim_WakeCb_t(void *pCtx, uint64_t now);
+
+/// \brief name the function to call when an armed wake fires.
+void LMIC_ABI_STD LMIC_OsTime_Stm32L0Lptim_setWakeCallback(
+	LMIC_OsTime_Stm32L0Lptim_WakeCb_t *pCb, void *pCtx);
+
+/// \brief arm a wake at a 64-bit tick; false if it is already (nearly) due.
+bool LMIC_ABI_STD LMIC_OsTime_Stm32L0Lptim_requestWakeAt(uint64_t target);
+
+/// \brief disarm the wake.
+void LMIC_ABI_STD LMIC_OsTime_Stm32L0Lptim_cancelWake(void);
+
+/// \brief defined if the compare-match wake functions exist.
+#define LMIC_OsTime_Stm32L0Lptim_HAS_WAKE	1
 
 // One of our post conditions is to define all the time conversion
 // macros. This driver has no reason to do anything special, so we
