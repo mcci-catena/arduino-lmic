@@ -153,6 +153,10 @@ void lmic_hal_sleep(void) {
 void lmic_hal_processPendingIRQs(void) {
 }
 
+bit_t lmic_hal_hasPendingIrqs(void) {
+	return 0;
+}
+
 ostime_t lmic_hal_setModuleActive(bit_t val) {
 	LMIC_UNREFERENCED_PARAMETER(val);
 	return 0;
