@@ -177,22 +177,30 @@ void os_runloop_once() {
     }
 }
 
+#if !defined(LMIC_USE_INTERRUPTS)
 // true if the radio has started a transmit or receive that has not
-// finished. The radio reports the end through a DIO line, which the HAL may
-// only poll, so the caller must not sleep meanwhile.
+// finished. Without LMIC_USE_INTERRUPTS the HAL sees the end only by
+// polling a DIO line, so the caller must not sleep meanwhile; with
+// interrupts, the end wakes the caller, and this is not used (#1148).
 static bit_t os_isRadioActive(void) {
     const lmic_radio_state_t state = LMIC.radio.state;
 
     return ((state & (LMIC_RADIO_EV_TXSTART | LMIC_RADIO_EV_TXDONE)) == LMIC_RADIO_EV_TXSTART) ||
            ((state & (LMIC_RADIO_EV_RXSTART | LMIC_RADIO_EV_RXDONE)) == LMIC_RADIO_EV_RXSTART);
 }
+#endif
 
 // the os ticks until os_runloop_once() has work: 0 if a job is runnable or
-// overdue, or the radio is busy; OS_NEXT_JOB_NEVER if no job is scheduled.
-// Call with interrupts disabled.
+// overdue, a DIO event is waiting, or (without LMIC_USE_INTERRUPTS) the
+// radio is busy; OS_NEXT_JOB_NEVER if no job is scheduled. Call with
+// interrupts disabled.
 static u4_t os_nextJobTicksLocked(void) {
-    if (OS.runnablejobs || os_isRadioActive())
+    if (OS.runnablejobs || lmic_hal_hasPendingIrqs())
         return 0;
+#if !defined(LMIC_USE_INTERRUPTS)
+    if (os_isRadioActive())
+        return 0;
+#endif
     if (! OS.scheduledjobs)
         return OS_NEXT_JOB_NEVER;
 
@@ -202,12 +210,16 @@ static u4_t os_nextJobTicksLocked(void) {
 
 /// \brief the os ticks until the LMIC next needs os_runloop_once()
 ///
-/// \returns 0 if a job is runnable or due now, or if the radio is
-///     transmitting or receiving (its completion may be detected only by
-///     polling); OS_NEXT_JOB_NEVER if no job is scheduled; otherwise the
-///     ticks until the earliest scheduled job. Jobs scheduled later, for
-///     example by an interrupt, can only make the wait shorter, so a caller
-///     that sleeps must also wake on interrupts.
+/// \returns 0 if a job is runnable or due now, or a DIO event is waiting
+///     to be processed (lmic_hal_hasPendingIrqs()), or, without
+///     LMIC_USE_INTERRUPTS, if the radio is transmitting or receiving (its
+///     completion may then be detected only by polling);
+///     OS_NEXT_JOB_NEVER if no job is scheduled; otherwise the ticks until
+///     the earliest scheduled job. Jobs scheduled later, for example by an
+///     interrupt, can only make the wait shorter, so a caller that sleeps
+///     must also wake on interrupts. With LMIC_USE_INTERRUPTS, a caller
+///     that masks interrupts before it sleeps should check
+///     lmic_hal_hasPendingIrqs() under the same mask.
 ///
 /// \details Runs no job, and never calls lmic_hal_sleep(). A caller that
 ///     reads os_getTime() just before the call can add the result to it to
