@@ -59,6 +59,8 @@ typedef struct LMIC_OsTime_Stm32L0Lptim_Config_s
 	u4_t		rIer;			///< expected IER value
 	volatile u4_t	rCntExtended;		///< the upper 16 bits of the count, with
 						///< bits 15..0 cleared.
+	volatile u4_t	rCntHigh;		///< bits 63..32 of the count, advanced
+						///< when rCntExtended wraps.
 	} LMIC_OsTime_Stm32L0Lptim_Config_t;
 
 #define	LMIC_OsTime_Stm32L0Lptim_LPTIM1_INT_PRIORITY	0	// interrupt priority to set for LPTIM.
@@ -164,6 +166,13 @@ LMIC_OsTime_Stm32L0Lptim_initialize(
 	// prepare for interrupts
 	NVIC_SetPriority(LPTIM1_IRQn, LMIC_OsTime_Stm32L0Lptim_LPTIM1_INT_PRIORITY);
 
+	// LPTIM1 wakes the CPU from Stop through EXTI line 29. Unmask it here
+	// rather than rely on the reset value of EXTI_IMR: if it were masked,
+	// the ARRM interrupt would not wake the CPU, and every overflow but
+	// the first during a sleep would be lost (#1116). ticks() checks that
+	// it stays unmasked.
+	EXTI->IMR |= EXTI_IMR_IM29;
+
 	// makes sure we can't get an interrupt while getting started.
 	NVIC_DisableIRQ(LPTIM1_IRQn);
 
@@ -204,9 +213,11 @@ Returns:
 
 */
 
-u4_t LMIC_ABI_STD
-LMIC_OsTime_Stm32L0Lptim_ticks(
-	void
+// read the count: returns bits 31..0, and sets *pHigh (if not NULL) to
+// bits 63..32, read consistently with them.
+static u4_t
+LMIC_OsTime_Stm32L0Lptim_read(
+	u4_t *pHigh
 	)
 	{
 	LMIC_ASSERTMSG(savedConfig.fInitialized, "not initialized");
@@ -247,12 +258,14 @@ LMIC_OsTime_Stm32L0Lptim_ticks(
 	if (pLptim->CFGR != savedConfig.rCfg ||
 	    pLptim->CR != LPTIM_CR_ENABLE ||
 	    pLptim->ARR != savedConfig.rArr ||
-	    pLptim->IER !=savedConfig.rIer)
+	    pLptim->IER !=savedConfig.rIer ||
+	    (EXTI->IMR & EXTI_IMR_IM29) == 0)
 		{
 		lmic_hal_failed("unexpected change to LPTIM1 config: " __FILE__, __LINE__);
 		}
 
 	/* now: read the register to initialized */
+	u4_t rCntHighCandidate = savedConfig.rCntHigh;
 	u4_t rCntExtendedCandidate = savedConfig.rCntExtended;
 	u4_t rCntCandidate = pLptim->CNT & 0xFFFFu;
 
@@ -263,12 +276,15 @@ LMIC_OsTime_Stm32L0Lptim_ticks(
 			{
 			u4_t const rCntNow = pLptim->CNT & 0xFFFFu;
 			u4_t const rCntExtendedNow = savedConfig.rCntExtended;
+			u4_t const rCntHighNow = savedConfig.rCntHigh;
 
-			if (rCntNow == rCntCandidate && rCntExtendedNow == rCntExtendedCandidate)
+			if (rCntNow == rCntCandidate && rCntExtendedNow == rCntExtendedCandidate &&
+			    rCntHighNow == rCntHighCandidate)
 				break;
 
 			rCntCandidate = rCntNow;
 			rCntExtendedCandidate = rCntExtendedNow;
+			rCntHighCandidate = rCntHighNow;
 			}
 		}
 	else
@@ -290,13 +306,16 @@ LMIC_OsTime_Stm32L0Lptim_ticks(
 			{
 			u4_t const rCntNow = pLptim->CNT & 0xFFFFu;
 			u4_t const rCntExtendedNow = savedConfig.rCntExtended;
+			u4_t const rCntHighNow = savedConfig.rCntHigh;
 			bool const fArrmNow = !! (pLptim->ISR & LPTIM_ISR_ARRM);
 
-			if (rCntNow == rCntCandidate && rCntExtendedNow == rCntExtendedCandidate && fArrmCandidate == fArrmNow)
+			if (rCntNow == rCntCandidate && rCntExtendedNow == rCntExtendedCandidate &&
+			    rCntHighNow == rCntHighCandidate && fArrmCandidate == fArrmNow)
 				break;
 
 			rCntCandidate = rCntNow;
 			rCntExtendedCandidate = rCntExtendedNow;
+			rCntHighCandidate = rCntHighNow;
 			fArrmCandidate = fArrmNow;
 			}
 
@@ -312,11 +331,58 @@ LMIC_OsTime_Stm32L0Lptim_ticks(
 			pLptim->ICR = LPTIM_ICR_ARRMCF;
 			rCntExtendedCandidate += 0x10000u;
 			savedConfig.rCntExtended = rCntExtendedCandidate;
+			if (rCntExtendedCandidate == 0)
+				savedConfig.rCntHigh = ++rCntHighCandidate;
 			}
 		}
 
 	// finally: prepare the result and return.
+	if (pHigh != NULL)
+		*pHigh = rCntHighCandidate;
 	return rCntCandidate | rCntExtendedCandidate;
+	}
+
+u4_t LMIC_ABI_STD
+LMIC_OsTime_Stm32L0Lptim_ticks(
+	void
+	)
+	{
+	return LMIC_OsTime_Stm32L0Lptim_read(NULL);
+	}
+
+/*
+
+Name:	LMIC_OsTime_Stm32L0Lptim_ticks64()
+
+Function:
+	Return the current time as a 64-bit tick count.
+
+Definition:
+	uint64_t LMIC_OsTime_Stm32L0Lptim_ticks64(
+		void
+		);
+
+Description:
+	The same count as LMIC_OsTime_Stm32L0Lptim_ticks(), which returns its
+	low 32 bits, carried on to 64 bits so that it does not wrap (the
+	32-bit count wraps every 36.4 hours at 32768 ticks per second). Like
+	ticks(), it may be called with interrupts masked and from interrupt
+	handlers.
+
+Returns:
+	The tick count since initialization.
+
+*/
+
+uint64_t LMIC_ABI_STD
+LMIC_OsTime_Stm32L0Lptim_ticks64(
+	void
+	)
+	{
+	u4_t high;
+	u4_t const low = LMIC_OsTime_Stm32L0Lptim_read(&high);
+
+	return ((uint64_t) high << 32) | low;
 	}
 
 /*
@@ -324,7 +390,7 @@ LMIC_OsTime_Stm32L0Lptim_ticks(
 Name:	LPTIM1_IRQHandler()
 
 Function:
-	Advance the high half of the 32-bit tick count.
+	Advance the bits of the tick count above the 16 that LPTIM1 counts.
 
 Definition:
 	void LPTIM1_IRQHandler(
@@ -355,6 +421,8 @@ LPTIM1_IRQHandler(
 		LPTIM1->ICR = LPTIM_ICR_ARRMCF;
 
 		savedConfig.rCntExtended += 0x10000;
+		if (savedConfig.rCntExtended == 0)
+			++savedConfig.rCntHigh;
 		}
 	}
 

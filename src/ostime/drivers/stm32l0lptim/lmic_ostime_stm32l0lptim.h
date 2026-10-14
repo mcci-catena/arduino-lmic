@@ -18,6 +18,8 @@ Author:
 #ifndef _lmic_ostime_stm32l0lptim_h_
 #define _lmic_ostime_stm32l0lptim_h_
 
+#include <stdint.h>
+
 #ifndef _lmic_ostime_interface_h_
 # include "../../i/lmic_ostime_interface.h"
 #endif
@@ -35,8 +37,10 @@ LMIC_BEGIN_DECLS
 	the LSE directly, keeps counting through Stop mode, and is accurate
 	to the crystal.
 
-	LPTIM1 counts 16 bits; this driver extends the count to 32 bits in
-	software.
+	LPTIM1 counts 16 bits; this driver extends the count to 64 bits in
+	software: ticks() returns the low 32 bits, ticks64() all 64. The
+	driver unmasks EXTI line 29, through which LPTIM1 wakes the CPU from
+	Stop, and checks that it stays unmasked.
 
 */
 /// \{
@@ -59,6 +63,12 @@ LMIC_BEGIN_DECLS
 
 // Declare our method functions in a standard way (avoiding drift).
 LMIC_OsTime_DECLARE_DRIVER_FNS(Stm32L0Lptim);
+
+/// \brief the tick count as 64 bits; ticks() returns the low 32 (#1116).
+uint64_t LMIC_ABI_STD LMIC_OsTime_Stm32L0Lptim_ticks64(void);
+
+/// \brief defined if LMIC_OsTime_Stm32L0Lptim_ticks64() exists.
+#define LMIC_OsTime_Stm32L0Lptim_HAS_TICKS64	1
 
 // One of our post conditions is to define all the time conversion
 // macros. This driver has no reason to do anything special, so we
