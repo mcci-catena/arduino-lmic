@@ -521,6 +521,19 @@ LMIC_OsTime_Stm32L0Lptim_writeCmp(
 	savedConfig.fCmpWritePending = true;
 	}
 
+// with a wake armed, write CMP for it if now is in the target's 16-bit
+// pass, else CMP_IDLE (#1152). Called with interrupts disabled.
+static void
+LMIC_OsTime_Stm32L0Lptim_loadCmp(
+	uint64_t now
+	)
+	{
+	if (savedConfig.fWakeArmed && (savedConfig.wakeTarget >> 16) == (now >> 16))
+		LMIC_OsTime_Stm32L0Lptim_writeCmp((u4_t) savedConfig.wakeTarget & 0xFFFFu);
+	else
+		LMIC_OsTime_Stm32L0Lptim_writeCmp(LMIC_OsTime_Stm32L0Lptim_CMP_IDLE);
+	}
+
 /*
 
 Name:	LMIC_OsTime_Stm32L0Lptim_setWakeCallback()
@@ -572,10 +585,13 @@ Description:
 	When the count reaches target, the LPTIM1 interrupt disarms the wake
 	and calls the wake callback. On a Catena 5230 the interrupt reads the
 	count one tick (30.5 us) after the target. The interrupt wakes the CPU from Sleep
-	or Stop (EXTI line 29). A target more than one 16-bit wrap away is
-	fine: the compare matches once per wrap, and the interrupt fires the
-	wake only when the full count has reached the target. A new request
-	replaces the previous one.
+	or Stop (EXTI line 29). A new request replaces the previous one.
+
+	CMP holds the target's low 16 bits only while the count is in the
+	target's 16-bit pass. LPTIM1 sets CMPM as soon as CMP is written with
+	a value at or below the count (#1152), so for a later target CMP
+	stays at CMP_IDLE, and the overflow interrupt that starts the
+	target's pass loads it.
 
 Returns:
 	true if armed; false if target is less than a few ticks away (or
@@ -603,7 +619,7 @@ LMIC_OsTime_Stm32L0Lptim_requestWakeAt(
 		{
 		savedConfig.wakeTarget = target;
 		savedConfig.fWakeArmed = true;
-		LMIC_OsTime_Stm32L0Lptim_writeCmp((u4_t) target & 0xFFFFu);
+		LMIC_OsTime_Stm32L0Lptim_loadCmp(now);
 		result = true;
 		}
 	lmic_hal_enableIRQs();
@@ -681,6 +697,12 @@ LPTIM1_IRQHandler(
 		savedConfig.rCntExtended += 0x10000;
 		if (savedConfig.rCntExtended == 0)
 			++savedConfig.rCntHigh;
+
+		// a new 16-bit pass: if it holds the armed target, load CMP.
+		// If the target is already past, CMPM follows at once, and the
+		// next interrupt fires the wake.
+		if (savedConfig.fWakeArmed)
+			LMIC_OsTime_Stm32L0Lptim_loadCmp(LMIC_OsTime_Stm32L0Lptim_ticks64());
 		}
 
 	if (isr & LPTIM_ISR_CMPM) // the counter matched CMP (#1120)
@@ -691,7 +713,7 @@ LPTIM1_IRQHandler(
 			{
 			uint64_t const now = LMIC_OsTime_Stm32L0Lptim_ticks64();
 
-			// the compare matches once per wrap; fire only when the
+			// CMP_IDLE matches at every overflow; fire only when the
 			// full count has reached the target.
 			if (now >= savedConfig.wakeTarget)
 				{

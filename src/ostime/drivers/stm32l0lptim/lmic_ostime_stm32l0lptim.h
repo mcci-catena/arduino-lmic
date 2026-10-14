@@ -88,6 +88,10 @@ void LMIC_ABI_STD LMIC_OsTime_Stm32L0Lptim_cancelWake(void);
 /// \brief defined if the compare-match wake functions exist.
 #define LMIC_OsTime_Stm32L0Lptim_HAS_WAKE	1
 
+/// \brief defined if requestWakeAt() takes a target in any later 16-bit
+/// pass of the count (#1152).
+#define LMIC_OsTime_Stm32L0Lptim_HAS_WAKE_ANY_PASS	1
+
 // One of our post conditions is to define all the time conversion
 // macros. This driver has no reason to do anything special, so we
 // use the generic macro set.
