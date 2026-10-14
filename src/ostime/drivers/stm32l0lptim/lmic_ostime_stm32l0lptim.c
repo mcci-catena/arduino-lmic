@@ -23,6 +23,15 @@ Author:
 #include <Arduino.h>
 #include "stm32/stm32_def.h"
 
+// The BSP's time-provider hook (mcci-catena/Arduino_Core_STM32#223), if
+// this core has it. Older cores lack the header; then the driver does not
+// register, and millis() stays on SysTick.
+#if defined(__has_include)
+# if __has_include(<ArduinoTimeProvider.h>)
+#  include <ArduinoTimeProvider.h>
+# endif
+#endif
+
 /// \ingroup lmic_ostime_stm32l0lptim
 /// \{
 
@@ -93,6 +102,89 @@ static LMIC_OsTime_Stm32L0Lptim_Config_t savedConfig = { 0 };
 |	Code.
 |
 \****************************************************************************/
+
+/****************************************************************************\
+|
+|	Time provider for millis() and micros() (#1120)
+|
+\****************************************************************************/
+
+#if defined(ARDUINO_CORE_STM32_TIME_PROVIDER)
+
+// referenced weakly, so the LMIC still links with a core whose header has
+// the declaration but whose library lacks the function.
+extern const ArduinoTimeProvider_t *
+setArduinoTimeProvider(const ArduinoTimeProvider_t *pProvider) __attribute__((weak));
+
+typedef struct LMIC_OsTime_Stm32L0Lptim_Provider_s
+	{
+	ArduinoTimeProvider_t	table;		///< must be first.
+	} LMIC_OsTime_Stm32L0Lptim_Provider_t;
+
+// the SysTick time and the LPTIM count at the moment of registration, so
+// that millis() and micros() carry on from where SysTick had them instead
+// of jumping back to the LPTIM's start.
+static uint64_t s_baseTicks;
+static uint32_t s_baseMillis;
+static uint32_t s_baseMicros;
+
+static uint64_t
+LMIC_OsTime_Stm32L0Lptim_getTime(
+	const ArduinoTimeProvider_t *pThis,
+	ArduinoTimeSelect_t which
+	)
+	{
+	(void) pThis;
+	uint64_t const dt = LMIC_OsTime_Stm32L0Lptim_ticks64() - s_baseTicks;
+
+	// 32768 ticks per second: 1000/32768 = 125/4096 ms per tick, and
+	// 1000000/32768 = 15625/512 us per tick, so shifts do the division.
+	if (which == kArduinoTime_Millis)
+		return s_baseMillis + ((dt * 125u) >> 12);
+	else if (which == kArduinoTime_Micros)
+		return s_baseMicros + ((dt * 15625u) >> 9);
+	else
+		return 0;
+	}
+
+static const LMIC_OsTime_Stm32L0Lptim_Provider_t s_provider =
+	{
+	.table =
+		{
+		.nSize = sizeof(ArduinoTimeProvider_t),
+		.pGetTime = LMIC_OsTime_Stm32L0Lptim_getTime,
+		.pDelay = NULL,			// the core loops on millis()
+		.pDelayMicroseconds = NULL,	// the core counts SysTick
+		},
+	};
+
+static void
+LMIC_OsTime_Stm32L0Lptim_registerTimeProvider(
+	void
+	)
+	{
+	if (setArduinoTimeProvider == NULL)
+		return;
+
+	// sample SysTick time and the LPTIM count together.
+	lmic_hal_disableIRQs();
+	s_baseMillis = GetCurrentMilli();
+	s_baseMicros = GetCurrentMicro();
+	s_baseTicks = LMIC_OsTime_Stm32L0Lptim_ticks64();
+	(void) setArduinoTimeProvider(&s_provider.table);
+	lmic_hal_enableIRQs();
+	}
+
+#else /* ! defined(ARDUINO_CORE_STM32_TIME_PROVIDER) */
+
+static void
+LMIC_OsTime_Stm32L0Lptim_registerTimeProvider(
+	void
+	)
+	{
+	}
+
+#endif /* defined(ARDUINO_CORE_STM32_TIME_PROVIDER) */
 
 /*
 
@@ -214,6 +306,9 @@ LMIC_OsTime_Stm32L0Lptim_initialize(
 
 	// all set: enable interrupts.
 	NVIC_EnableIRQ(LPTIM1_IRQn);
+
+	// let millis() and micros() come from this clock (#1120).
+	LMIC_OsTime_Stm32L0Lptim_registerTimeProvider();
 	}
 
 /*
