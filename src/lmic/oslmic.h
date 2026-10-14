@@ -117,6 +117,12 @@ void os_init (void);
 int os_init_ex (const void *pPinMap);
 void os_runloop (void);
 void os_runloop_once (void);
+u4_t os_runloop_once_ex (void);
+u4_t os_queryNextJobTicks (void);
+
+//! \brief os_queryNextJobTicks() and os_runloop_once_ex() return this when no
+//! job is scheduled.
+#define OS_NEXT_JOB_NEVER   ((u4_t) 0xFFFFFFFFu)
 u1_t radio_rssi (void);
 void radio_monitor_rssi(ostime_t n, oslmic_radio_rssi_t *pRssi);
 
