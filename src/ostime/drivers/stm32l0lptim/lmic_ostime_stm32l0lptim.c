@@ -61,7 +61,21 @@ typedef struct LMIC_OsTime_Stm32L0Lptim_Config_s
 						///< bits 15..0 cleared.
 	volatile u4_t	rCntHigh;		///< bits 63..32 of the count, advanced
 						///< when rCntExtended wraps.
+	volatile bool	fWakeArmed;		///< a compare-match wake is armed.
+	volatile bool	fCmpWritePending;	///< a CMP write has not yet synchronized.
+	volatile uint64_t wakeTarget;		///< the 64-bit tick to wake at.
+	LMIC_OsTime_Stm32L0Lptim_WakeCb_t *pWakeCb;	///< called from the interrupt when
+						///< the wake fires.
+	void		*pWakeCtx;		///< context for pWakeCb.
 	} LMIC_OsTime_Stm32L0Lptim_Config_t;
+
+// CMP when no wake is armed: the same as ARR, so the compare match
+// coincides with the overflow and costs no extra wake-up.
+#define	LMIC_OsTime_Stm32L0Lptim_CMP_IDLE	0xFFFFu
+
+// a wake must be at least this many ticks ahead: a CMP write takes about
+// two LSE cycles to reach the counter's clock domain (#1120).
+#define	LMIC_OsTime_Stm32L0Lptim_WAKE_MIN_LEAD	4u
 
 #define	LMIC_OsTime_Stm32L0Lptim_LPTIM1_INT_PRIORITY	0	// interrupt priority to set for LPTIM.
 
@@ -140,7 +154,10 @@ LMIC_OsTime_Stm32L0Lptim_initialize(
 	pLptim->CFGR = savedConfig.rCfg = rCfg;
 
 	// enable interrupts (while timer is not enabled)
-	pLptim->IER = savedConfig.rIer = LPTIM_IER_ARRMIE;
+	// ARRM extends the count; CMPM serves requestWakeAt() (#1120). IER
+	// may be written only while the LPTIM is disabled, so both are
+	// enabled here, once.
+	pLptim->IER = savedConfig.rIer = LPTIM_IER_ARRMIE | LPTIM_IER_CMPMIE;
 
 	// clear out the interrrupt status register (write 1 to clear)
 	pLptim->ICR = 0x7F;
@@ -162,6 +179,12 @@ LMIC_OsTime_Stm32L0Lptim_initialize(
 	while (! (pLptim->ISR & LPTIM_ISR_ARROK))
 		/* wait for the write to synchronize */;
 	pLptim->ICR = LPTIM_ICR_ARROKCF;
+
+	// no wake armed: compare at the overflow.
+	pLptim->CMP = LMIC_OsTime_Stm32L0Lptim_CMP_IDLE;
+	while (! (pLptim->ISR & LPTIM_ISR_CMPOK))
+		/* wait for the write to synchronize */;
+	pLptim->ICR = LPTIM_ICR_CMPOKCF | LPTIM_ICR_CMPMCF;
 
 	// prepare for interrupts
 	NVIC_SetPriority(LPTIM1_IRQn, LMIC_OsTime_Stm32L0Lptim_LPTIM1_INT_PRIORITY);
@@ -385,6 +408,144 @@ LMIC_OsTime_Stm32L0Lptim_ticks64(
 	return ((uint64_t) high << 32) | low;
 	}
 
+// write CMP, first waiting for any earlier write to finish.
+static void
+LMIC_OsTime_Stm32L0Lptim_writeCmp(
+	u4_t value
+	)
+	{
+	LPTIM_TypeDef * const pLptim = LPTIM1;
+
+	if (savedConfig.fCmpWritePending)
+		{
+		while (! (pLptim->ISR & LPTIM_ISR_CMPOK))
+			/* wait for the earlier write */;
+		}
+	pLptim->ICR = LPTIM_ICR_CMPOKCF;
+	pLptim->CMP = value;
+	savedConfig.fCmpWritePending = true;
+	}
+
+/*
+
+Name:	LMIC_OsTime_Stm32L0Lptim_setWakeCallback()
+
+Function:
+	Name the function to call when an armed wake fires.
+
+Definition:
+	void LMIC_OsTime_Stm32L0Lptim_setWakeCallback(
+		LMIC_OsTime_Stm32L0Lptim_WakeCb_t *pCb,
+		void *pCtx
+		);
+
+Description:
+	pCb is called from the LPTIM1 interrupt, with pCtx and the 64-bit
+	tick count read in the interrupt. It must be short; typically it
+	sets a flag for the application's main loop. NULL removes it.
+
+Returns:
+	No explicit result.
+
+*/
+
+void LMIC_ABI_STD
+LMIC_OsTime_Stm32L0Lptim_setWakeCallback(
+	LMIC_OsTime_Stm32L0Lptim_WakeCb_t *pCb,
+	void *pCtx
+	)
+	{
+	lmic_hal_disableIRQs();
+	savedConfig.pWakeCb = pCb;
+	savedConfig.pWakeCtx = pCtx;
+	lmic_hal_enableIRQs();
+	}
+
+/*
+
+Name:	LMIC_OsTime_Stm32L0Lptim_requestWakeAt()
+
+Function:
+	Arm a wake-up at a given 64-bit tick, using the LPTIM1 compare match.
+
+Definition:
+	bool LMIC_OsTime_Stm32L0Lptim_requestWakeAt(
+		uint64_t target
+		);
+
+Description:
+	When the count reaches target, the LPTIM1 interrupt disarms the wake
+	and calls the wake callback. On a Catena 5230 the interrupt reads the
+	count one tick (30.5 us) after the target. The interrupt wakes the CPU from Sleep
+	or Stop (EXTI line 29). A target more than one 16-bit wrap away is
+	fine: the compare matches once per wrap, and the interrupt fires the
+	wake only when the full count has reached the target. A new request
+	replaces the previous one.
+
+Returns:
+	true if armed; false if target is less than a few ticks away (or
+	past), in which case nothing is armed and the caller should treat the
+	time as already reached.
+
+*/
+
+bool LMIC_ABI_STD
+LMIC_OsTime_Stm32L0Lptim_requestWakeAt(
+	uint64_t target
+	)
+	{
+	bool result;
+
+	lmic_hal_disableIRQs();
+	uint64_t const now = LMIC_OsTime_Stm32L0Lptim_ticks64();
+
+	if (target < now + LMIC_OsTime_Stm32L0Lptim_WAKE_MIN_LEAD)
+		{
+		savedConfig.fWakeArmed = false;
+		result = false;
+		}
+	else
+		{
+		savedConfig.wakeTarget = target;
+		savedConfig.fWakeArmed = true;
+		LMIC_OsTime_Stm32L0Lptim_writeCmp((u4_t) target & 0xFFFFu);
+		result = true;
+		}
+	lmic_hal_enableIRQs();
+	return result;
+	}
+
+/*
+
+Name:	LMIC_OsTime_Stm32L0Lptim_cancelWake()
+
+Function:
+	Disarm a wake requested by LMIC_OsTime_Stm32L0Lptim_requestWakeAt().
+
+Definition:
+	void LMIC_OsTime_Stm32L0Lptim_cancelWake(
+		void
+		);
+
+Returns:
+	No explicit result.
+
+*/
+
+void LMIC_ABI_STD
+LMIC_OsTime_Stm32L0Lptim_cancelWake(
+	void
+	)
+	{
+	lmic_hal_disableIRQs();
+	if (savedConfig.fWakeArmed)
+		{
+		savedConfig.fWakeArmed = false;
+		LMIC_OsTime_Stm32L0Lptim_writeCmp(LMIC_OsTime_Stm32L0Lptim_CMP_IDLE);
+		}
+	lmic_hal_enableIRQs();
+	}
+
 /*
 
 Name:	LPTIM1_IRQHandler()
@@ -415,7 +576,9 @@ LPTIM1_IRQHandler(
 	{
 	NVIC_ClearPendingIRQ(LPTIM1_IRQn);
 
-	if (LPTIM1->ISR & LPTIM_ISR_ARRM) //If there was a compare match (which overflowed)
+	u4_t const isr = LPTIM1->ISR;
+
+	if (isr & LPTIM_ISR_ARRM) // the counter reached ARR and wrapped
 		{
 		// clear the request
 		LPTIM1->ICR = LPTIM_ICR_ARRMCF;
@@ -423,6 +586,26 @@ LPTIM1_IRQHandler(
 		savedConfig.rCntExtended += 0x10000;
 		if (savedConfig.rCntExtended == 0)
 			++savedConfig.rCntHigh;
+		}
+
+	if (isr & LPTIM_ISR_CMPM) // the counter matched CMP (#1120)
+		{
+		LPTIM1->ICR = LPTIM_ICR_CMPMCF;
+
+		if (savedConfig.fWakeArmed)
+			{
+			uint64_t const now = LMIC_OsTime_Stm32L0Lptim_ticks64();
+
+			// the compare matches once per wrap; fire only when the
+			// full count has reached the target.
+			if (now >= savedConfig.wakeTarget)
+				{
+				savedConfig.fWakeArmed = false;
+				LMIC_OsTime_Stm32L0Lptim_writeCmp(LMIC_OsTime_Stm32L0Lptim_CMP_IDLE);
+				if (savedConfig.pWakeCb != NULL)
+					(*savedConfig.pWakeCb)(savedConfig.pWakeCtx, now);
+				}
+			}
 		}
 	}
 
