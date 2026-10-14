@@ -93,7 +93,9 @@ s1_t lmic_hal_getRssiCal (void) {
 //--------------------
 static constexpr unsigned NUM_DIO_INTERRUPT = 3;
 static_assert(NUM_DIO_INTERRUPT <= NUM_DIO, "Number of interrupt-sensitive lines must be less than number of GPIOs");
-static ostime_t interrupt_time[NUM_DIO_INTERRUPT] = {0};
+// written by the DIO interrupt handlers (with LMIC_USE_INTERRUPTS) and read
+// from the main loop, so volatile (#1148).
+static volatile ostime_t interrupt_time[NUM_DIO_INTERRUPT] = {0};
 
 #if !defined(LMIC_USE_INTERRUPTS)
 static void lmic_hal_interrupt_init() {
@@ -158,6 +160,14 @@ static void lmic_hal_interrupt_init() {
   }
 }
 #endif // LMIC_USE_INTERRUPTS
+
+bit_t lmic_hal_hasPendingIrqs() {
+    for (uint8_t i = 0; i < NUM_DIO_INTERRUPT; ++i) {
+        if (plmic_pins->dio[i] != LMIC_UNUSED_PIN && interrupt_time[i] != 0)
+            return 1;
+    }
+    return 0;
+}
 
 void lmic_hal_processPendingIRQs() {
     uint8_t i;

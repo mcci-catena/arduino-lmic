@@ -203,6 +203,17 @@ uint8_t lmic_hal_getTxPowerPolicy(
 
 void lmic_hal_pollPendingIRQs_helper();
 void lmic_hal_processPendingIRQs(void);
+
+/*
+ * true if a DIO event has been recorded (by an interrupt, or by polling)
+ * and not yet handed to the radio driver by lmic_hal_processPendingIRQs().
+ * Safe with interrupts masked, so a caller can check it just before it
+ * sleeps (#1148).
+ */
+bit_t lmic_hal_hasPendingIrqs(void);
+
+/// \brief defined if lmic_hal_hasPendingIrqs() exists (#1148).
+#define LMIC_HAL_HAS_PENDING_IRQS_QUERY 1
 bit_t lmic_hal_radio_spi_is_busy();
 
 /// \brief check for any pending interrupts: stub if interrupts are enabled.
