@@ -2139,6 +2139,39 @@ void LMIC_disableTracking (void) {
 //
 // ================================================================================
 
+// DevNonce bookkeeping. A sequence has a start and a count of
+// Join-Requests sent; each Join-Request carries (start + count) modulo
+// 0x10000. Wrapping past 0xFFFF is fine; when the count reaches 0x10000,
+// every value has been used once and the LMIC stops (engineUpdate_inner(),
+// EV_DEVNONCE_EXHAUSTED). LoRaWAN 1.0.3 starts at a random value; the
+// LoRaWAN 1.0.4 counter (#769) can reuse this with a start of 0.
+static void newDevNonceSequence(u2_t start) {
+    LMIC.devNonce = start;
+    LMIC.devNonceStart = start;
+    LMIC.devNonceCount = 0;
+    LMIC.devNonceSet = 1;
+}
+
+// DevNonce for the next Join-Request, 0 to 0xFFFF.
+u4_t LMIC_getNextDevNonce(void) {
+    return LMIC.devNonce;
+}
+
+// start a new DevNonce sequence at next (0 to 0xFFFF), count 0.
+bit_t LMIC_setNextDevNonce(u4_t next) {
+    if (next > 0xFFFF)
+        return 0;
+    newDevNonceSequence((u2_t)next);
+    return 1;
+}
+
+// forget the join history: back-off and DevNonce sequence. Leaves the
+// session alone.
+void LMIC_clearJoinState(void) {
+    LMIC_clearJoinBackoff();
+    newDevNonceSequence(os_getRndU2());
+}
+
 #if !defined(DISABLE_JOIN)
 static void buildJoinRequest (void) {
     // Do not use pendTxData since we might have a pending
@@ -2147,6 +2180,8 @@ static void buildJoinRequest (void) {
     // any encrypted uplink data. No free lunches.
     LMIC_SecureElement_createJoinRequest(LMIC.frame, LMIC_SecureElement_JoinFormat_JoinRequest10);
     LMIC.dataLen = LEN_JR;
+    // the secure element used LMIC.devNonce and advanced it.
+    ++LMIC.devNonceCount;
 }
 
 // airtime of a Join-Request at the current data rate.
@@ -2173,20 +2208,6 @@ static void startJoining (xref2osjob_t osjob) {
     // let the client know that now's the time to update
     // network settings.
     reportEventAndUpdate(EV_JOINING);
-}
-
-// DevNonce for the next Join-Request, 0 to 0xFFFF.
-u4_t LMIC_getNextDevNonce(void) {
-    return LMIC.devNonce;
-}
-
-// set the DevNonce for the next Join-Request, 0 to 0xFFFF.
-bit_t LMIC_setNextDevNonce(u4_t next) {
-    if (next > 0xFFFF)
-        return 0;
-    LMIC.devNonce = (u2_t)next;
-    LMIC.devNonceSet = 1;
-    return 1;
 }
 
 // reset the joined-to-network state (and clean up)
@@ -2693,6 +2714,16 @@ static void engineUpdate_inner (void) {
             dr_t txdr = (dr_t)LMIC.datarate;
 #if !defined(DISABLE_JOIN)
             if( jacc ) {
+                if( LMIC.devNonceCount >= 0x10000 ) {
+                    // every DevNonce of this sequence has been used
+                    // once. Stop joining; the application decides what
+                    // to do (LMIC_clearJoinState() or
+                    // LMIC_setNextDevNonce(), for example after changing
+                    // JoinEUI per TR001 Remedy #2).
+                    LMIC.opmode &= ~(OP_JOINING|OP_REJOIN);
+                    reportEventNoUpdate(EV_DEVNONCE_EXHAUSTED);
+                    return;
+                }
                 if( (LMIC.opmode & OP_REJOIN) != 0 ) {
 #if CFG_region != LMIC_REGION_as923
                     // in AS923 v1.1 or older, no need to change the datarate.
@@ -2876,19 +2907,21 @@ void LMIC_reset (void) {
     do {
         lmic_client_data_t  client = LMIC.client;
         u2_t const devNonce = LMIC.devNonce;
+        u2_t const devNonceStart = LMIC.devNonceStart;
+        u4_t const devNonceCount = LMIC.devNonceCount;
         u1_t const devNonceSet = LMIC.devNonceSet;
 
         os_clearMem((xref2u1_t)&LMIC,SIZEOFEXPR(LMIC));
 
         LMIC.client = client;
         LMIC.devNonce = devNonce;
+        LMIC.devNonceStart = devNonceStart;
+        LMIC.devNonceCount = devNonceCount;
         LMIC.devNonceSet = devNonceSet;
     } while (0);
 
-    if (! LMIC.devNonceSet) {
-        LMIC.devNonce = os_getRndU2();
-        LMIC.devNonceSet = 1;
-    }
+    if (! LMIC.devNonceSet)
+        newDevNonceSequence(os_getRndU2());
 
     // LMIC.devaddr      =  0;      // true from os_clearMem().
     LMIC.opmode       =  OP_NONE;

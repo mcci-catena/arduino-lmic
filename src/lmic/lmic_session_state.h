@@ -60,7 +60,7 @@ LMIC_BEGIN_DECLS
 |	Header and MAC state (44 bytes)
 |
 |	  0  u1   Tag             LMIC_SESSION_STATE_TAG_V1, _V2 or _V3
-|	  1  u1   Size            total size of the blob: 216 (V1, V2), 240 (V3)
+|	  1  u1   Size            total size of the blob: 216 (V1, V2), 244 (V3)
 |	  2  u1   Region          LMIC_REGION_* code
 |	  3  u1   LinkDR          LMIC.datarate
 |	  4  u4   FCntUp          LMIC.seqnoUp
@@ -119,7 +119,7 @@ LMIC_BEGIN_DECLS
 |	Fixed-channel variant, 96 channels (kind 2, 26 bytes): as kind 1 with
 |	12-byte maps. Not produced by this version of the LMIC.
 |
-|	Join state (V3 only, 24 bytes, from offset 216)
+|	Join state (V3 only, 28 bytes, from offset 216)
 |
 |	216  u1   JoinFlags       bit 0: the MAC state and channels describe a
 |	                          session (LMIC.devaddr was not zero at save);
@@ -127,19 +127,24 @@ LMIC_BEGIN_DECLS
 |	                          Other bits zero.
 |	217  u1   reserved, zero
 |	218  u2   BackoffCapJitter  LMIC.joinBackoff.capJitterSec
-|	220  u4   NextDevNonce    LMIC.devNonce: DevNonce of the next
-|	                          Join-Request, 0..0xFFFF
+|	220  u4   DevNonceStart   LMIC.devNonceStart: first DevNonce of the
+|	                          current sequence, 0..0xFFFF
 |	224  u4   BackoffElapsed  LMIC.joinBackoff.elapsedSec, seconds since T0
 |	228  u4   BackoffWindowStart  LMIC.joinBackoff.windowStartSec
 |	232  u4   BackoffWindowUsed   LMIC.joinBackoff.windowUsedMs
 |	236  u4   BackoffNextOk   LMIC.joinBackoff.nextOkSec
+|	240  u4   DevNonceCount   LMIC.devNonceCount: Join-Requests sent since
+|	                          DevNonceStart, 0..0x10000. The next DevNonce
+|	                          is (start + count) modulo 0x10000; at
+|	                          0x10000 every value has been used once and
+|	                          the LMIC sends no more Join-Requests.
 |
 |	A V3 blob saved while not joined (JoinFlags bit 0 clear) carries the
 |	join state only: restoring it sets DevNonce and the back-off and
 |	leaves the MAC state and channels as they are. Restoring a V1 or V2
 |	blob sets the MAC state and channels; those versions have no DevNonce,
-|	so the restore picks a random DevNonce, as the LMIC did at every reset
-|	before V3, and leaves the back-off cleared.
+|	so the restore starts a new sequence at a random DevNonce, as the LMIC
+|	did at every reset before V3, and leaves the back-off cleared.
 |
 |	Time spent powered off is not known to the LMIC: the back-off clock
 |	resumes where the save left it, which keeps the device in the same or
@@ -150,7 +155,7 @@ LMIC_BEGIN_DECLS
 /// \brief sizes in bytes of session state blobs.
 enum {
 	LMIC_SESSION_STATE_SIZE_V2 = 216,	///< V1 and V2
-	LMIC_SESSION_STATE_SIZE_V3 = 240,	///< V3
+	LMIC_SESSION_STATE_SIZE_V3 = 244,	///< V3
 	LMIC_SESSION_STATE_SIZE = LMIC_SESSION_STATE_SIZE_V3,	///< what LMIC_saveSessionState() writes
 };
 

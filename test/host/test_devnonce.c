@@ -5,8 +5,9 @@ Module:  test_devnonce.c
 Function:
 	Host tests for DevNonce: a random start chosen once after power-up,
 	kept across LMIC_reset(), one more for each Join-Request (wrapping
-	at 0xFFFF), advanced before the radio sends each Join-Request, and
-	carried by the V3 session state blob.
+	at 0xFFFF), advanced before the radio sends each Join-Request,
+	carried by the V3 session state blob, and the stop once every value
+	has been used; also LMIC_clearJoinState().
 
 Copyright and License:
 	See LICENSE file accompanying this project.
@@ -54,7 +55,9 @@ static int s_checks;
 
 #define TICKS	((s4_t) LMIC_OSTICKS_PER_SEC)
 
-enum { OFF_NEXT_DEVNONCE = 220 };
+enum { OFF_JOIN_FLAGS = 216, OFF_DEVNONCE_START = 220, OFF_DEVNONCE_COUNT = 240 };
+
+enum { MAX_NONCES = 64 };
 
 /****************************************************************************\
 |
@@ -67,14 +70,18 @@ static int s_nJoinFailed;
 static u2_t s_frameNonce;		// DevNonce in the frame at EV_TXSTART
 static u4_t s_nextAtTxStart;		// LMIC_getNextDevNonce() at EV_TXSTART
 static u1_t s_blobAtTxStart[LMIC_SESSION_STATE_SIZE];
+static int s_nExhausted;		// EV_DEVNONCE_EXHAUSTED
+static u2_t s_nonces[MAX_NONCES];	// DevNonce of each Join-Request
 
 static void onEvent_(void *pUserData, ev_t ev) {
 	LMIC_UNREFERENCED_PARAMETER(pUserData);
 
 	if (ev == EV_TXSTART) {
-		++s_nTxStart;
 		s_frameNonce = (u2_t)(LMIC.frame[OFF_JR_DEVNONCE] |
 				      (LMIC.frame[OFF_JR_DEVNONCE + 1] << 8));
+		if (s_nTxStart < MAX_NONCES)
+			s_nonces[s_nTxStart] = s_frameNonce;
+		++s_nTxStart;
 		s_nextAtTxStart = LMIC_getNextDevNonce();
 		// what an application does to keep DevNonce across a power
 		// failure: save the blob here, before the radio transmits.
@@ -82,6 +89,8 @@ static void onEvent_(void *pUserData, ev_t ev) {
 			 LMIC_SESSION_STATE_OK);
 	} else if (ev == EV_JOIN_FAILED) {
 		++s_nJoinFailed;
+	} else if (ev == EV_DEVNONCE_EXHAUSTED) {
+		++s_nExhausted;
 	}
 }
 
@@ -178,10 +187,12 @@ static void testJoinUsesAndAdvances(void) {
 	CHECK_EQ(LMIC_getDevNonce(), 0x1234);
 
 	// the blob saved at EV_TXSTART holds the next value, not the used one.
-	CHECK_EQ(s_blobAtTxStart[OFF_NEXT_DEVNONCE + 0], 0x34);
-	CHECK_EQ(s_blobAtTxStart[OFF_NEXT_DEVNONCE + 1], 0x12);
-	CHECK_EQ(s_blobAtTxStart[OFF_NEXT_DEVNONCE + 2], 0);
-	CHECK_EQ(s_blobAtTxStart[OFF_NEXT_DEVNONCE + 3], 0);
+	// (start 0x1233, one Join-Request sent).
+	CHECK_EQ(s_blobAtTxStart[OFF_DEVNONCE_START + 0], 0x33);
+	CHECK_EQ(s_blobAtTxStart[OFF_DEVNONCE_START + 1], 0x12);
+	CHECK_EQ(s_blobAtTxStart[OFF_DEVNONCE_COUNT + 0], 1);
+	CHECK_EQ(s_blobAtTxStart[OFF_DEVNONCE_COUNT + 1], 0);
+	CHECK_EQ(s_blobAtTxStart[OFF_DEVNONCE_COUNT + 2], 0);
 	stopJoin();
 }
 
@@ -239,12 +250,170 @@ static void testWraps(void) {
 	stopJoin();
 }
 
+/****************************************************************************\
+|
+|	Through the real scheduler, with the simulated radio
+|
+\****************************************************************************/
+
+// start a join with the simulated radio on, and run failed joins for up
+// to maxHours, stopping early once nStop Join-Requests have gone out.
+static void runFailedJoins(int maxHours, int nStop) {
+	s_nTxStart = 0;
+	s_nJoinFailed = 0;
+	s_nExhausted = 0;
+	LMIC_registerEventCb(onEvent_, NULL);
+	hal_stub_setRadioAutoComplete(1);
+	CHECK(LMIC_startJoining());
+	for (int h = 0; h < maxHours && s_nTxStart < nStop; ++h)
+		hal_stub_runUntil((u4_t)os_getTime() + 3600u * (u4_t)TICKS);
+}
+
+static void endFailedJoins(void) {
+	hal_stub_setRadioAutoComplete(0);
+	stopJoin();
+}
+
+// count Join-Requests in s_nonces that do not follow the one before.
+static int nonceBreaks(void) {
+	int n = 0;
+	for (int i = 1; i < s_nTxStart && i < MAX_NONCES; ++i)
+		if (s_nonces[i] != (u2_t)(s_nonces[i - 1] + 1))
+			++n;
+	return n;
+}
+
+static void testExhaustionStop(void) {
+	u1_t blob[LMIC_SESSION_STATE_SIZE];
+	u2_t const start = 0xABCD;
+	u4_t const count = 65530;
+
+	hal_stub_setTicks(10000u * (u4_t)TICKS);
+	LMIC_reset();
+	LMIC_clearJoinBackoff();
+
+	// a saved state with 65530 of the 65536 DevNonces used.
+	CHECK_EQ(LMIC_saveSessionState(blob, sizeof(blob), NULL, 0), LMIC_SESSION_STATE_OK);
+	blob[OFF_DEVNONCE_START + 0] = (u1_t)start;
+	blob[OFF_DEVNONCE_START + 1] = (u1_t)(start >> 8);
+	blob[OFF_DEVNONCE_COUNT + 0] = (u1_t)count;
+	blob[OFF_DEVNONCE_COUNT + 1] = (u1_t)(count >> 8);
+	blob[OFF_DEVNONCE_COUNT + 2] = (u1_t)(count >> 16);
+	blob[OFF_DEVNONCE_COUNT + 3] = 0;
+	CHECK_EQ(LMIC_restoreSessionState(blob, sizeof(blob)), LMIC_SESSION_STATE_OK);
+	CHECK_EQ(LMIC_getNextDevNonce(), (u2_t)(start + count));
+
+	// a day of failed joins: exactly six more go out, then the stop.
+	runFailedJoins(24, 1000);
+	CHECK_EQ(s_nTxStart, 6);
+	CHECK_EQ(s_nonces[0], (u2_t)(start + count));
+	CHECK_EQ(s_nonces[5], (u2_t)(start - 1));	// the last unused value
+	CHECK_EQ(nonceBreaks(), 0);
+	CHECK_EQ(s_nExhausted, 1);
+	CHECK_EQ(LMIC.opmode & OP_JOINING, 0);
+	CHECK_EQ(LMIC.devNonceCount, 0x10000);
+
+	// joining again stops at once, with the event again.
+	s_nExhausted = 0;
+	runFailedJoins(1, 1000);
+	CHECK_EQ(s_nTxStart, 0);
+	CHECK_EQ(s_nExhausted, 1);
+
+	// LMIC_clearJoinState() clears the stop; joining restarts.
+	LMIC_clearJoinState();
+	CHECK_EQ(LMIC.devNonceCount, 0);
+	runFailedJoins(1, 3);
+	CHECK(s_nTxStart >= 3);
+	CHECK_EQ(s_nExhausted, 0);
+	CHECK_EQ(s_nonces[0], LMIC.devNonceStart);
+	endFailedJoins();
+
+	// so does LMIC_setNextDevNonce().
+	LMIC.devNonceCount = 0x10000;
+	CHECK(LMIC_setNextDevNonce(0x0100));
+	runFailedJoins(1, 2);
+	CHECK(s_nTxStart >= 2);
+	CHECK_EQ(s_nonces[0], 0x0100);
+	CHECK_EQ(s_nExhausted, 0);
+	endFailedJoins();
+}
+
+static void testWrapThroughScheduler(void) {
+	hal_stub_setTicks(20000u * (u4_t)TICKS);
+	LMIC_reset();
+	LMIC_clearJoinBackoff();
+	CHECK(LMIC_setNextDevNonce(0xFFF0));
+
+	// 0xFFF0 .. 0xFFFF, then 0x0000, 0x0001: through the wrap, no stop.
+	runFailedJoins(48, 18);
+	CHECK(s_nTxStart >= 18);
+	CHECK_EQ(s_nonces[0], 0xFFF0);
+	CHECK_EQ(s_nonces[15], 0xFFFF);
+	CHECK_EQ(s_nonces[16], 0x0000);
+	CHECK_EQ(s_nonces[17], 0x0001);
+	CHECK_EQ(nonceBreaks(), 0);
+	CHECK_EQ(s_nExhausted, 0);
+	CHECK(LMIC.opmode & OP_JOINING);
+	endFailedJoins();
+}
+
+static void testClearJoinState(void) {
+	u1_t blob[LMIC_SESSION_STATE_SIZE];
+
+	hal_stub_setTicks(30000u * (u4_t)TICKS);
+	LMIC_reset();
+	LMIC_clearJoinBackoff();
+
+	// half an hour of failed joins: the back-off runs, DevNonces are used.
+	runFailedJoins(1, 5);
+	hal_stub_setRadioAutoComplete(0);
+	lmic_join_backoff_status_t st;
+	LMIC_getJoinBackoffStatus(&st);
+	CHECK_EQ(st.fActive, 1);
+	CHECK(LMIC.devNonceCount >= 5);
+	u2_t const oldStart = LMIC.devNonceStart;
+	stopJoin();
+	LMIC_getJoinBackoffStatus(&st);
+	CHECK_EQ(st.fActive, 0);	// LMIC_reset() clears the back-off ...
+	CHECK(LMIC.devNonceCount >= 5);	// ... but not the DevNonce sequence
+
+	// a session: LMIC_clearJoinState() must not touch it.
+	LMICcore_joinBackoff_start(os_getTime());
+	LMIC.devaddr = 0x26011234;
+	LMIC.seqnoUp = 0x55;
+	LMIC.seqnoDn = 0x66;
+
+	LMIC_clearJoinState();
+	LMIC_getJoinBackoffStatus(&st);
+	CHECK_EQ(st.fActive, 0);
+	CHECK_EQ(LMIC.devNonceCount, 0);
+	CHECK(LMIC.devNonceStart != oldStart);
+	CHECK_EQ(LMIC_getNextDevNonce(), LMIC.devNonceStart);
+	CHECK_EQ(LMIC.devaddr, 0x26011234);
+	CHECK_EQ(LMIC.seqnoUp, 0x55);
+	CHECK_EQ(LMIC.seqnoDn, 0x66);
+
+	// the saved V3 blob shows it: session yes, back-off no, count 0.
+	CHECK_EQ(LMIC_saveSessionState(blob, sizeof(blob), NULL, 0), LMIC_SESSION_STATE_OK);
+	CHECK_EQ(blob[OFF_JOIN_FLAGS], LMIC_SESSION_STATE_JOINFLAG_SESSION);
+	CHECK_EQ(blob[OFF_DEVNONCE_START + 0], (u1_t)LMIC.devNonceStart);
+	CHECK_EQ(blob[OFF_DEVNONCE_START + 1], (u1_t)(LMIC.devNonceStart >> 8));
+	CHECK_EQ(blob[OFF_DEVNONCE_COUNT + 0], 0);
+	CHECK_EQ(blob[OFF_DEVNONCE_COUNT + 1], 0);
+	CHECK_EQ(blob[OFF_DEVNONCE_COUNT + 2], 0);
+
+	LMIC_reset();
+}
+
 int main(void) {
 	testRandomStartChosenOnce();
 	testSetGetReset();
 	testJoinUsesAndAdvances();
 	testRestoreContinues();
 	testWraps();
+	testExhaustionStop();
+	testWrapThroughScheduler();
+	testClearJoinState();
 
 	if (s_failures == 0)
 		printf("test_devnonce: all %d checks passed\n", s_checks);
