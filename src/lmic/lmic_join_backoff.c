@@ -24,7 +24,8 @@ Description:
 	(earliest() never asks the LMIC to wait longer than that), well
 	inside the 2^31-tick signed range at any allowed tick rate.
 
-	The state is LMIC.joinBackoff, so LMIC_reset() clears it.
+	The state is LMIC.joinBackoff, so LMIC_reset() clears it and the
+	session state blob saves and restores it (lmic_session_state.c).
 
 	Everything here is deterministic between transmissions: the random
 	parts (pacing jitter, window jitter) are drawn when a request is
@@ -238,6 +239,11 @@ void LMICcore_joinBackoff_start(ostime_t now) {
 	LMIC.joinBackoff.windowUsedMs = 0;
 	LMIC.joinBackoff.nextOkSec = 0;
 	LMIC.joinBackoff.capJitterSec = 0;
+}
+
+void LMICcore_joinBackoff_sync(ostime_t now) {
+	if (LMIC.joinBackoff.fActive)
+		advance(now);
 }
 
 void LMICcore_joinBackoff_joined(void) {
