@@ -194,6 +194,14 @@ static void testStartResetJoined(void) {
 	CHECK_EQ(status().fActive, 0);
 	LMICcore_joinBackoff_start(t0 + 200 * TICKS);
 
+	// LMIC_startJoining() starts the clock if it is not running.
+	LMIC_clearJoinBackoff();
+	LMIC_reset();
+	CHECK(LMIC_startJoining());
+	CHECK_EQ(status().fActive, 1);
+	os_clearCallback(&LMIC.osjob_defer);
+	LMIC_reset();
+
 	// a Join-Accept ends it.
 	LMICcore_joinBackoff_joined();
 	CHECK_EQ(status().fActive, 0);
@@ -512,6 +520,58 @@ static void testLongRun(void) {
 	       nDay, (unsigned)worstDay, (unsigned)worstSliding);
 }
 
+/****************************************************************************\
+|
+|	The hook in engineUpdate_inner()
+|
+\****************************************************************************/
+
+static int s_nTxStart;
+
+static void countTxStart(void *pUserData, ev_t ev) {
+	LMIC_UNREFERENCED_PARAMETER(pUserData);
+	if (ev == EV_TXSTART)
+		++s_nTxStart;
+}
+
+// run the LMIC's scheduler from now until \p untilTick, stepping the
+// clock a second at a time.
+static void runLoopUntil(u4_t untilTick) {
+	u4_t now = (u4_t)os_getTime();
+	while ((s4_t)(untilTick - now) > 0) {
+		os_runloop_once();
+		now += (u4_t)TICKS;
+		hal_stub_setTicks(now);
+	}
+	os_runloop_once();
+}
+
+static void testEngineHook(void) {
+	u4_t const start = 1000u * (u4_t)TICKS;
+
+	// a back-off 100 s into hour 1 that has used 35.99 s of its 36 s.
+	hal_stub_setTicks(start);
+	LMIC_reset();
+	setBackoff((ostime_t)start, 100, 0, 35990);
+	LMIC_registerEventCb(countTxStart, NULL);
+	s_nTxStart = 0;
+	CHECK(LMIC_startJoining());
+
+	// nothing goes out before the next window (3500 s from now).
+	runLoopUntil(start + 3400u * (u4_t)TICKS);
+	CHECK_EQ(s_nTxStart, 0);
+
+	// the first Join-Request goes out once the window rolls over
+	// (plus at most 255 s of jitter).
+	runLoopUntil(start + (3500u + 300u) * (u4_t)TICKS);
+	CHECK_EQ(s_nTxStart, 1);
+	CHECK_EQ(status().windowStartSec, 3600);
+
+	LMIC_reset();
+	LMIC_registerEventCb(NULL, NULL);
+	LMIC_clearJoinBackoff();
+}
+
 int main(void) {
 	hal_stub_startLmic();
 
@@ -523,6 +583,7 @@ int main(void) {
 	testDisabled();
 	testTickWrap();
 	testLongRun();
+	testEngineHook();
 
 	if (s_failures == 0)
 		printf("test_join_backoff: all %d checks passed\n", s_checks);

@@ -1638,6 +1638,7 @@ static bit_t processJoinAccept (void) {
     LMIC.opmode &= ~(OP_JOINING|OP_TRACK|OP_REJOIN|OP_TXRXPEND|OP_PINGINI);
     LMIC.opmode |= OP_NEXTCHNL;
     LMIC.txCnt = 0;
+    LMICcore_joinBackoff_joined();
     stateJustJoined();
     // transition to the ADR_ACK initial state.
     setAdrAckCount(LINK_CHECK_INIT);
@@ -2148,6 +2149,11 @@ static void buildJoinRequest (void) {
     LMIC.dataLen = LEN_JR;
 }
 
+// airtime of a Join-Request at the current data rate.
+static ostime_t joinRequestAirtime (void) {
+    return calcAirTime(setCr(updr2rps((dr_t)LMIC.datarate), (cr_t)LMIC.errcr), LEN_JR);
+}
+
 static void startJoining (xref2osjob_t osjob) {
     LMIC_API_PARAMETER(osjob);
 
@@ -2178,6 +2184,9 @@ void LMIC_unjoin(void) {
 // Start join procedure if not already joined.
 bit_t LMIC_startJoining (void) {
     if( LMIC.devaddr == 0 ) {
+        // the first attempt after power-up or after a join is T0 of
+        // the retransmission back-off; later calls keep it running.
+        LMICcore_joinBackoff_start(os_getTime());
         // There should be no TX/RX going on
         // ASSERT((LMIC.opmode & (OP_POLL|OP_TXRXPEND)) == 0);
         LMIC.opmode &= ~OP_POLL;
@@ -2629,6 +2638,11 @@ static void engineUpdate_inner (void) {
         // Delayed TX or waiting for duty cycle?
         if( (LMIC.globalDutyRate != 0 || (LMIC.opmode & OP_RNDTX) != 0)  &&  (txbeg - LMIC.globalDutyAvail) < 0 )
             txbeg = LMIC.globalDutyAvail;
+#if !defined(DISABLE_JOIN)
+        // Join-Request retransmission back-off (lmic_join_backoff.c)
+        if( (LMIC.opmode & OP_JOINING) != 0 )
+            txbeg = LMICcore_joinBackoff_earliest(now, txbeg, joinRequestAirtime());
+#endif // !DISABLE_JOIN
 #if !defined(DISABLE_BEACONS)
         // If we're tracking a beacon...
         // then make sure TX-RX transaction is complete before beacon
@@ -2709,6 +2723,10 @@ static void engineUpdate_inner (void) {
             LMIC.dndr   = txdr;  // carry TX datarate (can be != LMIC.datarate) over to txDone/setupRx1
             LMIC.opmode = (LMIC.opmode & ~(OP_POLL|OP_RNDTX)) | OP_TXRXPEND | OP_NEXTCHNL;
             LMICbandplan_updateTx(txbeg);
+#if !defined(DISABLE_JOIN)
+            if( (LMIC.opmode & OP_JOINING) != 0 )
+                LMICcore_joinBackoff_noteTx(txbeg, joinRequestAirtime());
+#endif // !DISABLE_JOIN
             // limit power to value asked in adr
             LMIC.radio.txpow = LMIC.txpow > LMIC.adrTxPow ? LMIC.adrTxPow : LMIC.txpow;
             reportEventNoUpdate(EV_TXSTART);
