@@ -2159,10 +2159,16 @@ static void startJoining (xref2osjob_t osjob) {
 
     // see issue #244: for backwards compatibility
     // don't override what the user does after os_init().
-    if (LMIC.initBandplanAfterReset)
+    if (LMIC.initBandplanAfterReset) {
         LMICbandplan_resetDefaultChannels();
-    else
+        // the reset undoes what LMIC_startJoining() set up for the join
+        // loop: US-like regions forget the channel (txChnl = 0xFF), and
+        // EU-like regions go back to the operational channel groups. Set
+        // the join loop up again.
+        LMICbandplan_initJoinLoop();
+    } else {
         LMIC.initBandplanAfterReset = 1;
+    }
 
     // let the client know that now's the time to update
     // network settings.
