@@ -64,12 +64,13 @@ enum {
 	OFF_JOIN_FLAGS = 216,
 	OFF_JOIN_RESERVED = 217,
 	OFF_BACKOFF_CAP_JITTER = 218,
-	OFF_NEXT_DEVNONCE = 220,
+	OFF_DEVNONCE_START = 220,
 	OFF_BACKOFF_ELAPSED = 224,
 	OFF_BACKOFF_WINDOW_START = 228,
 	OFF_BACKOFF_WINDOW_USED = 232,
 	OFF_BACKOFF_NEXT_OK = 236,
-	OFF_END_V3 = 240,
+	OFF_DEVNONCE_COUNT = 240,
+	OFF_END_V3 = 244,
 };
 
 LMIC_C_ASSERT(SIZE_CHANNELS == 172);
@@ -171,7 +172,9 @@ static u1_t channelVariantSize(u1_t kind) {
 static void restoreJoinState(const u1_t *pBuf, ostime_t now) {
 	u1_t const joinFlags = pBuf[OFF_JOIN_FLAGS];
 
-	LMIC.devNonce = (u2_t)os_rlsbf4(pBuf + OFF_NEXT_DEVNONCE);
+	LMIC.devNonceStart = (u2_t)os_rlsbf4(pBuf + OFF_DEVNONCE_START);
+	LMIC.devNonceCount = os_rlsbf4(pBuf + OFF_DEVNONCE_COUNT);
+	LMIC.devNonce = (u2_t)(LMIC.devNonceStart + LMIC.devNonceCount);
 	LMIC.devNonceSet = 1;
 
 	os_clearMem(&LMIC.joinBackoff, sizeof(LMIC.joinBackoff));
@@ -217,7 +220,8 @@ lmic_session_state_result_t LMIC_querySessionState(
 		joinFlags = pBuf[OFF_JOIN_FLAGS];
 		if ((joinFlags & ~(LMIC_SESSION_STATE_JOINFLAG_SESSION | LMIC_SESSION_STATE_JOINFLAG_BACKOFF)) != 0 ||
 		    pBuf[OFF_JOIN_RESERVED] != 0 ||
-		    os_rlsbf4(pBuf + OFF_NEXT_DEVNONCE) > 0xFFFF)
+		    os_rlsbf4(pBuf + OFF_DEVNONCE_START) > 0xFFFF ||
+		    os_rlsbf4(pBuf + OFF_DEVNONCE_COUNT) > 0x10000)
 			return LMIC_SESSION_STATE_BAD_JOIN_STATE;
 	}
 
@@ -286,7 +290,8 @@ lmic_session_state_result_t LMIC_saveSessionState(
 	pBuf[OFF_JOIN_FLAGS] = joinFlags;
 	pBuf[OFF_JOIN_RESERVED] = 0;
 	os_wlsbf2(pBuf + OFF_BACKOFF_CAP_JITTER, LMIC.joinBackoff.capJitterSec);
-	os_wlsbf4(pBuf + OFF_NEXT_DEVNONCE, LMIC.devNonce);
+	os_wlsbf4(pBuf + OFF_DEVNONCE_START, LMIC.devNonceStart);
+	os_wlsbf4(pBuf + OFF_DEVNONCE_COUNT, LMIC.devNonceCount);
 	os_wlsbf4(pBuf + OFF_BACKOFF_ELAPSED, LMIC.joinBackoff.elapsedSec);
 	os_wlsbf4(pBuf + OFF_BACKOFF_WINDOW_START, LMIC.joinBackoff.windowStartSec);
 	os_wlsbf4(pBuf + OFF_BACKOFF_WINDOW_USED, LMIC.joinBackoff.windowUsedMs);
@@ -344,9 +349,12 @@ lmic_session_state_result_t LMIC_restoreSessionState(
 		restoreJoinState(pBuf, now);
 	} else {
 		// V1 and V2 have no DevNonce. The LMIC that wrote them chose a
-		// random DevNonce at every reset; do the same once, then count up
-		// from there and save it in V3.
-		LMIC.devNonce = os_getRndU2();
+		// random DevNonce at every reset; start a new sequence at a
+		// random value, then count up from there and save it in V3.
+		u2_t const start = os_getRndU2();
+		LMIC.devNonce = start;
+		LMIC.devNonceStart = start;
+		LMIC.devNonceCount = 0;
 		LMIC.devNonceSet = 1;
 	}
 
