@@ -35,6 +35,8 @@
 
 #include "oslmic.h"
 #include "lorabase.h"
+// Join-Request retransmission back-off (lmic_join_backoff.c)
+#include "lmic_join_backoff.h"
 #ifndef _lmic_version_h_
 # include "lmic_version.h"
 #endif
@@ -707,6 +709,10 @@ struct lmic_class_c_s {
 struct lmic_t {
     /// client setup data, survives LMIC_reset().
     lmic_client_data_t  client;
+
+    /// Join-Request retransmission back-off (lmic_join_backoff.c).
+    /// Cleared by LMIC_reset(); saved in the session state blob.
+    lmic_join_backoff_state_t joinBackoff;
 
     /// the OS job object. pointer alignment. This is only for use by the LMIC for
     /// running the state machine. Don't use it for other purposes.
