@@ -72,6 +72,13 @@ static tx_t s_tx[MAX_TX];
 static int s_nTx;
 static int s_nJoinTxComplete;
 static int s_nOther;		// events that should not happen here
+static int s_nBadChannel;	// Join-Requests on a channel that does not exist
+
+#if CFG_LMIC_US_like
+enum { N_TX_CHANNELS = 72 };
+#else
+enum { N_TX_CHANNELS = MAX_CHANNELS };
+#endif
 
 // the stub clock is 32 bits; keep a 64-bit count of ticks since T0.
 static u4_t s_stepTick;
@@ -86,6 +93,8 @@ static void onEvent_(void *pUserData, ev_t ev) {
 
 	switch (ev) {
 	case EV_TXSTART:
+		if (LMIC.txChnl >= N_TX_CHANNELS || LMIC.freq == 0)
+			++s_nBadChannel;
 		if (s_nTx < MAX_TX) {
 			s_tx[s_nTx].tick = elapsedNow();
 			s_tx[s_nTx].ms = (u4_t)osticks2ms(calcAirTime(LMIC.rps, LMIC.dataLen));
@@ -148,7 +157,7 @@ static void testLongRun(void) {
 	hal_stub_setRadioAutoComplete(1);
 	LMIC_registerEventCb(onEvent_, NULL);
 
-	s_nTx = s_nJoinTxComplete = s_nOther = 0;
+	s_nTx = s_nJoinTxComplete = s_nOther = s_nBadChannel = 0;
 	s_stepTick = (u4_t)os_getTime();
 	s_stepElapsed = 0;
 	CHECK(LMIC_startJoining());	// T0
@@ -161,6 +170,7 @@ static void testLongRun(void) {
 
 	CHECK(s_nTx < MAX_TX);
 	CHECK_EQ(s_nOther, 0);
+	CHECK_EQ(s_nBadChannel, 0);
 	CHECK_EQ(LMIC.devaddr, 0);
 	// every request but perhaps the last ran its receive windows out.
 	CHECK(s_nJoinTxComplete >= s_nTx - 1);
@@ -203,7 +213,36 @@ static void testLongRun(void) {
 	LMIC_registerEventCb(NULL, NULL);
 }
 
+// LMIC_startJoining() a second time without LMIC_reset() (as
+// LMIC_unjoinAndRejoin() does): every Join-Request must still go out on
+// a real channel.
+static void testRejoinWithoutReset(void) {
+	hal_stub_setTicks(1000u * TICKS);
+	hal_stub_startLmic();
+	hal_stub_setRadioAutoComplete(1);
+	LMIC_registerEventCb(onEvent_, NULL);
+	s_nTx = s_nJoinTxComplete = s_nOther = s_nBadChannel = 0;
+	s_stepTick = (u4_t)os_getTime();
+	s_stepElapsed = 0;
+
+	CHECK(LMIC_startJoining());
+	hal_stub_runUntil((u4_t)os_getTime() + 600u * TICKS);
+	int const nFirst = s_nTx;
+	CHECK(nFirst > 0);
+
+	LMIC_unjoin();
+	CHECK(LMIC_startJoining());
+	hal_stub_runUntil((u4_t)os_getTime() + 600u * TICKS);
+	CHECK(s_nTx > nFirst);
+	CHECK_EQ(s_nBadChannel, 0);
+
+	hal_stub_setRadioAutoComplete(0);
+	LMIC_reset();
+	LMIC_registerEventCb(NULL, NULL);
+}
+
 int main(void) {
+	testRejoinWithoutReset();
 	testLongRun();
 
 	if (s_failures == 0)
