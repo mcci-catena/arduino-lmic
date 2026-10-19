@@ -29,6 +29,21 @@ void hal_stub_advanceTicks(u4_t delta);
 /// \brief bring up the LMIC on the stub: os_init_ex() and LMIC_reset().
 void hal_stub_startLmic(void);
 
+/// \brief turn the simulated radio on or off (off by default). When on, a
+///	LoRa transmit completes after its airtime and a single receive times
+///	out, both delivered by lmic_hal_processPendingIRQs(). When off, the
+///	radio never completes anything.
+void hal_stub_setRadioAutoComplete(bit_t fEnable);
+
+/// \brief ticks until the simulated radio's next event, 0 if due now, or
+///	HAL_STUB_RADIO_IDLE if nothing is pending.
+u4_t hal_stub_radioTicksUntilEvent(void);
+#define HAL_STUB_RADIO_IDLE	UINT32_C(0xFFFFFFFF)
+
+/// \brief run the LMIC scheduler until \p untilTick (an os time), moving
+///	the stub clock straight to each scheduled job or radio event.
+void hal_stub_runUntil(u4_t untilTick);
+
 LMIC_END_DECLS
 
 #endif /* _hal_stub_h_ */

@@ -87,6 +87,15 @@ u1_t lmic_hal_checkTimer(u4_t targettime) {
 // radio_init() waits for the wideband RSSI's low bit to change between two
 // reads, and the image calibration waits for its RUNNING bit to clear.
 enum {
+	SX127X_RegOpMode = 0x01,
+	SX127X_LORARegIrqFlags = 0x12,
+	SX127X_OPMODE_LORA = 0x80,
+	SX127X_OPMODE_MASK = 0x07,
+	SX127X_OPMODE_STANDBY = 0x01,
+	SX127X_OPMODE_TX = 0x03,
+	SX127X_OPMODE_RX_SINGLE = 0x06,
+	SX127X_IRQ_LORA_TXDONE = 0x08,
+	SX127X_IRQ_LORA_RXTOUT = 0x80,
 	SX127X_RegVersion = 0x42,
 	SX1276_VERSION = 0x12,
 	SX127X_LORARegRssiWideband = 0x2C,
@@ -95,6 +104,51 @@ enum {
 };
 
 static u1_t s_regs[128];
+
+// the simulated radio: with auto-complete on, a LoRa transmit finishes
+// after its airtime, and a single receive times out (nothing heard)
+// after RX_TIMEOUT_MS, each through radio_irq_handler_v2() from
+// lmic_hal_processPendingIRQs(), the way the Arduino HAL delivers DIO
+// events.
+enum { RX_TIMEOUT_MS = 10 };
+enum radio_pending_e { STUB_RADIO_IDLE, STUB_RADIO_TX, STUB_RADIO_RX };
+
+static bit_t s_radioAuto;
+static u1_t s_radioPending = STUB_RADIO_IDLE;
+static u4_t s_radioDoneAt;
+
+void hal_stub_setRadioAutoComplete(bit_t fEnable) {
+	s_radioAuto = fEnable;
+	s_radioPending = STUB_RADIO_IDLE;
+}
+
+u4_t hal_stub_radioTicksUntilEvent(void) {
+	if (s_radioPending == STUB_RADIO_IDLE)
+		return HAL_STUB_RADIO_IDLE;
+	s4_t const d = (s4_t)(s_radioDoneAt - s_ticks);
+	return d > 0 ? (u4_t)d : 0;
+}
+
+// a write to RegOpMode: start the simulated transmit or receive.
+static void radioOpMode(u1_t v) {
+	if (! s_radioAuto || (v & SX127X_OPMODE_LORA) == 0) {
+		s_radioPending = STUB_RADIO_IDLE;
+		return;
+	}
+	switch (v & SX127X_OPMODE_MASK) {
+	case SX127X_OPMODE_TX:
+		s_radioPending = STUB_RADIO_TX;
+		s_radioDoneAt = s_ticks + (u4_t)calcAirTime(LMIC.rps, LMIC.dataLen);
+		break;
+	case SX127X_OPMODE_RX_SINGLE:
+		s_radioPending = STUB_RADIO_RX;
+		s_radioDoneAt = s_ticks + (u4_t)ms2osticks(RX_TIMEOUT_MS);
+		break;
+	default:
+		s_radioPending = STUB_RADIO_IDLE;
+		break;
+	}
+}
 
 static void resetRegs(void) {
 	memset(s_regs, 0, sizeof s_regs);
@@ -124,6 +178,8 @@ void lmic_hal_spi_write(u1_t cmd, const u1_t *buf, size_t len) {
 		if (addr == SX127X_FSKRegImageCal)
 			v &= (u1_t)~SX127X_IMAGECAL_RUNNING;	// calibration finishes at once
 		s_regs[addr] = v;
+		if (addr == SX127X_RegOpMode)
+			radioOpMode(v);
 		if (addr != 0)
 			addr = (addr + 1) & 0x7F;
 	}
@@ -151,10 +207,19 @@ void lmic_hal_sleep(void) {
 }
 
 void lmic_hal_processPendingIRQs(void) {
+	if (s_radioPending == STUB_RADIO_IDLE || (s4_t)(s_radioDoneAt - s_ticks) > 0)
+		return;
+
+	u4_t const t = s_radioDoneAt;
+	s_regs[SX127X_LORARegIrqFlags] = (s_radioPending == STUB_RADIO_TX)
+		? SX127X_IRQ_LORA_TXDONE : SX127X_IRQ_LORA_RXTOUT;
+	s_regs[SX127X_RegOpMode] = (u1_t)((s_regs[SX127X_RegOpMode] & ~SX127X_OPMODE_MASK) | SX127X_OPMODE_STANDBY);
+	s_radioPending = STUB_RADIO_IDLE;
+	radio_irq_handler_v2(0, (ostime_t)t);
 }
 
 bit_t lmic_hal_hasPendingIrqs(void) {
-	return 0;
+	return s_radioPending != STUB_RADIO_IDLE && (s4_t)(s_radioDoneAt - s_ticks) <= 0;
 }
 
 ostime_t lmic_hal_setModuleActive(bit_t val) {
@@ -211,4 +276,54 @@ void hal_stub_startLmic(void) {
 		abort();
 	}
 	LMIC_reset();
+}
+
+/****************************************************************************\
+|
+|	Running the scheduler
+|
+\****************************************************************************/
+
+void hal_stub_runUntil(u4_t untilTick) {
+	unsigned nStill = 0;
+
+	for (;;) {
+		u4_t q = os_runloop_once_ex();
+		u4_t const r = hal_stub_radioTicksUntilEvent();
+
+		if (q == 0) {
+			// a job is runnable or due, a radio event is due, or the
+			// radio is busy (the scheduler reports 0 then, because a
+			// polled HAL finds the radio's end only by asking).
+			if (r == HAL_STUB_RADIO_IDLE || r == 0) {
+				// a job that finds itself due again at once (the
+				// engine waits for txbeg - TX_RAMPUP, then needs
+				// one more tick) would spin here; real time moves
+				// on, so move the clock one tick.
+				if (++nStill > 4) {
+					++s_ticks;
+					nStill = 0;
+					if ((s4_t)(untilTick - s_ticks) <= 0)
+						return;
+				}
+				continue;
+			}
+			// radio busy: run any runnable jobs first, then move on.
+			for (int i = 0; i < 8; ++i)
+				(void) os_runloop_once_ex();
+			q = hal_stub_radioTicksUntilEvent();
+			if (q == HAL_STUB_RADIO_IDLE)
+				continue;
+		} else if (r != HAL_STUB_RADIO_IDLE && r < q) {
+			q = r;
+		}
+
+		s4_t const left = (s4_t)(untilTick - s_ticks);
+		if (left <= 0)
+			return;
+		if (q == OS_NEXT_JOB_NEVER || q > (u4_t)left)
+			q = (u4_t)left;
+		s_ticks += q;
+		nStill = 0;
+	}
 }
