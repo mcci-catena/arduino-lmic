@@ -2253,6 +2253,25 @@ static void unjoinAndRejoin(xref2osjob_t osjob) {
     LMIC_startJoining();
 }
 
+// stop a join in progress between Join-Requests, keeping the back-off
+// and the DevNonce sequence for a later LMIC_startJoining().
+bit_t LMIC_stopJoining(void) {
+    if ((LMIC.opmode & OP_JOINING) == 0)
+        return 1;
+    if ((LMIC.opmode & OP_TXRXPEND) != 0)
+        return 0;
+
+    // the join loop runs on LMIC.osjob (runEngineUpdate, onJoinFailed,
+    // the wait for the next Join-Request) and, right after
+    // LMIC_startJoining(), on LMIC.osjob_defer (startJoining). Cancel
+    // those; leave a deferred unjoinAndRejoin() alone.
+    LMIC.opmode &= ~(OP_JOINING|OP_REJOIN|OP_NEXTCHNL);
+    os_clearCallback(&LMIC.osjob);
+    if (LMIC.osjob_defer.func == FUNC_ADDR(startJoining))
+        os_clearCallback(&LMIC.osjob_defer);
+    return 1;
+}
+
 // do a deferred unjoin and rejoin, so not in engineupdate.
 void LMIC_unjoinAndRejoin(void) {
     os_setCallback(&LMIC.osjob_defer, FUNC_ADDR(unjoinAndRejoin));

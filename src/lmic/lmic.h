@@ -1031,6 +1031,20 @@ void  LMIC_setAdrMode   (bit_t enabled);        // set ADR mode (if mobile turn 
 bit_t LMIC_startJoining (void);
 void  LMIC_tryRejoin    (void);
 void  LMIC_unjoin       (void);
+/// \brief stop a join in progress, between Join-Requests.
+///
+/// The join back-off and the DevNonce sequence are kept; a later
+/// LMIC_startJoining() continues them (the back-off keeps its T0, and the
+/// next Join-Request uses the next DevNonce). Returns 0, and changes
+/// nothing, while a Join-Request is on the air or its receive windows are
+/// open (OP_TXRXPEND): call it again after EV_JOIN_TXCOMPLETE. Returns 1
+/// otherwise, also when no join is running.
+///
+/// Unlike LMIC_unjoin(), this ends the join loop; unlike LMIC_reset(), it
+/// keeps the back-off and the channel plan. While not joined, anything
+/// that runs the MAC engine (for example LMIC_setTxData2()) starts a new
+/// join.
+bit_t LMIC_stopJoining  (void);
 void  LMIC_unjoinAndRejoin (void);
 #endif
 

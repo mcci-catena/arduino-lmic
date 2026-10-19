@@ -73,6 +73,8 @@ static int s_nTx;
 static int s_nJoinTxComplete;
 static int s_nOther;		// events that should not happen here
 static int s_nBadChannel;	// Join-Requests on a channel that does not exist
+static volatile int s_stopOnJoinTxComplete;	// set at EV_JOIN_TXCOMPLETE
+static volatile int s_stopOnTxStart;		// set at EV_TXSTART
 
 #if CFG_LMIC_US_like
 enum { N_TX_CHANNELS = 72 };
@@ -102,9 +104,11 @@ static void onEvent_(void *pUserData, ev_t ev) {
 						   (LMIC.frame[OFF_JR_DEVNONCE + 1] << 8));
 		}
 		++s_nTx;
+		s_stopOnTxStart = 1;
 		break;
 	case EV_JOIN_TXCOMPLETE:
 		++s_nJoinTxComplete;
+		s_stopOnJoinTxComplete = 1;
 		break;
 	case EV_JOINING:
 	case EV_JOIN_FAILED:
@@ -241,7 +245,85 @@ static void testRejoinWithoutReset(void) {
 	LMIC_registerEventCb(NULL, NULL);
 }
 
+// stop a join after an unanswered Join-Request, wait, and start again:
+// the back-off and the DevNonce sequence go on where they were.
+static void testStopJoining(void) {
+	lmic_join_backoff_status_t st0, st1;
+
+	hal_stub_setTicks(5000u * TICKS);
+	hal_stub_startLmic();
+	hal_stub_setRadioAutoComplete(1);
+	LMIC_registerEventCb(onEvent_, NULL);
+	s_nTx = s_nJoinTxComplete = s_nOther = s_nBadChannel = 0;
+	s_stepTick = (u4_t)os_getTime();
+	s_stepElapsed = 0;
+
+	// no join running: nothing to do.
+	CHECK_EQ(LMIC_stopJoining(), 1);
+
+	// while the first Join-Request is on the air: refused, no change.
+	s_stopOnTxStart = 0;
+	CHECK(LMIC_startJoining());
+	hal_stub_runUntilStop((u4_t)os_getTime() + 600u * TICKS, &s_stopOnTxStart);
+	CHECK_EQ(s_nTx, 1);
+	CHECK(LMIC.opmode & OP_TXRXPEND);
+	u2_t const opmode = LMIC.opmode;
+	CHECK_EQ(LMIC_stopJoining(), 0);
+	CHECK_EQ(LMIC.opmode, opmode);
+
+	// after its receive windows, from the main loop: stopped.
+	s_stopOnJoinTxComplete = 0;
+	hal_stub_runUntilStop((u4_t)os_getTime() + 600u * TICKS, &s_stopOnJoinTxComplete);
+	CHECK_EQ(s_nJoinTxComplete, 1);
+	CHECK_EQ(s_nTx, 1);
+	u4_t const next = LMIC_getNextDevNonce();
+	LMIC_getJoinBackoffStatus(&st0);
+	CHECK_EQ(st0.fActive, 1);
+	CHECK_EQ(LMIC_stopJoining(), 1);
+	CHECK_EQ(LMIC.opmode & (OP_JOINING|OP_TXRXPEND), 0);
+	CHECK_EQ(LMIC_stopJoining(), 1);	// again: nothing to do
+
+	// two hours: nothing goes out, nothing changes but the clock.
+	hal_stub_runUntil((u4_t)os_getTime() + 3600u * TICKS);
+	hal_stub_runUntil((u4_t)os_getTime() + 3600u * TICKS);
+	CHECK_EQ(s_nTx, 1);
+	CHECK_EQ(LMIC_getNextDevNonce(), next);
+	LMIC_getJoinBackoffStatus(&st1);
+	CHECK_EQ(st1.fActive, 1);
+	CHECK(st1.elapsedSec >= st0.elapsedSec + 7200 &&
+	      st1.elapsedSec <= st0.elapsedSec + 7201);	// same T0
+	CHECK_EQ(LMIC.devaddr, 0);
+
+	// start again: the next Join-Request carries the next DevNonce, on
+	// a real channel, and the back-off keeps its T0.
+	s_stopOnTxStart = 0;
+	CHECK(LMIC_startJoining());
+	hal_stub_runUntilStop((u4_t)os_getTime() + 7200u * TICKS, &s_stopOnTxStart);
+	CHECK_EQ(s_nTx, 2);
+	CHECK_EQ(s_tx[1].nonce, (u2_t)next);
+	CHECK_EQ(LMIC_getNextDevNonce(), (u2_t)(next + 1));
+	CHECK_EQ(s_nBadChannel, 0);
+	lmic_join_backoff_status_t st2;
+	LMIC_getJoinBackoffStatus(&st2);
+	CHECK(st2.elapsedSec >= st1.elapsedSec);	// not restarted at 0
+
+	// and joining goes on from there.
+	hal_stub_runUntil((u4_t)os_getTime() + 1800u * TICKS);
+	CHECK(s_nTx > 2);
+	CHECK_EQ(s_nBadChannel, 0);
+	int nBadNonce = 0;
+	for (int i = 1; i < s_nTx && i < MAX_TX; ++i)
+		if (s_tx[i].nonce != (u2_t)(s_tx[i - 1].nonce + 1))
+			++nBadNonce;
+	CHECK_EQ(nBadNonce, 0);
+
+	hal_stub_setRadioAutoComplete(0);
+	LMIC_reset();
+	LMIC_registerEventCb(NULL, NULL);
+}
+
 int main(void) {
+	testStopJoining();
 	testRejoinWithoutReset();
 	testLongRun();
 

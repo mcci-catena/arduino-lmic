@@ -44,6 +44,11 @@ u4_t hal_stub_radioTicksUntilEvent(void);
 ///	the stub clock straight to each scheduled job or radio event.
 void hal_stub_runUntil(u4_t untilTick);
 
+/// \brief like hal_stub_runUntil(), but also return as soon as \p *pStop
+///	is nonzero after a job has run (for example, set by an event
+///	handler), as an application's loop would see it.
+void hal_stub_runUntilStop(u4_t untilTick, const volatile int *pStop);
+
 LMIC_END_DECLS
 
 #endif /* _hal_stub_h_ */

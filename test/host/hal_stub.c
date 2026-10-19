@@ -285,10 +285,16 @@ void hal_stub_startLmic(void) {
 \****************************************************************************/
 
 void hal_stub_runUntil(u4_t untilTick) {
+	hal_stub_runUntilStop(untilTick, NULL);
+}
+
+void hal_stub_runUntilStop(u4_t untilTick, const volatile int *pStop) {
 	unsigned nStill = 0;
 
 	for (;;) {
 		u4_t q = os_runloop_once_ex();
+		if (pStop != NULL && *pStop)
+			return;
 		u4_t const r = hal_stub_radioTicksUntilEvent();
 
 		if (q == 0) {
@@ -309,8 +315,11 @@ void hal_stub_runUntil(u4_t untilTick) {
 				continue;
 			}
 			// radio busy: run any runnable jobs first, then move on.
-			for (int i = 0; i < 8; ++i)
+			for (int i = 0; i < 8; ++i) {
 				(void) os_runloop_once_ex();
+				if (pStop != NULL && *pStop)
+					return;
+			}
 			q = hal_stub_radioTicksUntilEvent();
 			if (q == HAL_STUB_RADIO_IDLE)
 				continue;
