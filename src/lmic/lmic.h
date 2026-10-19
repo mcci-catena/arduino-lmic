@@ -785,7 +785,12 @@ struct lmic_t {
     /* (u)int16_t things */
     rps_t       rps;            // radio parameter selections: SF, BW, CodingRate, NoCrc, implicit hdr
     u2_t        opmode;         // engineUpdate() operating mode flags
-    u2_t        devNonce;       // last generated nonce
+    /// DevNonce for the next Join-Request. Chosen at random by the first
+    /// LMIC_reset() after power-up, unless set or restored; counts up by
+    /// one per Join-Request and wraps. Survives LMIC_reset().
+    u2_t        devNonce;
+    /// nonzero once devNonce has been chosen, set or restored.
+    u1_t        devNonceSet;
 
     s2_t        adrAckReq;      // counter for link integrity tracking (LINK_CHECK_OFF=off)
 
@@ -1044,6 +1049,10 @@ void  LMIC_setPingable   (u1_t intvExp);
 #endif
 
 void LMIC_setSession (u4_t netid, devaddr_t devaddr, xref2u1_t nwkKey, xref2u1_t artKey);
+/// \brief DevNonce the next Join-Request will use, 0 to 0xFFFF.
+u4_t LMIC_getNextDevNonce (void);
+/// \brief set the next DevNonce (0 to 0xFFFF). Returns 0 if out of range.
+bit_t LMIC_setNextDevNonce (u4_t next);
 void LMIC_setLinkCheckMode (bit_t enabled);
 void LMIC_setClockError(u2_t error);
 

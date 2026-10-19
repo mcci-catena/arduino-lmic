@@ -2169,6 +2169,20 @@ static void startJoining (xref2osjob_t osjob) {
     reportEventAndUpdate(EV_JOINING);
 }
 
+// DevNonce for the next Join-Request, 0 to 0xFFFF.
+u4_t LMIC_getNextDevNonce(void) {
+    return LMIC.devNonce;
+}
+
+// set the DevNonce for the next Join-Request, 0 to 0xFFFF.
+bit_t LMIC_setNextDevNonce(u4_t next) {
+    if (next > 0xFFFF)
+        return 0;
+    LMIC.devNonce = (u2_t)next;
+    LMIC.devNonceSet = 1;
+    return 1;
+}
+
 // reset the joined-to-network state (and clean up)
 void LMIC_unjoin(void) {
     // reset any joining flags
@@ -2845,17 +2859,32 @@ void LMIC_reset (void) {
     os_radio(RADIO_RST);
     os_clearCallback(&LMIC.osjob);
 
-    // save callback info, clear LMIC, restore.
+    // save callback info and DevNonce, clear LMIC, restore. DevNonce
+    // counts up by one per Join-Request (LoRaWAN 1.0.3 asks only that a
+    // value not repeat); a reset keeps it, so an internal reset does not
+    // go back to a value already used. The first reset after power-up
+    // chooses a random start, as the LMIC always did; an application
+    // that keeps DevNonce across power cycles restores it afterward from
+    // the session state blob, or with LMIC_setNextDevNonce(). The
+    // LoRaWAN 1.0.4 counter (start at 0, never wrap) is #769.
     do {
         lmic_client_data_t  client = LMIC.client;
+        u2_t const devNonce = LMIC.devNonce;
+        u1_t const devNonceSet = LMIC.devNonceSet;
 
         os_clearMem((xref2u1_t)&LMIC,SIZEOFEXPR(LMIC));
 
         LMIC.client = client;
+        LMIC.devNonce = devNonce;
+        LMIC.devNonceSet = devNonceSet;
     } while (0);
 
+    if (! LMIC.devNonceSet) {
+        LMIC.devNonce = os_getRndU2();
+        LMIC.devNonceSet = 1;
+    }
+
     // LMIC.devaddr      =  0;      // true from os_clearMem().
-    LMIC.devNonce     =  os_getRndU2();
     LMIC.opmode       =  OP_NONE;
     LMIC.errcr        =  CR_4_5;
     LMIC.adrEnabled   =  FCT_ADREN;
