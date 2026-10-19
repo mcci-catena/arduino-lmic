@@ -256,8 +256,8 @@ void LMICuslike_initJoinLoop(void) {
         // section 2.*.2
         LMICcore_setDrJoin(DRCHG_SET, LMICbandplan_getInitialDrJoin());
 
-        // TODO(tmm@mcci.com) need to implement the transmit randomization and
-        // duty cycle restrictions from LoRaWAN V1.0.2 section 7.
+        // the retransmission back-off of LoRaWAN section 7 is in
+        // lmic_join_backoff.c.
 }
 #endif // !DISABLE_JOIN
 
@@ -305,12 +305,10 @@ ostime_t LMICuslike_nextJoinState(void) {
         // tell the main loop that we've already selected a channel.
         LMIC.opmode &= ~OP_NEXTCHNL;
 
-        // TODO(tmm@mcci.com): change delay to (0:1) secs + a known t0, but randomized;
-        // starting adding a bias after 1 hour, 25 hours, etc.; and limit the duty
-        // cycle on power up. For testability, add a way to set the join start time
-        // externally (a test API) so we can check this feature.
+        // This sets the usual delay between Join-Requests. The limits of
+        // TS001-1.0.4 section 7 (retransmission back-off) are applied on
+        // top of it by lmic_join_backoff.c, from engineUpdate_inner().
         // See https://github.com/mcci-catena/arduino-lmic/issues/2
-	// Current code doesn't match LoRaWAN 1.0.2 requirements.
 
         LMIC.txend = os_getTime() +
                 (isTESTMODE()
