@@ -18,6 +18,11 @@ Author:
 
 #include "oslmic.h"
 
+// the tests use the V7 name for the tick rate; V6 calls it OSTICKS_PER_SEC.
+#ifndef LMIC_OSTICKS_PER_SEC
+# define LMIC_OSTICKS_PER_SEC OSTICKS_PER_SEC
+#endif
+
 LMIC_BEGIN_DECLS
 
 /// \brief set the clock the stub returns from lmic_hal_ticks().
