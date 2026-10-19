@@ -5,7 +5,8 @@ Module:  test_devnonce.c
 Function:
 	Host tests for DevNonce: a random start chosen once after power-up,
 	kept across LMIC_reset(), one more for each Join-Request (wrapping
-	at 0xFFFF), and advanced before the radio sends each Join-Request.
+	at 0xFFFF), advanced before the radio sends each Join-Request, and
+	carried by the V3 session state blob.
 
 Copyright and License:
 	See LICENSE file accompanying this project.
@@ -25,6 +26,7 @@ Description:
 #include "hal_stub.h"
 #include "lmic.h"
 #include "lmic_accessors.h"
+#include "lmic_session_state.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -52,6 +54,8 @@ static int s_checks;
 
 #define TICKS	((s4_t) LMIC_OSTICKS_PER_SEC)
 
+enum { OFF_NEXT_DEVNONCE = 220 };
+
 /****************************************************************************\
 |
 |	Running the scheduler until the first Join-Request
@@ -62,6 +66,7 @@ static int s_nTxStart;
 static int s_nJoinFailed;
 static u2_t s_frameNonce;		// DevNonce in the frame at EV_TXSTART
 static u4_t s_nextAtTxStart;		// LMIC_getNextDevNonce() at EV_TXSTART
+static u1_t s_blobAtTxStart[LMIC_SESSION_STATE_SIZE];
 
 static void onEvent_(void *pUserData, ev_t ev) {
 	LMIC_UNREFERENCED_PARAMETER(pUserData);
@@ -71,6 +76,10 @@ static void onEvent_(void *pUserData, ev_t ev) {
 		s_frameNonce = (u2_t)(LMIC.frame[OFF_JR_DEVNONCE] |
 				      (LMIC.frame[OFF_JR_DEVNONCE + 1] << 8));
 		s_nextAtTxStart = LMIC_getNextDevNonce();
+		// what an application does to keep DevNonce across a power
+		// failure: save the blob here, before the radio transmits.
+		CHECK_EQ(LMIC_saveSessionState(s_blobAtTxStart, sizeof(s_blobAtTxStart), NULL, 0),
+			 LMIC_SESSION_STATE_OK);
 	} else if (ev == EV_JOIN_FAILED) {
 		++s_nJoinFailed;
 	}
@@ -167,7 +176,45 @@ static void testJoinUsesAndAdvances(void) {
 	// by EV_TXSTART, the LMIC has moved on to the next value.
 	CHECK_EQ(s_nextAtTxStart, 0x1234);
 	CHECK_EQ(LMIC_getDevNonce(), 0x1234);
+
+	// the blob saved at EV_TXSTART holds the next value, not the used one.
+	CHECK_EQ(s_blobAtTxStart[OFF_NEXT_DEVNONCE + 0], 0x34);
+	CHECK_EQ(s_blobAtTxStart[OFF_NEXT_DEVNONCE + 1], 0x12);
+	CHECK_EQ(s_blobAtTxStart[OFF_NEXT_DEVNONCE + 2], 0);
+	CHECK_EQ(s_blobAtTxStart[OFF_NEXT_DEVNONCE + 3], 0);
 	stopJoin();
+}
+
+static void testRestoreContinues(void) {
+	u1_t blob[LMIC_SESSION_STATE_SIZE];
+
+	hal_stub_setTicks(2000u * (u4_t)TICKS);
+	LMIC_reset();
+	CHECK(LMIC_setNextDevNonce(7));
+	joinUntilTxStart();
+	CHECK_EQ(s_frameNonce, 7);
+	memcpy(blob, s_blobAtTxStart, sizeof(blob));
+	stopJoin();
+
+	// power fails during the TX. At power-up LMIC_reset() picks a random
+	// start; the application then restores the blob it saved.
+	powerUp();
+	CHECK_EQ(LMIC_restoreSessionState(blob, sizeof(blob)), LMIC_SESSION_STATE_OK);
+	CHECK_EQ(LMIC_getNextDevNonce(), 8);
+
+	// the back-off came back too: the clock started at the first attempt.
+	lmic_join_backoff_status_t st;
+	LMIC_getJoinBackoffStatus(&st);
+	CHECK_EQ(st.fActive, 1);
+
+	joinUntilTxStart();
+	CHECK_EQ(s_nTxStart, 1);
+	CHECK_EQ(s_frameNonce, 8);
+	stopJoin();
+
+	// a later LMIC_reset() keeps the continued sequence.
+	LMIC_reset();
+	CHECK_EQ(LMIC_getNextDevNonce(), 9);
 }
 
 static void testWraps(void) {
@@ -196,6 +243,7 @@ int main(void) {
 	testRandomStartChosenOnce();
 	testSetGetReset();
 	testJoinUsesAndAdvances();
+	testRestoreContinues();
 	testWraps();
 
 	if (s_failures == 0)

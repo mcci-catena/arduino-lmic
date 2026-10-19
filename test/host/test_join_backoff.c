@@ -29,6 +29,7 @@ Description:
 #include "hal_stub.h"
 #include "lmic.h"
 #include "lmic_bandplan.h"
+#include "lmic_session_state.h"
 
 #include <stdio.h>
 #include <stdint.h>
@@ -295,6 +296,53 @@ static void testDisabled(void) {
 	CHECK_EQ(LMICcore_joinBackoff_earliest(now, now, a), now);
 	LMIC_setJoinBackoffEnabled(1);
 	CHECK(LMICcore_joinBackoff_earliest(now, now, a) != now);
+}
+
+static void testSaveRestore(void) {
+	ostime_t const t0 = 12345;
+	ostime_t const a = ms2osticks(1500);
+	u1_t blob[LMIC_SESSION_STATE_SIZE];
+	lmic_join_backoff_status_t before, after;
+	lmic_session_state_info_t info;
+
+	hal_stub_setTicks(t0);
+	LMIC_reset();
+	LMICcore_joinBackoff_start(t0);
+	hal_stub_setTicks(t0 + 1000 * TICKS);
+	LMICcore_joinBackoff_noteTx(t0 + 1000 * TICKS, a);
+	hal_stub_setTicks(t0 + 1500 * TICKS);
+	LMICcore_joinBackoff_noteTx(t0 + 1500 * TICKS, a);
+	hal_stub_setTicks(t0 + 2000 * TICKS);
+	LMIC_getJoinBackoffStatus(&before);
+
+	// not joined: the blob carries the join state only.
+	CHECK_EQ(LMIC_saveSessionState(blob, sizeof(blob), NULL, 0), LMIC_SESSION_STATE_OK);
+	CHECK_EQ(LMIC_querySessionState(blob, sizeof(blob), &info), LMIC_SESSION_STATE_OK);
+	CHECK_EQ(info.joinFlags, LMIC_SESSION_STATE_JOINFLAG_BACKOFF);
+
+	// a reboot: power off for an unknown time, LMIC_reset(), restore.
+	hal_stub_setTicks(77);
+	LMIC_reset();
+	CHECK_EQ(status().fActive, 0);
+	ostime_t const tRestore = os_getTime();
+	CHECK_EQ(LMIC_restoreSessionState(blob, sizeof(blob)), LMIC_SESSION_STATE_OK);
+
+	LMIC_getJoinBackoffStatus(&after);
+	CHECK_EQ(after.fActive, 1);
+	CHECK_EQ(after.elapsedSec, before.elapsedSec);
+	CHECK_EQ(after.windowStartSec, before.windowStartSec);
+	CHECK_EQ(after.windowUsedMs, before.windowUsedMs);
+	CHECK_EQ(after.nextOkSec, before.nextOkSec);
+
+	// the clock runs on from the restore. (LMIC_reset() moves the stub
+	// clock while it resets the radio, so measure from now.)
+	hal_stub_setTicks(tRestore + 10 * TICKS);
+	CHECK_EQ(status().elapsedSec, before.elapsedSec + 10);
+
+	// an LMIC_startJoining() after the restore keeps the restored T0.
+	LMICcore_joinBackoff_start(tRestore + 10 * TICKS);
+	CHECK_EQ(status().elapsedSec, before.elapsedSec + 10);
+	LMIC_reset();
 }
 
 static void testTickWrap(void) {
@@ -581,6 +629,7 @@ int main(void) {
 	testFirstHourCap();
 	testPacing();
 	testDisabled();
+	testSaveRestore();
 	testTickWrap();
 	testLongRun();
 	testEngineHook();

@@ -59,8 +59,8 @@ LMIC_BEGIN_DECLS
 |
 |	Header and MAC state (44 bytes)
 |
-|	  0  u1   Tag             LMIC_SESSION_STATE_TAG_V1 or _V2
-|	  1  u1   Size            total size of the blob, 216
+|	  0  u1   Tag             LMIC_SESSION_STATE_TAG_V1, _V2 or _V3
+|	  1  u1   Size            total size of the blob: 216 (V1, V2), 240 (V3)
 |	  2  u1   Region          LMIC_REGION_* code
 |	  3  u1   LinkDR          LMIC.datarate
 |	  4  u4   FCntUp          LMIC.seqnoUp
@@ -119,16 +119,53 @@ LMIC_BEGIN_DECLS
 |	Fixed-channel variant, 96 channels (kind 2, 26 bytes): as kind 1 with
 |	12-byte maps. Not produced by this version of the LMIC.
 |
+|	Join state (V3 only, 24 bytes, from offset 216)
+|
+|	216  u1   JoinFlags       bit 0: the MAC state and channels describe a
+|	                          session (LMIC.devaddr was not zero at save);
+|	                          bit 1: a join back-off is running.
+|	                          Other bits zero.
+|	217  u1   reserved, zero
+|	218  u2   BackoffCapJitter  LMIC.joinBackoff.capJitterSec
+|	220  u4   NextDevNonce    LMIC.devNonce: DevNonce of the next
+|	                          Join-Request, 0..0xFFFF
+|	224  u4   BackoffElapsed  LMIC.joinBackoff.elapsedSec, seconds since T0
+|	228  u4   BackoffWindowStart  LMIC.joinBackoff.windowStartSec
+|	232  u4   BackoffWindowUsed   LMIC.joinBackoff.windowUsedMs
+|	236  u4   BackoffNextOk   LMIC.joinBackoff.nextOkSec
+|
+|	A V3 blob saved while not joined (JoinFlags bit 0 clear) carries the
+|	join state only: restoring it sets DevNonce and the back-off and
+|	leaves the MAC state and channels as they are. Restoring a V1 or V2
+|	blob sets the MAC state and channels; those versions have no DevNonce,
+|	so the restore picks a random DevNonce, as the LMIC did at every reset
+|	before V3, and leaves the back-off cleared.
+|
+|	Time spent powered off is not known to the LMIC: the back-off clock
+|	resumes where the save left it, which keeps the device in the same or
+|	an earlier part of the back-off table, never a later one.
+|
 \****************************************************************************/
 
-/// \brief size in bytes of a session state blob, either version.
-enum { LMIC_SESSION_STATE_SIZE = 216 };
+/// \brief sizes in bytes of session state blobs.
+enum {
+	LMIC_SESSION_STATE_SIZE_V2 = 216,	///< V1 and V2
+	LMIC_SESSION_STATE_SIZE_V3 = 240,	///< V3
+	LMIC_SESSION_STATE_SIZE = LMIC_SESSION_STATE_SIZE_V3,	///< what LMIC_saveSessionState() writes
+};
+
+/// \brief bits of the V3 JoinFlags byte (blob offset 216).
+enum {
+	LMIC_SESSION_STATE_JOINFLAG_SESSION = 1u << 0,	///< MAC state and channels are a session
+	LMIC_SESSION_STATE_JOINFLAG_BACKOFF = 1u << 1,	///< a join back-off is running
+};
 
 /// \brief header tags (blob offset 0).
 enum {
 	LMIC_SESSION_STATE_TAG_NULL = 0,	///< no state
 	LMIC_SESSION_STATE_TAG_V1 = 1,		///< Arduino-LoRaWAN V1; txDutyDenom unreliable
 	LMIC_SESSION_STATE_TAG_V2 = 2,		///< same layout; every field reliable
+	LMIC_SESSION_STATE_TAG_V3 = 3,		///< V2 plus the join state (DevNonce, back-off)
 };
 
 /// \brief channel variant discriminators (blob offset 44).
@@ -147,6 +184,7 @@ typedef enum lmic_session_state_result_e {
 	LMIC_SESSION_STATE_BAD_CHANNEL_VARIANT,	///< channel variant discriminator or size is wrong
 	LMIC_SESSION_STATE_REGION_MISMATCH,	///< blob was saved for another region
 	LMIC_SESSION_STATE_REGION_NOT_AVAILABLE,	///< the blob's region is not in this build
+	LMIC_SESSION_STATE_BAD_JOIN_STATE,	///< V3 join state has unknown flags or an impossible DevNonce
 } lmic_session_state_result_t;
 
 /// \brief what LMIC_querySessionState() reports about a blob.
@@ -156,12 +194,19 @@ typedef struct lmic_session_state_info_s {
 	u1_t	channelKind;	///< LMIC_SESSION_STATE_CHANNELS_*
 	u1_t	size;		///< total size of the blob, bytes
 	u2_t	clientTag;	///< the client's tag, as passed to LMIC_saveSessionState()
+	u1_t	joinFlags;	///< V3: LMIC_SESSION_STATE_JOINFLAG_*; V1, V2: SESSION
 } lmic_session_state_info_t;
 
 /// \brief return the number of bytes LMIC_saveSessionState() needs.
 size_t LMIC_getSessionStateSize(void);
 
-/// \brief save the session state.
+/// \brief save the session state (V3).
+///
+/// Saves the MAC state and channels, the next DevNonce and the join
+/// back-off. If not joined (LMIC.devaddr is zero) the blob is marked as
+/// carrying no session. To keep DevNonce from repeating after a power
+/// failure, save on EV_TXSTART while joining: the LMIC reports it after
+/// it has used the DevNonce and before the radio transmits.
 ///
 /// \param pBuf		receives the blob.
 /// \param nBuf		size of \p pBuf; must be at least LMIC_getSessionStateSize().
@@ -176,8 +221,11 @@ lmic_session_state_result_t LMIC_saveSessionState(
 ///
 /// The blob must pass LMIC_querySessionState() and its region must be the
 /// active region. Time-relative fields are taken as deltas from now. Channel
-/// groups keep their regulatory limits unless the blob is V2. Call after
-/// LMIC_reset() and before starting a transaction.
+/// groups keep their regulatory limits unless the blob is V2 or later. Call
+/// after LMIC_reset() and before starting a transaction or a join.
+///
+/// A V3 blob also restores the next DevNonce and the join back-off; a V3
+/// blob saved while not joined restores only those. See the layout above.
 lmic_session_state_result_t LMIC_restoreSessionState(
 	const u1_t *pBuf, size_t nBuf
 	);

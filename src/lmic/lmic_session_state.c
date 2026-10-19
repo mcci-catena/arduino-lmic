@@ -58,10 +58,24 @@ enum {
 	OFF_MAC_DL_CHANNEL_ANS = 42,
 	OFF_MAC_RX_TIMING_SETUP_ANS = 43,
 	OFF_CHANNELS = 44,
-	SIZE_CHANNELS = LMIC_SESSION_STATE_SIZE - OFF_CHANNELS,
+	SIZE_CHANNELS = LMIC_SESSION_STATE_SIZE_V2 - OFF_CHANNELS,
+
+	// V3 join state
+	OFF_JOIN_FLAGS = 216,
+	OFF_JOIN_RESERVED = 217,
+	OFF_BACKOFF_CAP_JITTER = 218,
+	OFF_NEXT_DEVNONCE = 220,
+	OFF_BACKOFF_ELAPSED = 224,
+	OFF_BACKOFF_WINDOW_START = 228,
+	OFF_BACKOFF_WINDOW_USED = 232,
+	OFF_BACKOFF_NEXT_OK = 236,
+	OFF_END_V3 = 240,
 };
 
 LMIC_C_ASSERT(SIZE_CHANNELS == 172);
+LMIC_C_ASSERT((int)OFF_JOIN_FLAGS == (int)LMIC_SESSION_STATE_SIZE_V2);
+LMIC_C_ASSERT((int)OFF_END_V3 == (int)LMIC_SESSION_STATE_SIZE_V3);
+LMIC_C_ASSERT(LMIC_SESSION_STATE_SIZE_V3 < 256);	// Size is one byte
 
 /****************************************************************************\
 |
@@ -133,6 +147,16 @@ static u4_t ticksUntil(ostime_t t, ostime_t now) {
 	return delta > 0 ? (u4_t)delta : 0;
 }
 
+// the size a blob with a given tag must have, or zero.
+static size_t blobSize(u1_t tag) {
+	switch (tag) {
+	case LMIC_SESSION_STATE_TAG_V1:
+	case LMIC_SESSION_STATE_TAG_V2:	return LMIC_SESSION_STATE_SIZE_V2;
+	case LMIC_SESSION_STATE_TAG_V3:	return LMIC_SESSION_STATE_SIZE_V3;
+	default:			return 0;
+	}
+}
+
 // the size the channel variant with a given discriminator must have, or zero.
 static u1_t channelVariantSize(u1_t kind) {
 	switch (kind) {
@@ -140,6 +164,25 @@ static u1_t channelVariantSize(u1_t kind) {
 	case LMIC_SESSION_STATE_CHANNELS_FIXED72:	return 22;
 	case LMIC_SESSION_STATE_CHANNELS_FIXED96:	return 26;
 	default:					return 0;
+	}
+}
+
+// restore the V3 join state: next DevNonce and the back-off.
+static void restoreJoinState(const u1_t *pBuf, ostime_t now) {
+	u1_t const joinFlags = pBuf[OFF_JOIN_FLAGS];
+
+	LMIC.devNonce = (u2_t)os_rlsbf4(pBuf + OFF_NEXT_DEVNONCE);
+	LMIC.devNonceSet = 1;
+
+	os_clearMem(&LMIC.joinBackoff, sizeof(LMIC.joinBackoff));
+	if (joinFlags & LMIC_SESSION_STATE_JOINFLAG_BACKOFF) {
+		LMIC.joinBackoff.fActive = 1;
+		LMIC.joinBackoff.lastTick = now;
+		LMIC.joinBackoff.capJitterSec = os_rlsbf2(pBuf + OFF_BACKOFF_CAP_JITTER);
+		LMIC.joinBackoff.elapsedSec = os_rlsbf4(pBuf + OFF_BACKOFF_ELAPSED);
+		LMIC.joinBackoff.windowStartSec = os_rlsbf4(pBuf + OFF_BACKOFF_WINDOW_START);
+		LMIC.joinBackoff.windowUsedMs = os_rlsbf4(pBuf + OFF_BACKOFF_WINDOW_USED);
+		LMIC.joinBackoff.nextOkSec = os_rlsbf4(pBuf + OFF_BACKOFF_NEXT_OK);
 	}
 }
 
@@ -156,15 +199,27 @@ size_t LMIC_getSessionStateSize(void) {
 lmic_session_state_result_t LMIC_querySessionState(
 	const u1_t *pBuf, size_t nBuf, lmic_session_state_info_t *pInfo
 	) {
-	if (pBuf == NULL || nBuf < LMIC_SESSION_STATE_SIZE)
+	if (pBuf == NULL || nBuf < OFF_SIZE + 1)
 		return LMIC_SESSION_STATE_BUFFER_TOO_SMALL;
 
 	u1_t const tag = pBuf[OFF_TAG];
-	if (tag != LMIC_SESSION_STATE_TAG_V1 && tag != LMIC_SESSION_STATE_TAG_V2)
+	size_t const size = blobSize(tag);
+	if (size == 0)
 		return LMIC_SESSION_STATE_BAD_TAG;
+	if (nBuf < size)
+		return LMIC_SESSION_STATE_BUFFER_TOO_SMALL;
 
-	if (pBuf[OFF_SIZE] != LMIC_SESSION_STATE_SIZE)
+	if (pBuf[OFF_SIZE] != size)
 		return LMIC_SESSION_STATE_BAD_SIZE;
+
+	u1_t joinFlags = LMIC_SESSION_STATE_JOINFLAG_SESSION;
+	if (tag == LMIC_SESSION_STATE_TAG_V3) {
+		joinFlags = pBuf[OFF_JOIN_FLAGS];
+		if ((joinFlags & ~(LMIC_SESSION_STATE_JOINFLAG_SESSION | LMIC_SESSION_STATE_JOINFLAG_BACKOFF)) != 0 ||
+		    pBuf[OFF_JOIN_RESERVED] != 0 ||
+		    os_rlsbf4(pBuf + OFF_NEXT_DEVNONCE) > 0xFFFF)
+			return LMIC_SESSION_STATE_BAD_JOIN_STATE;
+	}
 
 	u1_t const kind = pBuf[OFF_CHANNELS];
 	u1_t const kindSize = channelVariantSize(kind);
@@ -177,6 +232,7 @@ lmic_session_state_result_t LMIC_querySessionState(
 		pInfo->channelKind = kind;
 		pInfo->size = pBuf[OFF_SIZE];
 		pInfo->clientTag = os_rlsbf2(pBuf + OFF_CLIENT_TAG);
+		pInfo->joinFlags = joinFlags;
 	}
 	return LMIC_SESSION_STATE_OK;
 }
@@ -191,7 +247,7 @@ lmic_session_state_result_t LMIC_saveSessionState(
 
 	ostime_t const now = os_getTime();
 
-	pBuf[OFF_TAG] = LMIC_SESSION_STATE_TAG_V2;
+	pBuf[OFF_TAG] = LMIC_SESSION_STATE_TAG_V3;
 	pBuf[OFF_SIZE] = LMIC_SESSION_STATE_SIZE;
 	pBuf[OFF_REGION] = CFG_region;
 	pBuf[OFF_LINK_DR] = LMIC.datarate;
@@ -219,6 +275,23 @@ lmic_session_state_result_t LMIC_saveSessionState(
 	os_clearMem(pBuf + OFF_CHANNELS, SIZE_CHANNELS);
 	LMICbandplan_saveChannelState(pBuf + OFF_CHANNELS, now);
 
+	// join state: bring the back-off clock up to now first.
+	LMICcore_joinBackoff_sync(now);
+
+	u1_t joinFlags = 0;
+	if (LMIC.devaddr != 0)
+		joinFlags |= LMIC_SESSION_STATE_JOINFLAG_SESSION;
+	if (LMIC.joinBackoff.fActive)
+		joinFlags |= LMIC_SESSION_STATE_JOINFLAG_BACKOFF;
+	pBuf[OFF_JOIN_FLAGS] = joinFlags;
+	pBuf[OFF_JOIN_RESERVED] = 0;
+	os_wlsbf2(pBuf + OFF_BACKOFF_CAP_JITTER, LMIC.joinBackoff.capJitterSec);
+	os_wlsbf4(pBuf + OFF_NEXT_DEVNONCE, LMIC.devNonce);
+	os_wlsbf4(pBuf + OFF_BACKOFF_ELAPSED, LMIC.joinBackoff.elapsedSec);
+	os_wlsbf4(pBuf + OFF_BACKOFF_WINDOW_START, LMIC.joinBackoff.windowStartSec);
+	os_wlsbf4(pBuf + OFF_BACKOFF_WINDOW_USED, LMIC.joinBackoff.windowUsedMs);
+	os_wlsbf4(pBuf + OFF_BACKOFF_NEXT_OK, LMIC.joinBackoff.nextOkSec);
+
 	if (pnUsed != NULL)
 		*pnUsed = LMIC_SESSION_STATE_SIZE;
 	return LMIC_SESSION_STATE_OK;
@@ -236,6 +309,12 @@ lmic_session_state_result_t LMIC_restoreSessionState(
 		return LMIC_SESSION_STATE_REGION_MISMATCH;
 
 	ostime_t const now = os_getTime();
+
+	if ((info.joinFlags & LMIC_SESSION_STATE_JOINFLAG_SESSION) == 0) {
+		// no session: the join state only.
+		restoreJoinState(pBuf, now);
+		return LMIC_SESSION_STATE_OK;
+	}
 
 	// the channel variant first: if it is not this build's kind, change nothing.
 	if (! LMICbandplan_restoreChannelState(pBuf + OFF_CHANNELS, now, info.version))
@@ -260,6 +339,16 @@ lmic_session_state_result_t LMIC_restoreSessionState(
 	setDn2Ans(pBuf[OFF_MAC_RX_PARAM_ANS]);
 	setMacDlChannelAns(pBuf[OFF_MAC_DL_CHANNEL_ANS]);
 	setMacRxTimingSetupAns(pBuf[OFF_MAC_RX_TIMING_SETUP_ANS]);
+
+	if (info.version == LMIC_SESSION_STATE_TAG_V3) {
+		restoreJoinState(pBuf, now);
+	} else {
+		// V1 and V2 have no DevNonce. The LMIC that wrote them chose a
+		// random DevNonce at every reset; do the same once, then count up
+		// from there and save it in V3.
+		LMIC.devNonce = os_getRndU2();
+		LMIC.devNonceSet = 1;
+	}
 
 	return LMIC_SESSION_STATE_OK;
 }

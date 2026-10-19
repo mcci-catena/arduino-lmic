@@ -21,8 +21,10 @@ Description:
 	of the request's airtime, plus random jitter).
 
 	T0 is the first Join-Request attempt after power-up, or after the
-	last successful join. The state is LMIC.joinBackoff, so
-	LMIC_reset() clears it.
+	last successful join. The state is LMIC.joinBackoff: LMIC_reset()
+	clears it, and the session state blob (lmic_session_state.h, V3)
+	carries it, so an application that saves and restores that blob
+	keeps the back-off across a reboot (TR007 section 3.1.2).
 
 	The default table is kJoinBackoffDefault[] in lmic_join_backoff.c.
 
@@ -150,6 +152,9 @@ ostime_t LMICcore_joinBackoff_earliest(ostime_t now, ostime_t want, ostime_t air
 
 /// \brief a Join-Request of airtime \p airtime started at \p txbeg.
 void LMICcore_joinBackoff_noteTx(ostime_t txbeg, ostime_t airtime);
+
+/// \brief bring LMIC.joinBackoff.elapsedSec up to \p now (before a save).
+void LMICcore_joinBackoff_sync(ostime_t now);
 
 /// \brief a Join-Accept was accepted: the back-off is over.
 void LMICcore_joinBackoff_joined(void);
