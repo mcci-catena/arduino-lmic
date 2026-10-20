@@ -211,7 +211,10 @@ static inline u4_t LMIC_getNetID(void) {
 	return LMIC.netid;
 }
 
-/// \brief return the last generated DevNonce.
+/// \brief return the DevNonce the next Join-Request will use.
+///
+/// After a Join-Request this is one more than the value it carried
+/// (modulo 0x10000). Same as LMIC_getNextDevNonce().
 static inline u2_t LMIC_getDevNonce(void) {
 	return LMIC.devNonce;
 }

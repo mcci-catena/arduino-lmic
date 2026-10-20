@@ -208,12 +208,10 @@ ostime_t LMICeulike_nextJoinState(uint8_t nDefaultChannels) {
         // Duty cycle is based on txend.
         ostime_t const time = LMICbandplan_nextJoinTime(os_getTime());
 
-        // TODO(tmm@mcci.com): change delay to (0:1) secs + a known t0, but randomized;
-        // starting adding a bias after 1 hour, 25 hours, etc.; and limit the duty
-        // cycle on power up. For testability, add a way to set the join start time
-        // externally (a test API) so we can check this feature.
+        // This sets the usual delay between Join-Requests. The limits of
+        // TS001-1.0.4 section 7 (retransmission back-off) are applied on
+        // top of it by lmic_join_backoff.c, from engineUpdate_inner().
         // See https://github.com/mcci-catena/arduino-lmic/issues/2
-        // Current code doesn't match LoRaWAN 1.0.2 requirements.
 
         LMIC.txend = time +
                 (isTESTMODE()

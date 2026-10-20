@@ -35,6 +35,8 @@
 
 #include "oslmic.h"
 #include "lorabase.h"
+// Join-Request retransmission back-off (lmic_join_backoff.c)
+#include "lmic_join_backoff.h"
 #ifndef _lmic_version_h_
 # include "lmic_version.h"
 #endif
@@ -305,7 +307,8 @@ enum _ev_t { EV_SCAN_TIMEOUT=1, EV_BEACON_FOUND,
              EV_JOINED, EV_RFU1, EV_JOIN_FAILED, EV_REJOIN_FAILED,
              EV_TXCOMPLETE, EV_LOST_TSYNC, EV_RESET,
              EV_RXCOMPLETE, EV_LINK_DEAD, EV_LINK_ALIVE, EV_SCAN_FOUND,
-             EV_TXSTART, EV_TXCANCELED, EV_RXSTART, EV_JOIN_TXCOMPLETE };
+             EV_TXSTART, EV_TXCANCELED, EV_RXSTART, EV_JOIN_TXCOMPLETE,
+             EV_DEVNONCE_EXHAUSTED };
 typedef enum _ev_t ev_t;
 
 /// \brief Macro to initialize a normal table of event strings
@@ -316,7 +319,8 @@ typedef enum _ev_t ev_t;
     "EV_JOINED", "EV_RFU1", "EV_JOIN_FAILED", "EV_REJOIN_FAILED",           \
     "EV_TXCOMPLETE", "EV_LOST_TSYNC", "EV_RESET",                           \
     "EV_RXCOMPLETE", "EV_LINK_DEAD", "EV_LINK_ALIVE", "EV_SCAN_FOUND",      \
-    "EV_TXSTART", "EV_TXCANCELED", "EV_RXSTART", "EV_JOIN_TXCOMPLETE"
+    "EV_TXSTART", "EV_TXCANCELED", "EV_RXSTART", "EV_JOIN_TXCOMPLETE",      \
+    "EV_DEVNONCE_EXHAUSTED"
 
 /// \brief Macro to initialize a compressed string of event strings
 /// \details
@@ -331,7 +335,8 @@ typedef enum _ev_t ev_t;
     "EV_JOINED\0" "EV_RFU1\0" "EV_JOIN_FAILED\0" "EV_REJOIN_FAILED\0"       \
     "EV_TXCOMPLETE\0" "EV_LOST_TSYNC\0" "EV_RESET\0"                        \
     "EV_RXCOMPLETE\0" "EV_LINK_DEAD\0" "EV_LINK_ALIVE\0" "EV_SCAN_FOUND\0"  \
-    "EV_TXSTART\0" "EV_TXCANCELED\0" "EV_RXSTART\0" "EV_JOIN_TXCOMPLETE\0"
+    "EV_TXSTART\0" "EV_TXCANCELED\0" "EV_RXSTART\0" "EV_JOIN_TXCOMPLETE\0"   \
+    "EV_DEVNONCE_EXHAUSTED\0"
 
 /// \brief LMIC error codes
 enum lmic_tx_error_e {
@@ -710,6 +715,23 @@ struct lmic_t {
     /// client setup data, survives LMIC_reset().
     lmic_client_data_t  client;
 
+    /// Join-Requests sent since devNonceStart; at 0x10000 every DevNonce
+    /// has been used once and the LMIC sends no more. Survives LMIC_reset().
+    u4_t        devNonceCount;
+    /// DevNonce for the next Join-Request: (devNonceStart + devNonceCount)
+    /// modulo 0x10000. Survives LMIC_reset().
+    u2_t        devNonce;
+    /// first DevNonce of the current sequence: chosen at random by the
+    /// first LMIC_reset() after power-up, unless set or restored.
+    u2_t        devNonceStart;
+    /// nonzero once the sequence has been chosen, set or restored.
+    u1_t        devNonceSet;
+
+    /// Join-Request retransmission back-off (lmic_join_backoff.c).
+    /// LMIC_reset() clears this member and everything after it; saved in
+    /// the session state blob.
+    lmic_join_backoff_state_t joinBackoff;
+
     /// the OS job object. pointer alignment. This is only for use by the LMIC for
     /// running the state machine. Don't use it for other purposes.
     osjob_t     osjob;
@@ -781,7 +803,6 @@ struct lmic_t {
     /* (u)int16_t things */
     rps_t       rps;            // radio parameter selections: SF, BW, CodingRate, NoCrc, implicit hdr
     u2_t        opmode;         // engineUpdate() operating mode flags
-    u2_t        devNonce;       // last generated nonce
 
     s2_t        adrAckReq;      // counter for link integrity tracking (LINK_CHECK_OFF=off)
     u1_t        adrAckLimit;    // ADR_ACK_LIMIT: uplinks without a downlink before ADRACKReq
@@ -1016,6 +1037,20 @@ void  LMIC_setAdrMode   (bit_t enabled);        // set ADR mode (if mobile turn 
 bit_t LMIC_startJoining (void);
 void  LMIC_tryRejoin    (void);
 void  LMIC_unjoin       (void);
+/// \brief stop a join in progress, between Join-Requests.
+///
+/// The join back-off and the DevNonce sequence are kept; a later
+/// LMIC_startJoining() continues them (the back-off keeps its T0, and the
+/// next Join-Request uses the next DevNonce). Returns 0, and changes
+/// nothing, while a Join-Request is on the air or its receive windows are
+/// open (OP_TXRXPEND): call it again after EV_JOIN_TXCOMPLETE. Returns 1
+/// otherwise, also when no join is running.
+///
+/// Unlike LMIC_unjoin(), this ends the join loop; unlike LMIC_reset(), it
+/// keeps the back-off and the channel plan. While not joined, anything
+/// that runs the MAC engine (for example LMIC_setTxData2()) starts a new
+/// join.
+bit_t LMIC_stopJoining  (void);
 void  LMIC_unjoinAndRejoin (void);
 #endif
 
@@ -1042,6 +1077,23 @@ void  LMIC_setPingable   (u1_t intvExp);
 #endif
 
 void LMIC_setSession (u4_t netid, devaddr_t devaddr, xref2u1_t nwkKey, xref2u1_t artKey);
+/// \brief DevNonce the next Join-Request will use, 0 to 0xFFFF.
+u4_t LMIC_getNextDevNonce (void);
+/// \brief start a new DevNonce sequence at \p next (0 to 0xFFFF): the
+///	count of Join-Requests goes to 0, which also clears the stop after
+///	every DevNonce has been used (EV_DEVNONCE_EXHAUSTED). Returns 0 and
+///	changes nothing if \p next is out of range.
+bit_t LMIC_setNextDevNonce (u4_t next);
+/// \brief forget the join history after a provisioning change.
+///
+/// Clears the join back-off (as LMIC_clearJoinBackoff() does) and starts
+/// a new DevNonce sequence at a random value with a count of 0, which also
+/// clears the stop after every DevNonce has been used. It does not touch
+/// the session (DevAddr, keys, frame counters) and works whether or not
+/// the LMIC is joined; the caller decides whether to unjoin. Call it when
+/// DevEUI, JoinEUI or AppKey changes, then save the session state
+/// (LMIC_saveSessionState()), so the saved join state is cleared too.
+void LMIC_clearJoinState (void);
 void LMIC_setLinkCheckMode (bit_t enabled);
 bit_t LMIC_setAdrAckLimits (u1_t limit, u1_t delay);
 void LMIC_getAdrAckLimits (u1_t *pLimit, u1_t *pDelay);
