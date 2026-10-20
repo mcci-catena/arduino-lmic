@@ -248,7 +248,7 @@ static void testRejoinWithoutReset(void) {
 // stop a join after an unanswered Join-Request, wait, and start again:
 // the back-off and the DevNonce sequence go on where they were.
 static void testStopJoining(void) {
-	lmic_join_backoff_status_t st0, st1;
+	ostime_t t0;
 
 	hal_stub_setTicks(5000u * TICKS);
 	hal_stub_startLmic();
@@ -263,7 +263,8 @@ static void testStopJoining(void) {
 
 	// while the first Join-Request is on the air: refused, no change.
 	s_stopOnTxStart = 0;
-	CHECK(LMIC_startJoining());
+	t0 = os_getTime();
+	CHECK(LMIC_startJoining());	// T0
 	hal_stub_runUntilStop((u4_t)os_getTime() + 600u * TICKS, &s_stopOnTxStart);
 	CHECK_EQ(s_nTx, 1);
 	CHECK(LMIC.opmode & OP_TXRXPEND);
@@ -277,8 +278,7 @@ static void testStopJoining(void) {
 	CHECK_EQ(s_nJoinTxComplete, 1);
 	CHECK_EQ(s_nTx, 1);
 	u4_t const next = LMIC_getNextDevNonce();
-	LMIC_getJoinBackoffStatus(&st0);
-	CHECK_EQ(st0.fActive, 1);
+	CHECK_EQ(LMIC.joinBackoff.fActive, 1);
 	CHECK_EQ(LMIC_stopJoining(), 1);
 	CHECK_EQ(LMIC.opmode & (OP_JOINING|OP_TXRXPEND), 0);
 	CHECK_EQ(LMIC_stopJoining(), 1);	// again: nothing to do
@@ -288,10 +288,12 @@ static void testStopJoining(void) {
 	hal_stub_runUntil((u4_t)os_getTime() + 3600u * TICKS);
 	CHECK_EQ(s_nTx, 1);
 	CHECK_EQ(LMIC_getNextDevNonce(), next);
-	LMIC_getJoinBackoffStatus(&st1);
-	CHECK_EQ(st1.fActive, 1);
-	CHECK(st1.elapsedSec >= st0.elapsedSec + 7200 &&
-	      st1.elapsedSec <= st0.elapsedSec + 7201);	// same T0
+	// same T0: two hours on, the clock is in hours 1-6, which began
+	// at T0 + 1 h.
+	LMICcore_joinBackoff_sync(os_getTime());
+	CHECK_EQ(LMIC.joinBackoff.fActive, 1);
+	CHECK_EQ(LMIC.joinBackoff.phase, LMIC_JOIN_BACKOFF_PHASE_HOURS1_6);
+	CHECK_EQ(LMIC.joinBackoff.phaseStart, t0 + 3600 * (ostime_t)TICKS);
 	CHECK_EQ(LMIC.devaddr, 0);
 
 	// start again: the next Join-Request carries the next DevNonce, on
@@ -303,9 +305,8 @@ static void testStopJoining(void) {
 	CHECK_EQ(s_tx[1].nonce, (u2_t)next);
 	CHECK_EQ(LMIC_getNextDevNonce(), (u2_t)(next + 1));
 	CHECK_EQ(s_nBadChannel, 0);
-	lmic_join_backoff_status_t st2;
-	LMIC_getJoinBackoffStatus(&st2);
-	CHECK(st2.elapsedSec >= st1.elapsedSec);	// not restarted at 0
+	CHECK_EQ(LMIC.joinBackoff.phaseStart, t0 + 3600 * (ostime_t)TICKS);	// not restarted
+	CHECK_EQ(LMIC.globalDutyRate, 11);	// hours 1-11 spacing
 
 	// and joining goes on from there.
 	hal_stub_runUntil((u4_t)os_getTime() + 1800u * TICKS);

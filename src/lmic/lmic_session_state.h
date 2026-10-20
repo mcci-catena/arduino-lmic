@@ -60,7 +60,7 @@ LMIC_BEGIN_DECLS
 |	Header and MAC state (44 bytes)
 |
 |	  0  u1   Tag             LMIC_SESSION_STATE_TAG_V1, _V2 or _V3
-|	  1  u1   Size            total size of the blob: 216 (V1, V2), 244 (V3)
+|	  1  u1   Size            total size of the blob: 216 (V1, V2), 224 (V3)
 |	  2  u1   Region          LMIC_REGION_* code
 |	  3  u1   LinkDR          LMIC.datarate
 |	  4  u4   FCntUp          LMIC.seqnoUp
@@ -119,25 +119,28 @@ LMIC_BEGIN_DECLS
 |	Fixed-channel variant, 96 channels (kind 2, 26 bytes): as kind 1 with
 |	12-byte maps. Not produced by this version of the LMIC.
 |
-|	Join state (V3 only, 28 bytes, from offset 216)
+|	Join state (V3 only, 8 bytes, from offset 216)
 |
 |	216  u1   JoinFlags       bit 0: the MAC state and channels describe a
 |	                          session (LMIC.devaddr was not zero at save);
-|	                          bit 1: a join back-off is running.
-|	                          Other bits zero.
-|	217  u1   reserved, zero
-|	218  u2   BackoffCapJitter  LMIC.joinBackoff.capJitterSec
-|	220  u4   DevNonceStart   LMIC.devNonceStart: first DevNonce of the
-|	                          current sequence, 0..0xFFFF
-|	224  u4   BackoffElapsed  LMIC.joinBackoff.elapsedSec, seconds since T0
-|	228  u4   BackoffWindowStart  LMIC.joinBackoff.windowStartSec
-|	232  u4   BackoffWindowUsed   LMIC.joinBackoff.windowUsedMs
-|	236  u4   BackoffNextOk   LMIC.joinBackoff.nextOkSec
-|	240  u4   DevNonceCount   LMIC.devNonceCount: Join-Requests sent since
-|	                          DevNonceStart, 0..0x10000. The next DevNonce
-|	                          is (start + count) modulo 0x10000; at
-|	                          0x10000 every value has been used once and
-|	                          the LMIC sends no more Join-Requests.
+|	                          bit 1: a join back-off is running;
+|	                          bit 2: every DevNonce of the sequence has
+|	                          been used (count 0x10000; DevNonceCount is
+|	                          then 0). Other bits zero.
+|	217  u1   BackoffPhase    LMIC.joinBackoff.phase, 0..4
+|	                          (LMIC_JOIN_BACKOFF_PHASE_*)
+|	218  u2   BackoffPhaseSec seconds since the phase began (zero in the
+|	                          last phase, where time no longer matters)
+|	220  u2   DevNonceStart   LMIC.devNonceStart: first DevNonce of the
+|	                          current sequence
+|	222  u2   DevNonceCount   LMIC.devNonceCount: Join-Requests sent since
+|	                          DevNonceStart, 0..0xFFFF (see bit 2). The
+|	                          next DevNonce is (start + count) modulo
+|	                          0x10000.
+|
+|	The spacing between Join-Requests is LMIC.globalDutyAvail, saved at
+|	offset 16 (globalAvail) as for a session; a blob with the back-off
+|	running restores it even when it carries no session.
 |
 |	A V3 blob saved while not joined (JoinFlags bit 0 clear) carries the
 |	join state only: restoring it sets DevNonce and the back-off and
@@ -155,7 +158,7 @@ LMIC_BEGIN_DECLS
 /// \brief sizes in bytes of session state blobs.
 enum {
 	LMIC_SESSION_STATE_SIZE_V2 = 216,	///< V1 and V2
-	LMIC_SESSION_STATE_SIZE_V3 = 244,	///< V3
+	LMIC_SESSION_STATE_SIZE_V3 = 224,	///< V3
 	LMIC_SESSION_STATE_SIZE = LMIC_SESSION_STATE_SIZE_V3,	///< what LMIC_saveSessionState() writes
 };
 
@@ -163,6 +166,7 @@ enum {
 enum {
 	LMIC_SESSION_STATE_JOINFLAG_SESSION = 1u << 0,	///< MAC state and channels are a session
 	LMIC_SESSION_STATE_JOINFLAG_BACKOFF = 1u << 1,	///< a join back-off is running
+	LMIC_SESSION_STATE_JOINFLAG_DEVNONCE_USED = 1u << 2,	///< every DevNonce of the sequence used
 };
 
 /// \brief header tags (blob offset 0).
@@ -189,7 +193,7 @@ typedef enum lmic_session_state_result_e {
 	LMIC_SESSION_STATE_BAD_CHANNEL_VARIANT,	///< channel variant discriminator or size is wrong
 	LMIC_SESSION_STATE_REGION_MISMATCH,	///< blob was saved for another region
 	LMIC_SESSION_STATE_REGION_NOT_AVAILABLE,	///< the blob's region is not in this build
-	LMIC_SESSION_STATE_BAD_JOIN_STATE,	///< V3 join state has unknown flags or an impossible DevNonce
+	LMIC_SESSION_STATE_BAD_JOIN_STATE,	///< V3 join state has unknown flags, phase or DevNonce count
 } lmic_session_state_result_t;
 
 /// \brief what LMIC_querySessionState() reports about a blob.
