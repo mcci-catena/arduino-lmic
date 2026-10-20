@@ -1125,6 +1125,16 @@ scan_mac_cmds(
 }
 
 // change the ADR ack request count, unless adr ack is diabled.
+// the ADR ACK count at the start: -ADR_ACK_LIMIT.
+static s2_t adrAckInit(void) {
+    return -(s2_t)LMIC.adrAckLimit;
+}
+
+// the count past which the device rejoins.
+static s2_t adrAckUnjoin(void) {
+    return (s2_t)LMIC.adrAckDelay + (LINK_CHECK_UNJOIN - LINK_CHECK_DEAD);
+}
+
 static void setAdrAckCount (s2_t count) {
     if (LMIC.adrAckReq != LINK_CHECK_OFF) {
         LMIC.adrAckReq = count;
@@ -1274,7 +1284,7 @@ static bit_t decodeFrame (void) {
 
     // We heard from network
     LMIC.adrChanged = LMIC.rejoinCnt = 0;
-    setAdrAckCount(LINK_CHECK_INIT);
+    setAdrAckCount(adrAckInit());
     // We heard from network "on a Class A downlink"
     if (LMIC_txrxFlags_isClassA(LMIC.txrxFlags)) {
 #if !defined(DISABLE_MCMD_RXParamSetupReq)
@@ -1641,7 +1651,7 @@ static bit_t processJoinAccept (void) {
     LMICcore_joinBackoff_joined();
     stateJustJoined();
     // transition to the ADR_ACK initial state.
-    setAdrAckCount(LINK_CHECK_INIT);
+    setAdrAckCount(adrAckInit());
 
     LMIC.dn2Dr = LMIC.frame[OFF_JA_DLSET] & 0x0F;
     LMIC.rx1DrOffset = (LMIC.frame[OFF_JA_DLSET] >> 4) & 0x7;
@@ -1864,13 +1874,13 @@ static void updataDone (xref2osjob_t osjob) {
 static bit_t sendAdrAckReq(void) {
     if (LMIC.adrAckReq < LINK_CHECK_CONT) {
         return 0;
-    } else if (LMIC.adrAckReq <= LINK_CHECK_DEAD) {
+    } else if (LMIC.adrAckReq <= LMIC.adrAckDelay) {
         return 1;
-    } else if (LMIC.adrAckReq <= LINK_CHECK_DEAD + 32) {
+    } else if (LMIC.adrAckReq <= 2 * LMIC.adrAckDelay) {
         // for compliance, though it's not clear why they care, we stop sending requests
         // when we're right at the DEAD state
         return 0;
-    } else if (LMIC.adrAckReq <= LINK_CHECK_UNJOIN - 32) {
+    } else if (LMIC.adrAckReq <= adrAckUnjoin() - LMIC.adrAckDelay) {
         return 0;
     } else {
         // otherwise, if our alternative is to unjoin and we have no other info, keep
@@ -2487,7 +2497,7 @@ static bit_t processDnData_txcomplete(void) {
     reportEventAndUpdate(EV_TXCOMPLETE);
     // If we haven't heard from NWK in a while although we asked for a sign
     // assume link is dead - notify application and keep going
-    if( LMIC.adrAckReq > LINK_CHECK_DEAD ) {
+    if( LMIC.adrAckReq > LMIC.adrAckDelay ) {
         // We haven't heard from NWK for some time although we
         // asked for a response for some time - assume we're disconnected. Lower DR one notch.
         EV(devCond, ERR, (e_.reason = EV::devCond_t::LINK_DEAD,
@@ -2505,7 +2515,7 @@ static bit_t processDnData_txcomplete(void) {
             // We are already at the minimum datarate
             // if the link is already marked dead, we need to join.
 #if !defined(DISABLE_JOIN)
-            if ( LMIC.adrAckReq > LINK_CHECK_UNJOIN ) {
+            if ( LMIC.adrAckReq > adrAckUnjoin() ) {
                 LMIC.opmode |= OP_UNJOIN;
             }
 #endif // !defined(DISABLE_JOIN)
@@ -2946,6 +2956,8 @@ void LMIC_reset (void) {
     LMIC.opmode       =  OP_NONE;
     LMIC.errcr        =  CR_4_5;
     LMIC.adrEnabled   =  FCT_ADREN;
+    LMIC.adrAckLimit  =  -LINK_CHECK_INIT;
+    LMIC.adrAckDelay  =  LINK_CHECK_DEAD;
     resetJoinParams();
     LMIC.rxDelay      =  DELAY_DNW1;
     // LMIC.pendMacLen  =  0;
@@ -3222,7 +3234,40 @@ void LMIC_setSession (u4_t netid, devaddr_t devaddr, xref2u1_t nwkKey, xref2u1_t
 // This must be called only if a session is established (e.g. after EV_JOINED)
 void LMIC_setLinkCheckMode (bit_t enabled) {
     LMIC.adrChanged = 0;
-    LMIC.adrAckReq = enabled ? LINK_CHECK_INIT : LINK_CHECK_OFF;
+    LMIC.adrAckReq = enabled ? adrAckInit() : LINK_CHECK_OFF;
+}
+
+// Set ADR_ACK_LIMIT (uplinks without a downlink before the device sets
+// ADRACKReq) and ADR_ACK_DELAY (uplinks after that before it treats the
+// link as dead, lowers the data rate, and later rejoins). LoRaWAN gives
+// 64 and 32 as defaults, which LMIC_reset() restores; a device that
+// sends rarely can use smaller values to notice a lost network sooner.
+// The count runs from -limit up past delay + 720 in an s2_t and must
+// never reach LINK_CHECK_OFF, so limit is 1-127 and delay at least 1.
+// A count in progress keeps its place: uplinks already counted still
+// count. Returns false, changing nothing, for values out of range.
+bit_t LMIC_setAdrAckLimits (u1_t limit, u1_t delay) {
+    if (limit < 1 || limit > 127 || delay < 1)
+        return 0;
+
+    if (LMIC.adrAckReq != LINK_CHECK_OFF && LMIC.adrAckReq < LINK_CHECK_CONT) {
+        // uplinks counted so far, against the new limit.
+        s2_t const counted = LMIC.adrAckReq + LMIC.adrAckLimit;
+        s2_t const next = counted - limit;
+
+        LMIC.adrAckReq = next > LINK_CHECK_CONT ? LINK_CHECK_CONT : next;
+    }
+
+    LMIC.adrAckLimit = limit;
+    LMIC.adrAckDelay = delay;
+    return 1;
+}
+
+void LMIC_getAdrAckLimits (u1_t *pLimit, u1_t *pDelay) {
+    if (pLimit != NULL)
+        *pLimit = LMIC.adrAckLimit;
+    if (pDelay != NULL)
+        *pDelay = LMIC.adrAckDelay;
 }
 
 // Sets the max clock error to compensate for (defaults to 0, which

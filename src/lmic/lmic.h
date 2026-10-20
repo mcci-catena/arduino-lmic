@@ -117,6 +117,8 @@ enum { MAX_RXSYMS         = 350 };   // Stop tracking beacon if sync error grows
                                      // this needs to accommodate 1.4 seconds of error at
                                      // 4.096 ms/sym or at least 342 symbols.
 
+// The defaults of LMIC.adrAckDelay (LINK_CHECK_DEAD) and LMIC.adrAckLimit
+// (-LINK_CHECK_INIT); LMIC_setAdrAckLimits() changes them at run time.
 enum { LINK_CHECK_CONT    =  0  ,    // continue with this after reported dead link
        LINK_CHECK_DEAD    =  32 ,    // after this UP frames and no response to ack from NWK assume link is dead (ADR_ACK_DELAY)
        LINK_CHECK_UNJOIN_MIN = LINK_CHECK_DEAD + 4,         // this is the minimum value of LINK_CHECK_UNJOIN if we parameterize
@@ -801,6 +803,8 @@ struct lmic_t {
     u1_t        devNonceSet;
 
     s2_t        adrAckReq;      // counter for link integrity tracking (LINK_CHECK_OFF=off)
+    u1_t        adrAckLimit;    // ADR_ACK_LIMIT: uplinks without a downlink before ADRACKReq
+    u1_t        adrAckDelay;    // ADR_ACK_DELAY: uplinks after that before the link is dead
 
 #if !defined(DISABLE_BEACONS)
     s2_t        drift;          // last measured drift
@@ -1089,6 +1093,8 @@ bit_t LMIC_setNextDevNonce (u4_t next);
 /// (LMIC_saveSessionState()), so the saved join state is cleared too.
 void LMIC_clearJoinState (void);
 void LMIC_setLinkCheckMode (bit_t enabled);
+bit_t LMIC_setAdrAckLimits (u1_t limit, u1_t delay);
+void LMIC_getAdrAckLimits (u1_t *pLimit, u1_t *pDelay);
 void LMIC_setClockError(u2_t error);
 
 u4_t LMIC_getSeqnoUp    (void);
