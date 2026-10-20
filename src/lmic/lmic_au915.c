@@ -271,7 +271,7 @@ void LMICau915_updateTx(ostime_t txbeg) {
 
         if (LMIC.globalDutyRate != 0) {
                 ostime_t airtime = calcAirTime(LMIC.rps, LMIC.dataLen);
-                globalDutyDelay = txbeg + (airtime << LMIC.globalDutyRate);
+                globalDutyDelay = (airtime << LMIC.globalDutyRate);
         }
         if (LMICau915_getUplinkDwellBit(LMIC.txParam)) {
                 dwellDelay = AU915_UPLINK_DWELL_TIME_osticks;
