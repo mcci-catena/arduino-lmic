@@ -39,10 +39,15 @@ DEFS := -DARDUINO_LMIC_PROJECT_CONFIG_H_SUPPRESS -DCFG_$(REGION) -DCFG_$(RADIO)_
 DEFS += -DLMIC_PLATFORM_OSTIME_INCLUDE=lmic_ostime_host.h -DLMIC_OSTICKS_PER_SEC=$(RATE)
 INCS := -I. -I$(TOP)/src/lmic -I$(TOP)/src/hal -I$(TOP)/src/ostime/i -I$(TOP)/src -I$(TOP)/src/aes -I$(TOP)/src/se -I$(TOP)/src/se/i
 
+# -MMD -MP: each object gets a .d file listing the headers it read, so a
+# change to a header (for example the layout of struct lmic_t) rebuilds
+# every object that depends on it, not only the core.
+DEPFLAGS := -MMD -MP
+
 # the core is compiled quietly; the tests and stubs with warnings on.
-CORE_CFLAGS := -std=gnu11 -g -O0 -w $(DEFS) $(INCS)
-CORE_CXXFLAGS := -std=gnu++11 -g -O0 -w $(DEFS) $(INCS)
-TEST_CFLAGS := -std=gnu11 -g -O0 -Wall -Wextra $(DEFS) $(INCS)
+CORE_CFLAGS := -std=gnu11 -g -O0 -w $(DEPFLAGS) $(DEFS) $(INCS)
+CORE_CXXFLAGS := -std=gnu++11 -g -O0 -w $(DEPFLAGS) $(DEFS) $(INCS)
+TEST_CFLAGS := -std=gnu11 -g -O0 -Wall -Wextra $(DEPFLAGS) $(DEFS) $(INCS)
 
 CORE_C := $(wildcard $(TOP)/src/lmic/*.c) $(wildcard $(TOP)/src/aes/*.c) $(shell find $(TOP)/src/se -name '*.c')
 CORE_CXX := $(TOP)/src/aes/ideetron/AES-128_V10.cpp
@@ -87,5 +92,7 @@ $(BUILD)/%: $(BUILD)/%.o $(BUILD)/hal_stub.o $(CORE_OBJS)
 
 clean:
 	rm -rf build
+
+-include $(shell find $(BUILD) -name '*.d' 2>/dev/null)
 
 ### end of Makefile ###
