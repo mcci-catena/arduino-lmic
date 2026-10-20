@@ -340,6 +340,9 @@
 #define IRQ_FSK2_CRCOK_MASK             0x02
 #define IRQ_FSK2_LOWBAT_MASK            0x01
 
+// FSKRegFifoThresh: start a transmit when the FIFO is not empty
+#define FSK_FIFOTHRESH_TXSTART_NOTEMPTY 0x80
+
 // ----------------------------------------
 // DIO function mappings                D0D1D2D3
 #define MAP_DIO0_LORA_RXDONE   0x00  // 00------
@@ -828,6 +831,12 @@ static void txfsk () {
 
     // set the IRQ mapping DIO0=PacketSent DIO1=NOP DIO2=NOP
     writeReg(RegDioMapping1, MAP_DIO0_FSK_READY|MAP_DIO1_FSK_NOP|MAP_DIO2_FSK_TXNOP);
+
+    // Start sending as soon as the FIFO holds a byte. rxfsk() leaves the
+    // start condition at "FIFO level above the threshold", and a receive
+    // of a long frame leaves the threshold at FSK_RX_BURST - 1, so a
+    // shorter frame would never be sent (#1145).
+    writeReg(FSKRegFifoThresh, FSK_FIFOTHRESH_TXSTART_NOTEMPTY);
 
     // initialize the payload size and address pointers
     // TODO(tmm@mcci.com): datasheet says this is not used in variable packet length mode
