@@ -715,8 +715,21 @@ struct lmic_t {
     /// client setup data, survives LMIC_reset().
     lmic_client_data_t  client;
 
+    /// Join-Requests sent since devNonceStart; at 0x10000 every DevNonce
+    /// has been used once and the LMIC sends no more. Survives LMIC_reset().
+    u4_t        devNonceCount;
+    /// DevNonce for the next Join-Request: (devNonceStart + devNonceCount)
+    /// modulo 0x10000. Survives LMIC_reset().
+    u2_t        devNonce;
+    /// first DevNonce of the current sequence: chosen at random by the
+    /// first LMIC_reset() after power-up, unless set or restored.
+    u2_t        devNonceStart;
+    /// nonzero once the sequence has been chosen, set or restored.
+    u1_t        devNonceSet;
+
     /// Join-Request retransmission back-off (lmic_join_backoff.c).
-    /// Cleared by LMIC_reset(); saved in the session state blob.
+    /// LMIC_reset() clears this member and everything after it; saved in
+    /// the session state blob.
     lmic_join_backoff_state_t joinBackoff;
 
     /// the OS job object. pointer alignment. This is only for use by the LMIC for
@@ -756,9 +769,6 @@ struct lmic_t {
     devaddr_t   devaddr;      ///< current device address. Zero means not joined.
     u4_t        seqnoDn;      ///< FCntDown (downlink seqno)
     u4_t        seqnoUp;      ///< FCntUp (uplink seqno)
-    /// Join-Requests sent since devNonceStart; at 0x10000 every DevNonce
-    /// has been used once and the LMIC sends no more. Survives LMIC_reset().
-    u4_t        devNonceCount;
     u4_t        dn2Freq;      ///< the frequency to use for RX2.
 
 #if !defined(DISABLE_BEACONS)
@@ -793,14 +803,6 @@ struct lmic_t {
     /* (u)int16_t things */
     rps_t       rps;            // radio parameter selections: SF, BW, CodingRate, NoCrc, implicit hdr
     u2_t        opmode;         // engineUpdate() operating mode flags
-    /// DevNonce for the next Join-Request: (devNonceStart + devNonceCount)
-    /// modulo 0x10000. Survives LMIC_reset().
-    u2_t        devNonce;
-    /// first DevNonce of the current sequence: chosen at random by the
-    /// first LMIC_reset() after power-up, unless set or restored.
-    u2_t        devNonceStart;
-    /// nonzero once the sequence has been chosen, set or restored.
-    u1_t        devNonceSet;
 
     s2_t        adrAckReq;      // counter for link integrity tracking (LINK_CHECK_OFF=off)
     u1_t        adrAckLimit;    // ADR_ACK_LIMIT: uplinks without a downlink before ADRACKReq

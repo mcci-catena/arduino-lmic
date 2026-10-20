@@ -55,7 +55,7 @@ static int s_checks;
 
 #define TICKS	((s4_t) LMIC_OSTICKS_PER_SEC)
 
-enum { OFF_JOIN_FLAGS = 216, OFF_DEVNONCE_START = 220, OFF_DEVNONCE_COUNT = 240 };
+enum { OFF_JOIN_FLAGS = 216, OFF_DEVNONCE_START = 220, OFF_DEVNONCE_COUNT = 222 };
 
 enum { MAX_NONCES = 64 };
 
@@ -192,7 +192,6 @@ static void testJoinUsesAndAdvances(void) {
 	CHECK_EQ(s_blobAtTxStart[OFF_DEVNONCE_START + 1], 0x12);
 	CHECK_EQ(s_blobAtTxStart[OFF_DEVNONCE_COUNT + 0], 1);
 	CHECK_EQ(s_blobAtTxStart[OFF_DEVNONCE_COUNT + 1], 0);
-	CHECK_EQ(s_blobAtTxStart[OFF_DEVNONCE_COUNT + 2], 0);
 	stopJoin();
 }
 
@@ -214,9 +213,7 @@ static void testRestoreContinues(void) {
 	CHECK_EQ(LMIC_getNextDevNonce(), 8);
 
 	// the back-off came back too: the clock started at the first attempt.
-	lmic_join_backoff_status_t st;
-	LMIC_getJoinBackoffStatus(&st);
-	CHECK_EQ(st.fActive, 1);
+	CHECK_EQ(LMIC.joinBackoff.fActive, 1);
 
 	joinUntilTxStart();
 	CHECK_EQ(s_nTxStart, 1);
@@ -298,8 +295,6 @@ static void testExhaustionStop(void) {
 	blob[OFF_DEVNONCE_START + 1] = (u1_t)(start >> 8);
 	blob[OFF_DEVNONCE_COUNT + 0] = (u1_t)count;
 	blob[OFF_DEVNONCE_COUNT + 1] = (u1_t)(count >> 8);
-	blob[OFF_DEVNONCE_COUNT + 2] = (u1_t)(count >> 16);
-	blob[OFF_DEVNONCE_COUNT + 3] = 0;
 	CHECK_EQ(LMIC_restoreSessionState(blob, sizeof(blob)), LMIC_SESSION_STATE_OK);
 	CHECK_EQ(LMIC_getNextDevNonce(), (u2_t)(start + count));
 
@@ -367,14 +362,11 @@ static void testClearJoinState(void) {
 	// half an hour of failed joins: the back-off runs, DevNonces are used.
 	runFailedJoins(1, 5);
 	hal_stub_setRadioAutoComplete(0);
-	lmic_join_backoff_status_t st;
-	LMIC_getJoinBackoffStatus(&st);
-	CHECK_EQ(st.fActive, 1);
+	CHECK_EQ(LMIC.joinBackoff.fActive, 1);
 	CHECK(LMIC.devNonceCount >= 5);
 	u2_t const oldStart = LMIC.devNonceStart;
 	stopJoin();
-	LMIC_getJoinBackoffStatus(&st);
-	CHECK_EQ(st.fActive, 0);	// LMIC_reset() clears the back-off ...
+	CHECK_EQ(LMIC.joinBackoff.fActive, 0);	// LMIC_reset() clears the back-off ...
 	CHECK(LMIC.devNonceCount >= 5);	// ... but not the DevNonce sequence
 
 	// a session: LMIC_clearJoinState() must not touch it.
@@ -384,8 +376,7 @@ static void testClearJoinState(void) {
 	LMIC.seqnoDn = 0x66;
 
 	LMIC_clearJoinState();
-	LMIC_getJoinBackoffStatus(&st);
-	CHECK_EQ(st.fActive, 0);
+	CHECK_EQ(LMIC.joinBackoff.fActive, 0);
 	CHECK_EQ(LMIC.devNonceCount, 0);
 	CHECK(LMIC.devNonceStart != oldStart);
 	CHECK_EQ(LMIC_getNextDevNonce(), LMIC.devNonceStart);
@@ -400,7 +391,6 @@ static void testClearJoinState(void) {
 	CHECK_EQ(blob[OFF_DEVNONCE_START + 1], (u1_t)(LMIC.devNonceStart >> 8));
 	CHECK_EQ(blob[OFF_DEVNONCE_COUNT + 0], 0);
 	CHECK_EQ(blob[OFF_DEVNONCE_COUNT + 1], 0);
-	CHECK_EQ(blob[OFF_DEVNONCE_COUNT + 2], 0);
 
 	LMIC_reset();
 }

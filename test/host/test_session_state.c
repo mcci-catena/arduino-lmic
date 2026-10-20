@@ -48,10 +48,9 @@ static int s_failures;
 enum { CLIENT_TAG = 0xBEEF };
 enum { OFF_TAG = 0, OFF_SIZE = 1, OFF_REGION = 2, OFF_FCNT_UP = 4,
        OFF_CLIENT_TAG = 28, OFF_CHANNELS = 44,
-       OFF_JOIN_FLAGS = 216, OFF_JOIN_RESERVED = 217, OFF_BACKOFF_CAP_JITTER = 218,
-       OFF_DEVNONCE_START = 220, OFF_BACKOFF_ELAPSED = 224,
-       OFF_BACKOFF_WINDOW_START = 228, OFF_BACKOFF_WINDOW_USED = 232,
-       OFF_BACKOFF_NEXT_OK = 236, OFF_DEVNONCE_COUNT = 240 };
+       OFF_GLOBAL_AVAIL = 16,
+       OFF_JOIN_FLAGS = 216, OFF_BACKOFF_PHASE = 217, OFF_BACKOFF_PHASE_SEC = 218,
+       OFF_DEVNONCE_START = 220, OFF_DEVNONCE_COUNT = 222 };
 
 enum { TEST_DEVADDR = 0x26011234, TEST_DEVNONCE = 0x1234, TEST_DEVNONCE_COUNT = 0xF345 };
 
@@ -162,25 +161,18 @@ static void perturbJoinState(ostime_t now) {
 	LMIC.devNonceCount = TEST_DEVNONCE_COUNT;	// as if that many were sent
 	LMIC.devNonce = (u2_t)(TEST_DEVNONCE + TEST_DEVNONCE_COUNT);
 	LMIC.joinBackoff.fActive = 1;
-	LMIC.joinBackoff.lastTick = now;
-	LMIC.joinBackoff.elapsedSec = 5000;
-	LMIC.joinBackoff.windowStartSec = 3600;
-	LMIC.joinBackoff.windowUsedMs = 12345;
-	LMIC.joinBackoff.nextOkSec = 5600;
-	LMIC.joinBackoff.capJitterSec = 77;
+	LMIC.joinBackoff.phase = LMIC_JOIN_BACKOFF_PHASE_HOURS1_6;
+	LMIC.joinBackoff.phaseStart = now - 1234 * (ostime_t)LMIC_OSTICKS_PER_SEC;
 }
 
 static void checkJoinStateRestored(ostime_t now) {
-	LMIC_UNREFERENCED_PARAMETER(now);
 	CHECK_EQ(LMIC.devNonceStart, TEST_DEVNONCE);
 	CHECK_EQ(LMIC.devNonceCount, TEST_DEVNONCE_COUNT);
 	CHECK_EQ(LMIC_getNextDevNonce(), (u2_t)(TEST_DEVNONCE + TEST_DEVNONCE_COUNT));
 	CHECK_EQ(LMIC.joinBackoff.fActive, 1);
-	CHECK_EQ(LMIC.joinBackoff.elapsedSec, 5000);
-	CHECK_EQ(LMIC.joinBackoff.windowStartSec, 3600);
-	CHECK_EQ(LMIC.joinBackoff.windowUsedMs, 12345);
-	CHECK_EQ(LMIC.joinBackoff.nextOkSec, 5600);
-	CHECK_EQ(LMIC.joinBackoff.capJitterSec, 77);
+	CHECK_EQ(LMIC.joinBackoff.phase, LMIC_JOIN_BACKOFF_PHASE_HOURS1_6);
+	// whole seconds into the phase, measured from the new now.
+	CHECK_EQ(now - LMIC.joinBackoff.phaseStart, 1234 * (ostime_t)LMIC_OSTICKS_PER_SEC);
 }
 
 static void checkMacStateRestored(ostime_t now, u1_t version) {
@@ -214,11 +206,11 @@ static void test_size_header_and_query(void) {
 	CHECK_EQ(LMIC_getSessionStateSize(), LMIC_SESSION_STATE_SIZE);
 	CHECK_EQ(LMIC_saveSessionState(blob, sizeof blob, &nUsed, CLIENT_TAG), LMIC_SESSION_STATE_OK);
 	CHECK_EQ(nUsed, LMIC_SESSION_STATE_SIZE);
-	CHECK_EQ(LMIC_SESSION_STATE_SIZE, 244);
+	CHECK_EQ(LMIC_SESSION_STATE_SIZE, 224);
 	CHECK_EQ(blob[OFF_TAG], LMIC_SESSION_STATE_TAG_V3);
 	CHECK_EQ(blob[OFF_SIZE], LMIC_SESSION_STATE_SIZE);
 	CHECK_EQ(blob[OFF_JOIN_FLAGS], 0);	// fresh LMIC: no session, no back-off
-	CHECK_EQ(blob[OFF_JOIN_RESERVED], 0);
+	CHECK_EQ(blob[OFF_BACKOFF_PHASE], 0);
 	CHECK_EQ(blob[OFF_REGION], CFG_region);
 	CHECK_EQ(blob[OFF_CHANNELS], EXPECTED_KIND);
 	CHECK_EQ(blob[OFF_CHANNELS + 1], EXPECTED_KIND_SIZE);
@@ -250,18 +242,11 @@ static void test_little_endian(void) {
 	CHECK_EQ(blob[OFF_JOIN_FLAGS], LMIC_SESSION_STATE_JOINFLAG_SESSION | LMIC_SESSION_STATE_JOINFLAG_BACKOFF);
 	CHECK_EQ(blob[OFF_DEVNONCE_START + 0], 0x34);
 	CHECK_EQ(blob[OFF_DEVNONCE_START + 1], 0x12);
-	CHECK_EQ(blob[OFF_DEVNONCE_START + 2], 0);
-	CHECK_EQ(blob[OFF_DEVNONCE_START + 3], 0);
 	CHECK_EQ(blob[OFF_DEVNONCE_COUNT + 0], 0x45);
 	CHECK_EQ(blob[OFF_DEVNONCE_COUNT + 1], 0xF3);
-	CHECK_EQ(blob[OFF_DEVNONCE_COUNT + 2], 0);
-	CHECK_EQ(blob[OFF_DEVNONCE_COUNT + 3], 0);
-	CHECK_EQ(blob[OFF_BACKOFF_CAP_JITTER], 77);
-	CHECK_EQ(blob[OFF_BACKOFF_ELAPSED + 0], 5000 & 0xFF);
-	CHECK_EQ(blob[OFF_BACKOFF_ELAPSED + 1], 5000 >> 8);
-	CHECK_EQ(blob[OFF_BACKOFF_WINDOW_START + 1], 3600 >> 8);
-	CHECK_EQ(blob[OFF_BACKOFF_WINDOW_USED + 0], 12345 & 0xFF);
-	CHECK_EQ(blob[OFF_BACKOFF_NEXT_OK + 1], 5600 >> 8);
+	CHECK_EQ(blob[OFF_BACKOFF_PHASE], LMIC_JOIN_BACKOFF_PHASE_HOURS1_6);
+	CHECK_EQ(blob[OFF_BACKOFF_PHASE_SEC + 0], 1234 & 0xFF);
+	CHECK_EQ(blob[OFF_BACKOFF_PHASE_SEC + 1], 1234 >> 8);
 }
 
 static void test_round_trip_v3(void) {
@@ -400,27 +385,23 @@ static void test_rejections(void) {
 
 	// V3 join state: unknown flag bits, reserved byte, impossible DevNonce.
 	memcpy(bad, blob, sizeof bad);
-	bad[OFF_JOIN_FLAGS] = 0x04;
+	bad[OFF_JOIN_FLAGS] = 0x08;
 	CHECK_EQ(LMIC_querySessionState(bad, sizeof bad, &info), LMIC_SESSION_STATE_BAD_JOIN_STATE);
 	memcpy(bad, blob, sizeof bad);
-	bad[OFF_JOIN_RESERVED] = 1;
+	bad[OFF_BACKOFF_PHASE] = LMIC_JOIN_BACKOFF_PHASE_AFTER + 1;
 	CHECK_EQ(LMIC_querySessionState(bad, sizeof bad, &info), LMIC_SESSION_STATE_BAD_JOIN_STATE);
+	bad[OFF_BACKOFF_PHASE] = LMIC_JOIN_BACKOFF_PHASE_AFTER;
+	CHECK_EQ(LMIC_querySessionState(bad, sizeof bad, &info), LMIC_SESSION_STATE_OK);
+	// all DevNonces used: flag bit 2 with a count of 0; not with another count.
 	memcpy(bad, blob, sizeof bad);
-	bad[OFF_DEVNONCE_START + 0] = 0;
-	bad[OFF_DEVNONCE_START + 1] = 0;
-	bad[OFF_DEVNONCE_START + 2] = 1;	// start 0x10000
-	CHECK_EQ(LMIC_querySessionState(bad, sizeof bad, &info), LMIC_SESSION_STATE_BAD_JOIN_STATE);
-	bad[OFF_DEVNONCE_START + 0] = 0xFF;
-	bad[OFF_DEVNONCE_START + 1] = 0xFF;
-	bad[OFF_DEVNONCE_START + 2] = 0;	// start 0xFFFF
+	bad[OFF_JOIN_FLAGS] |= LMIC_SESSION_STATE_JOINFLAG_DEVNONCE_USED;
+	bad[OFF_DEVNONCE_COUNT + 0] = 0;
+	bad[OFF_DEVNONCE_COUNT + 1] = 0;
 	CHECK_EQ(LMIC_querySessionState(bad, sizeof bad, &info), LMIC_SESSION_STATE_OK);
-	memset(bad + OFF_DEVNONCE_COUNT, 0, 4);
-	bad[OFF_DEVNONCE_COUNT + 2] = 1;	// count 0x10000: all used, allowed
-	CHECK_EQ(LMIC_querySessionState(bad, sizeof bad, &info), LMIC_SESSION_STATE_OK);
-	bad[OFF_DEVNONCE_COUNT + 0] = 1;	// count 0x10001
+	bad[OFF_DEVNONCE_COUNT + 0] = 1;
 	CHECK_EQ(LMIC_querySessionState(bad, sizeof bad, &info), LMIC_SESSION_STATE_BAD_JOIN_STATE);
 
-	// a V2 blob shorter than 216, a V3 blob shorter than 244.
+	// a V2 blob shorter than 216, a V3 blob shorter than 224.
 	memcpy(bad, blob, sizeof bad);
 	makeOldBlob(bad, LMIC_SESSION_STATE_TAG_V2);
 	CHECK_EQ(LMIC_querySessionState(bad, LMIC_SESSION_STATE_SIZE_V2 - 1, &info), LMIC_SESSION_STATE_BUFFER_TOO_SMALL);

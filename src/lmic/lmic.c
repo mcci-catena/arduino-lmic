@@ -2194,26 +2194,8 @@ static void buildJoinRequest (void) {
     ++LMIC.devNonceCount;
 }
 
-// airtime of a Join-Request at the current data rate.
-static ostime_t joinRequestAirtime (void) {
-    return calcAirTime(setCr(updr2rps((dr_t)LMIC.datarate), (cr_t)LMIC.errcr), LEN_JR);
-}
-
 static void startJoining (xref2osjob_t osjob) {
     LMIC_API_PARAMETER(osjob);
-
-    // see issue #244: for backwards compatibility
-    // don't override what the user does after os_init().
-    if (LMIC.initBandplanAfterReset) {
-        LMICbandplan_resetDefaultChannels();
-        // the reset undoes what LMIC_startJoining() set up for the join
-        // loop: US-like regions forget the channel (txChnl = 0xFF), and
-        // EU-like regions go back to the operational channel groups. Set
-        // the join loop up again.
-        LMICbandplan_initJoinLoop();
-    } else {
-        LMIC.initBandplanAfterReset = 1;
-    }
 
     // let the client know that now's the time to update
     // network settings.
@@ -2248,6 +2230,17 @@ bit_t LMIC_startJoining (void) {
         // Setup state
         LMIC.rejoinCnt = LMIC.txCnt = 0;
         resetJoinParams();
+        // see issue #244: for backwards compatibility, don't override what
+        // the user does after os_init(): the first join after LMIC_reset()
+        // keeps the channels as they are. Later joins go back to the
+        // region's defaults. The reset comes before the join loop is set
+        // up, because it undoes that setup (US-like regions forget the
+        // channel, EU-like regions go back to the operational channel
+        // groups).
+        if (LMIC.initBandplanAfterReset)
+            LMICbandplan_resetDefaultChannels();
+        else
+            LMIC.initBandplanAfterReset = 1;
         LMICbandplan_initJoinLoop();
         LMIC.opmode |= OP_JOINING;
         // reportEventAndUpdate will call engineUpdate which then starts sending JOIN REQUESTS
@@ -2261,6 +2254,16 @@ static void unjoinAndRejoin(xref2osjob_t osjob) {
     LMIC_API_PARAMETER(osjob);
     LMIC_unjoin();
     LMIC_startJoining();
+}
+
+// while a join is stopped, look at the back-off clock every hour, so
+// it never goes longer than the range of ostime_t between updates.
+static void joinBackoffKeepalive(xref2osjob_t osjob) {
+    if ((LMIC.opmode & OP_JOINING) == 0 && LMIC.joinBackoff.fActive) {
+        ostime_t const now = os_getTime();
+        LMICcore_joinBackoff_sync(now);
+        os_setTimedCallback(osjob, now + sec2osticks(3600), FUNC_ADDR(joinBackoffKeepalive));
+    }
 }
 
 // stop a join in progress between Join-Requests, keeping the back-off
@@ -2279,6 +2282,7 @@ bit_t LMIC_stopJoining(void) {
     os_clearCallback(&LMIC.osjob);
     if (LMIC.osjob_defer.func == FUNC_ADDR(startJoining))
         os_clearCallback(&LMIC.osjob_defer);
+    joinBackoffKeepalive(&LMIC.osjob);
     return 1;
 }
 
@@ -2705,14 +2709,16 @@ static void engineUpdate_inner (void) {
             // no need to consider anything but LMIC.txend.
             txbeg = LMIC.txend;
         }
+#if !defined(DISABLE_JOIN)
+        // Join-Request retransmission back-off (lmic_join_backoff.c):
+        // the duty rate by the time since T0. LMICbandplan_updateTx()
+        // spaces the next request by airtime << rate.
+        if( (LMIC.opmode & OP_JOINING) != 0 )
+            LMIC.globalDutyRate = LMICcore_joinBackoff_dutyRate(now);
+#endif // !DISABLE_JOIN
         // Delayed TX or waiting for duty cycle?
         if( (LMIC.globalDutyRate != 0 || (LMIC.opmode & OP_RNDTX) != 0)  &&  (txbeg - LMIC.globalDutyAvail) < 0 )
             txbeg = LMIC.globalDutyAvail;
-#if !defined(DISABLE_JOIN)
-        // Join-Request retransmission back-off (lmic_join_backoff.c)
-        if( (LMIC.opmode & OP_JOINING) != 0 )
-            txbeg = LMICcore_joinBackoff_earliest(now, txbeg, joinRequestAirtime());
-#endif // !DISABLE_JOIN
 #if !defined(DISABLE_BEACONS)
         // If we're tracking a beacon...
         // then make sure TX-RX transaction is complete before beacon
@@ -2803,10 +2809,6 @@ static void engineUpdate_inner (void) {
             LMIC.dndr   = txdr;  // carry TX datarate (can be != LMIC.datarate) over to txDone/setupRx1
             LMIC.opmode = (LMIC.opmode & ~(OP_POLL|OP_RNDTX)) | OP_TXRXPEND | OP_NEXTCHNL;
             LMICbandplan_updateTx(txbeg);
-#if !defined(DISABLE_JOIN)
-            if( (LMIC.opmode & OP_JOINING) != 0 )
-                LMICcore_joinBackoff_noteTx(txbeg, joinRequestAirtime());
-#endif // !DISABLE_JOIN
             // limit power to value asked in adr
             LMIC.radio.txpow = LMIC.txpow > LMIC.adrTxPow ? LMIC.adrTxPow : LMIC.txpow;
             reportEventNoUpdate(EV_TXSTART);
@@ -2925,29 +2927,17 @@ void LMIC_reset (void) {
     os_radio(RADIO_RST);
     os_clearCallback(&LMIC.osjob);
 
-    // save callback info and DevNonce, clear LMIC, restore. DevNonce
-    // counts up by one per Join-Request (LoRaWAN 1.0.3 asks only that a
-    // value not repeat); a reset keeps it, so an internal reset does not
-    // go back to a value already used. The first reset after power-up
-    // chooses a random start, as the LMIC always did; an application
-    // that keeps DevNonce across power cycles restores it afterward from
-    // the session state blob, or with LMIC_setNextDevNonce(). The
-    // LoRaWAN 1.0.4 counter (start at 0, never wrap) is #769.
-    do {
-        lmic_client_data_t  client = LMIC.client;
-        u2_t const devNonce = LMIC.devNonce;
-        u2_t const devNonceStart = LMIC.devNonceStart;
-        u4_t const devNonceCount = LMIC.devNonceCount;
-        u1_t const devNonceSet = LMIC.devNonceSet;
-
-        os_clearMem((xref2u1_t)&LMIC,SIZEOFEXPR(LMIC));
-
-        LMIC.client = client;
-        LMIC.devNonce = devNonce;
-        LMIC.devNonceStart = devNonceStart;
-        LMIC.devNonceCount = devNonceCount;
-        LMIC.devNonceSet = devNonceSet;
-    } while (0);
+    // clear LMIC from joinBackoff on. The members before it, the client
+    // callbacks and the DevNonce sequence, survive. DevNonce counts up by
+    // one per Join-Request (LoRaWAN 1.0.3 asks only that a value not
+    // repeat); keeping it means an internal reset does not go back to a
+    // value already used. The first reset after power-up chooses a random
+    // start, as the LMIC always did; an application that keeps DevNonce
+    // across power cycles restores it afterward from the session state
+    // blob, or with LMIC_setNextDevNonce(). The LoRaWAN 1.0.4 counter
+    // (start at 0) is #769.
+    os_clearMem((xref2u1_t)&LMIC.joinBackoff,
+                SIZEOFEXPR(LMIC) - offsetof(struct lmic_t, joinBackoff));
 
     if (! LMIC.devNonceSet)
         newDevNonceSequence(os_getRndU2());

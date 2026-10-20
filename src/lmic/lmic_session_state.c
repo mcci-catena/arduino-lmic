@@ -62,15 +62,11 @@ enum {
 
 	// V3 join state
 	OFF_JOIN_FLAGS = 216,
-	OFF_JOIN_RESERVED = 217,
-	OFF_BACKOFF_CAP_JITTER = 218,
+	OFF_BACKOFF_PHASE = 217,
+	OFF_BACKOFF_PHASE_SEC = 218,
 	OFF_DEVNONCE_START = 220,
-	OFF_BACKOFF_ELAPSED = 224,
-	OFF_BACKOFF_WINDOW_START = 228,
-	OFF_BACKOFF_WINDOW_USED = 232,
-	OFF_BACKOFF_NEXT_OK = 236,
-	OFF_DEVNONCE_COUNT = 240,
-	OFF_END_V3 = 244,
+	OFF_DEVNONCE_COUNT = 222,
+	OFF_END_V3 = 224,
 };
 
 LMIC_C_ASSERT(SIZE_CHANNELS == 172);
@@ -172,20 +168,20 @@ static u1_t channelVariantSize(u1_t kind) {
 static void restoreJoinState(const u1_t *pBuf, ostime_t now) {
 	u1_t const joinFlags = pBuf[OFF_JOIN_FLAGS];
 
-	LMIC.devNonceStart = (u2_t)os_rlsbf4(pBuf + OFF_DEVNONCE_START);
-	LMIC.devNonceCount = os_rlsbf4(pBuf + OFF_DEVNONCE_COUNT);
+	LMIC.devNonceStart = os_rlsbf2(pBuf + OFF_DEVNONCE_START);
+	LMIC.devNonceCount = (joinFlags & LMIC_SESSION_STATE_JOINFLAG_DEVNONCE_USED)
+				? 0x10000 : os_rlsbf2(pBuf + OFF_DEVNONCE_COUNT);
 	LMIC.devNonce = (u2_t)(LMIC.devNonceStart + LMIC.devNonceCount);
 	LMIC.devNonceSet = 1;
 
 	os_clearMem(&LMIC.joinBackoff, sizeof(LMIC.joinBackoff));
 	if (joinFlags & LMIC_SESSION_STATE_JOINFLAG_BACKOFF) {
 		LMIC.joinBackoff.fActive = 1;
-		LMIC.joinBackoff.lastTick = now;
-		LMIC.joinBackoff.capJitterSec = os_rlsbf2(pBuf + OFF_BACKOFF_CAP_JITTER);
-		LMIC.joinBackoff.elapsedSec = os_rlsbf4(pBuf + OFF_BACKOFF_ELAPSED);
-		LMIC.joinBackoff.windowStartSec = os_rlsbf4(pBuf + OFF_BACKOFF_WINDOW_START);
-		LMIC.joinBackoff.windowUsedMs = os_rlsbf4(pBuf + OFF_BACKOFF_WINDOW_USED);
-		LMIC.joinBackoff.nextOkSec = os_rlsbf4(pBuf + OFF_BACKOFF_NEXT_OK);
+		LMIC.joinBackoff.phase = pBuf[OFF_BACKOFF_PHASE];
+		LMIC.joinBackoff.phaseStart = now -
+			(ostime_t)((u4_t)os_rlsbf2(pBuf + OFF_BACKOFF_PHASE_SEC) * LMIC_OSTICKS_PER_SEC);
+		// the spacing to the next Join-Request
+		LMIC.globalDutyAvail = now + (ostime_t)os_rlsbf4(pBuf + OFF_GLOBAL_AVAIL);
 	}
 }
 
@@ -218,10 +214,12 @@ lmic_session_state_result_t LMIC_querySessionState(
 	u1_t joinFlags = LMIC_SESSION_STATE_JOINFLAG_SESSION;
 	if (tag == LMIC_SESSION_STATE_TAG_V3) {
 		joinFlags = pBuf[OFF_JOIN_FLAGS];
-		if ((joinFlags & ~(LMIC_SESSION_STATE_JOINFLAG_SESSION | LMIC_SESSION_STATE_JOINFLAG_BACKOFF)) != 0 ||
-		    pBuf[OFF_JOIN_RESERVED] != 0 ||
-		    os_rlsbf4(pBuf + OFF_DEVNONCE_START) > 0xFFFF ||
-		    os_rlsbf4(pBuf + OFF_DEVNONCE_COUNT) > 0x10000)
+		if ((joinFlags & ~(LMIC_SESSION_STATE_JOINFLAG_SESSION |
+				   LMIC_SESSION_STATE_JOINFLAG_BACKOFF |
+				   LMIC_SESSION_STATE_JOINFLAG_DEVNONCE_USED)) != 0 ||
+		    pBuf[OFF_BACKOFF_PHASE] > LMIC_JOIN_BACKOFF_PHASE_AFTER ||
+		    ((joinFlags & LMIC_SESSION_STATE_JOINFLAG_DEVNONCE_USED) != 0 &&
+		     os_rlsbf2(pBuf + OFF_DEVNONCE_COUNT) != 0))
 			return LMIC_SESSION_STATE_BAD_JOIN_STATE;
 	}
 
@@ -287,15 +285,16 @@ lmic_session_state_result_t LMIC_saveSessionState(
 		joinFlags |= LMIC_SESSION_STATE_JOINFLAG_SESSION;
 	if (LMIC.joinBackoff.fActive)
 		joinFlags |= LMIC_SESSION_STATE_JOINFLAG_BACKOFF;
+	if (LMIC.devNonceCount > 0xFFFF)
+		joinFlags |= LMIC_SESSION_STATE_JOINFLAG_DEVNONCE_USED;
 	pBuf[OFF_JOIN_FLAGS] = joinFlags;
-	pBuf[OFF_JOIN_RESERVED] = 0;
-	os_wlsbf2(pBuf + OFF_BACKOFF_CAP_JITTER, LMIC.joinBackoff.capJitterSec);
-	os_wlsbf4(pBuf + OFF_DEVNONCE_START, LMIC.devNonceStart);
-	os_wlsbf4(pBuf + OFF_DEVNONCE_COUNT, LMIC.devNonceCount);
-	os_wlsbf4(pBuf + OFF_BACKOFF_ELAPSED, LMIC.joinBackoff.elapsedSec);
-	os_wlsbf4(pBuf + OFF_BACKOFF_WINDOW_START, LMIC.joinBackoff.windowStartSec);
-	os_wlsbf4(pBuf + OFF_BACKOFF_WINDOW_USED, LMIC.joinBackoff.windowUsedMs);
-	os_wlsbf4(pBuf + OFF_BACKOFF_NEXT_OK, LMIC.joinBackoff.nextOkSec);
+	pBuf[OFF_BACKOFF_PHASE] = LMIC.joinBackoff.phase;
+	u4_t phaseSec = 0;
+	if (LMIC.joinBackoff.phase < LMIC_JOIN_BACKOFF_PHASE_AFTER)
+		phaseSec = ticksUntil(now, LMIC.joinBackoff.phaseStart) / LMIC_OSTICKS_PER_SEC;
+	os_wlsbf2(pBuf + OFF_BACKOFF_PHASE_SEC, phaseSec > 0xFFFF ? 0xFFFF : (u2_t)phaseSec);
+	os_wlsbf2(pBuf + OFF_DEVNONCE_START, LMIC.devNonceStart);
+	os_wlsbf2(pBuf + OFF_DEVNONCE_COUNT, (u2_t)LMIC.devNonceCount);
 
 	if (pnUsed != NULL)
 		*pnUsed = LMIC_SESSION_STATE_SIZE;

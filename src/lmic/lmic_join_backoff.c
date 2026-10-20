@@ -12,233 +12,101 @@ Author:
 	Terry Moore, MCCI Corporation	October 2026
 
 Description:
-	See lmic_join_backoff.h for the model. In brief: the table in this
-	file sets, for each part of the time since T0, a cap on Join-Request
-	airtime per window and a pacing rule. engineUpdate_inner() asks
-	LMICcore_joinBackoff_earliest() before each Join-Request and reports
-	each one sent to LMICcore_joinBackoff_noteTx().
+	The limits are those of TS001-1.0.4 (LoRaWAN L2 1.0.4) section 7,
+	"Retransmissions Backoff", Table 56 "Transmit duty-cycle
+	limitations", p. 49 (spec lines 1593-1599); LoRaWAN 1.0.3 section 7,
+	p. 38 has the same numbers. RP002-1.0.5 refers each region's
+	Join-Request duty cycle to that chapter. Table 56 applies together
+	with the local regulation, "whichever is more constraining"; the
+	regional duty-cycle code still applies on top of this.
 
-	Times inside this module are whole seconds since T0 in a u4_t, plus
-	a remainder in ticks, so nothing depends on the range of ostime_t.
-	The LMIC calls in at least once an hour while a join is pending
-	(earliest() never asks the LMIC to wait longer than that), well
-	inside the 2^31-tick signed range at any allowed tick rate.
+	The windows are fixed, counted from T0, as Table 56 writes them:
 
-	The state is LMIC.joinBackoff, so LMIC_reset() clears it and the
-	session state blob saves and restores it (lmic_session_state.c).
+	  [T0, T0+1 h)                          transmit time < 36 s
+	  [T0+1 h, T0+11 h)                     transmit time < 36 s
+	  [T0+11 h + N x 24 h, T0+35 h + N x 24 h)   transmit time < 8.7 s
 
-	Everything here is deterministic between transmissions: the random
-	parts (pacing jitter, window jitter) are drawn when a request is
-	sent. So engineUpdate_inner() can ask again as often as it likes and
-	get the same answer.
+	How the LMIC keeps to them: while joining, it sets the global duty
+	rate (LMIC.globalDutyRate, the mechanism of DutyCycleReq) by the
+	time since T0, so that each Join-Request start is at least airtime
+	x 2^rate after the one before. If starts in a span of length W are
+	at least A x 2^rate apart, the airtime in that span is at most
+	W / 2^rate plus one request. With a Join-Request of at most 1.5 s
+	(SF12, 125 kHz):
+
+	  time since T0     rate   bound on airtime
+	  0 to 15 min       0      the LMIC's usual join timing
+	  15 min to 1 h     9      2700 s / 512 + 1.5 s = 6.8 s, so the hour
+	                           stays under 36 s if the first 15 minutes
+	                           use under 29 s (US915 about 18 s, AU915
+	                           about 25 s, EU-like regions less)
+	  1 h to 11 h       11     36000 s / 2048 + 1.5 s = 19.1 s < 36 s
+	  after 11 h        14     86400 s / 16384 + 1.5 s = 6.8 s < 8.7 s,
+	                           in any 24 hours, fixed or sliding
+
+	The spacing also spreads requests over each window, so devices that
+	lost the network together do not all spend a window's budget at its
+	start. The randomization is the LMIC's own: the random delays of
+	LMICbandplan_nextJoinState() set when each request would go out, and
+	the duty rate only moves it later. The rates and the first 15
+	minutes without spacing are MCCI choices, not spec text; the host
+	tests check the Table 56 limits through the real scheduler.
+
+	The state is a phase number and the os time the phase began. The
+	hours 1-11 window is two 5-hour phases, so no phase is longer than
+	the signed range of ostime_t (2^31 ticks is 9.2 h at the fastest
+	allowed tick rate); a phase ends when the LMIC next looks after its
+	end. While joining the LMIC looks at least every 6.8 h (the longest
+	spacing, 1.5 s x 2^14); while a join is stopped (LMIC_stopJoining())
+	it looks every hour. After 11 hours the phase stays the same, so time
+	no longer matters.
 
 */
 
 #include "lmic.h"
 
-/****************************************************************************\
-|
-|	The default table
-|
-|	The limits are those of TS001-1.0.4 (LoRaWAN L2 1.0.4) section 7,
-|	"Retransmissions Backoff", Table 56 "Transmit duty-cycle
-|	limitations", p. 49 (spec lines 1593-1599). LoRaWAN 1.0.3 section 7,
-|	p. 38 (lines 1085-1091) has the same numbers. RP002-1.0.5 refers
-|	each region's Join-Request duty cycle to that chapter (for example
-|	EU863-870, section 3.4.2, lines 620-623, p. 33). Table 56 applies
-|	together with the local regulation, "whichever is more constraining";
-|	the regional duty-cycle code still applies on top of this table.
-|
-|	The windows are fixed, counted from T0, as Table 56 writes them:
-|	[T0, T0+1 h), [T0+1 h, T0+11 h), and [T0+11 h + N x 24 h,
-|	T0+35 h + N x 24 h). Table 56 says "Transmit time < ...", so the
-|	budget is a strict upper bound.
-|
-|	The pacing (divisor) and the first 15 minutes without pacing are
-|	MCCI choices, not spec text: they spread the budget over each
-|	window, so devices that lost the network together do not all use
-|	their budget at the start of each window, and they keep the join
-|	timing the LMIC always had for the first 15 minutes. In US915 that
-|	timing uses about 19 s of the first hour's 36 s in 15 minutes.
-|
-\****************************************************************************/
-
-static const lmic_join_backoff_step_t kJoinBackoffDefault[] = {
-	// Table 56 row 1: "Aggregated during the first hour following
-	// power-up or reset, T0 < t < T0+1, Transmit time < 36 s per hour".
-	// No pacing for the first 15 minutes.
-	{ /* startSec */ 0, /* windowSec */ 3600, /* budgetMs */ 36000,
-	  /* divisor */ 0, /* jitterPct */ 0 },
-
-	// Same window and budget (Table 56 row 1). Pacing 1/200: at most
-	// 13.5 s in the last 45 minutes.
-	{ 900, 0, 0, 200, 25 },
-
-	// Table 56 row 2: "Aggregated during the next 10 hours,
-	// T0+1 < t < T0+11, Transmit time < 36 s per 10 h".
-	// Pacing 1/1200: at most 30 s in 10 h.
-	{ 3600, 36000, 36000, 1200, 25 },
-
-	// Table 56 row 3: "After the first 11 hours, aggregated over 24 h,
-	// T0+11 + N x 24 < t < T0+35 + N x 24, Transmit time < 8.7 s per
-	// 24 h". Pacing 1/12000: at most 7.2 s in 24 h.
-	{ 39600, 86400, 8700, 12000, 25 },
+// length of each phase but the last, in os ticks.
+static CONST_TABLE(ostime_t, phaseTicks)[] = {
+	sec2osticks(15 * 60),		// 0: first 15 minutes
+	sec2osticks(45 * 60),		// 1: rest of hour 1
+	sec2osticks(5 * 3600),		// 2: hours 1-6
+	sec2osticks(5 * 3600),		// 3: hours 6-11
 };
 
-/****************************************************************************\
-|
-|	State
-|
-\****************************************************************************/
+// duty rate of each phase: starts at least airtime x 2^rate apart.
+static CONST_TABLE(u1_t, phaseRate)[] = { 0, 9, 11, 11, 14 };
 
-enum {
-	// earliest() never asks the LMIC to wait longer than this.
-	kMaxWaitSec = 3600,
-	// limits checked by LMIC_checkJoinBackoffTable(). The budget must
-	// hold the longest Join-Request (1.48 s at SF12/125 kHz).
-	kMinWindowSec = 60,
-	kMinBudgetMs = 2000,
-};
+static bit_t s_fDisabled;
 
-// configuration; the state is LMIC.joinBackoff.
-typedef struct lmic_join_backoff_config_s lmic_join_backoff_config_t;
-struct lmic_join_backoff_config_s {
-	const lmic_join_backoff_step_t *pTable;
-	u1_t	nTable;
-	u1_t	fDisabled;
-};
-
-static lmic_join_backoff_config_t s_backoff = {
-	.pTable = kJoinBackoffDefault,
-	.nTable = (u1_t)(sizeof(kJoinBackoffDefault) / sizeof(kJoinBackoffDefault[0])),
-};
-
-/****************************************************************************\
-|
-|	Table
-|
-\****************************************************************************/
-
-bit_t LMIC_checkJoinBackoffTable(const lmic_join_backoff_step_t *pTable, u1_t nTable) {
-	if (pTable == NULL || nTable == 0 || nTable > LMIC_JOIN_BACKOFF_MAX_STEPS)
-		return 0;
-	if (pTable[0].startSec != 0 || pTable[0].windowSec == 0)
-		return 0;
-	for (u1_t i = 0; i < nTable; ++i) {
-		const lmic_join_backoff_step_t * const p = &pTable[i];
-
-		if (i > 0 && p->startSec <= pTable[i - 1].startSec)
-			return 0;
-		if (p->windowSec != 0 &&
-		    (p->windowSec < kMinWindowSec || p->budgetMs < kMinBudgetMs))
-			return 0;
-		if (p->jitterPct > 100)
-			return 0;
-	}
-	return 1;
-}
-
-bit_t LMIC_setJoinBackoffTable(const lmic_join_backoff_step_t *pTable, u1_t nTable) {
-	if (pTable == NULL) {
-		pTable = kJoinBackoffDefault;
-		nTable = (u1_t)(sizeof(kJoinBackoffDefault) / sizeof(kJoinBackoffDefault[0]));
-	}
-	if (! LMIC_checkJoinBackoffTable(pTable, nTable))
-		return 0;
-	s_backoff.pTable = pTable;
-	s_backoff.nTable = nTable;
-	return 1;
-}
-
-const lmic_join_backoff_step_t *LMIC_getJoinBackoffTable(u1_t *pnTable) {
-	if (pnTable)
-		*pnTable = s_backoff.nTable;
-	return s_backoff.pTable;
-}
-
-// index of the row in effect at t.
-static u1_t stepAt(u4_t t) {
-	u1_t i = 0;
-	for (u1_t j = 1; j < s_backoff.nTable; ++j)
-		if (s_backoff.pTable[j].startSec <= t)
-			i = j;
-	return i;
-}
-
-// the cap window holding t: [*pStart, *pEnd), budget *pBudget.
-static void windowAt(u4_t t, u4_t *pStart, u4_t *pEnd, u4_t *pBudget) {
-	const lmic_join_backoff_step_t * const p = s_backoff.pTable;
-	u1_t const n = s_backoff.nTable;
-	u1_t cap = 0;
-
-	for (u1_t j = 1; j < n; ++j)
-		if (p[j].startSec <= t && p[j].windowSec != 0)
-			cap = j;
-
-	u4_t const w = p[cap].windowSec;
-	u4_t const start = p[cap].startSec + ((t - p[cap].startSec) / w) * w;
-	u4_t end = start + w;
-
-	// a later row with its own cap ends this window early.
-	for (u1_t j = cap + 1; j < n; ++j) {
-		if (p[j].windowSec != 0) {
-			if (p[j].startSec < end)
-				end = p[j].startSec;
-			break;
-		}
-	}
-
-	*pStart = start;
-	*pEnd = end;
-	*pBudget = p[cap].budgetMs;
-}
-
-/****************************************************************************\
-|
-|	Time
-|
-\****************************************************************************/
-
-// bring elapsedSec up to now.
+// move to the phase that holds now, and keep globalDutyAvail from going
+// stale (a past value only matters while it compares as past).
 static void advance(ostime_t now) {
-	s4_t const d = (s4_t)(now - LMIC.joinBackoff.lastTick);
+	lmic_join_backoff_state_t * const s = &LMIC.joinBackoff;
 
-	if (d > 0) {
-		u4_t const ticks = (u4_t)d + LMIC.joinBackoff.residueTicks;
-		LMIC.joinBackoff.elapsedSec += ticks / (u4_t)LMIC_OSTICKS_PER_SEC;
-		LMIC.joinBackoff.residueTicks = ticks % (u4_t)LMIC_OSTICKS_PER_SEC;
-		LMIC.joinBackoff.lastTick = now;
+	if ((s4_t)(LMIC.globalDutyAvail - now) < 0)
+		LMIC.globalDutyAvail = now;
+
+	while (s->phase < LMIC_JOIN_BACKOFF_PHASE_AFTER) {
+		ostime_t const len = TABLE_GET_OSTIME(phaseTicks, s->phase);
+		if ((s4_t)(now - s->phaseStart) < len)
+			break;
+		s->phaseStart += len;
+		++s->phase;
 	}
 }
-
-// a random number in [0, n).
-static u4_t rndBelow(u4_t n) {
-	u4_t const r = os_getRndU2();
-	return r * (n >> 16) + ((r * (n & 0xFFFF)) >> 16);
-}
-
-static u4_t airtimeMs(ostime_t airtime) {
-	// round up, so the account never runs short.
-	return (u4_t)osticks2ms(airtime + (ostime_t)LMIC_OSTICKS_PER_SEC / 1000 - 1);
-}
-
-/****************************************************************************\
-|
-|	Core calls
-|
-\****************************************************************************/
 
 void LMICcore_joinBackoff_start(ostime_t now) {
-	if (LMIC.joinBackoff.fActive)
+	lmic_join_backoff_state_t * const s = &LMIC.joinBackoff;
+
+	if (s->fActive)
 		return;
-	LMIC.joinBackoff.fActive = 1;
-	LMIC.joinBackoff.lastTick = now;
-	LMIC.joinBackoff.residueTicks = 0;
-	LMIC.joinBackoff.elapsedSec = 0;
-	LMIC.joinBackoff.windowStartSec = 0;
-	LMIC.joinBackoff.windowUsedMs = 0;
-	LMIC.joinBackoff.nextOkSec = 0;
-	LMIC.joinBackoff.capJitterSec = 0;
+	s->fActive = 1;
+	s->phase = LMIC_JOIN_BACKOFF_PHASE_15MIN;
+	s->phaseStart = now;
+	// globalDutyAvail may be far in the past (LMIC_reset() leaves it 0,
+	// and the device may have been up for days), so far that it compares
+	// as future. Start it at now; advance() keeps it there.
+	LMIC.globalDutyAvail = now;
 }
 
 void LMICcore_joinBackoff_sync(ostime_t now) {
@@ -248,119 +116,24 @@ void LMICcore_joinBackoff_sync(ostime_t now) {
 
 void LMICcore_joinBackoff_joined(void) {
 	LMIC.joinBackoff.fActive = 0;
+	LMIC.globalDutyRate = 0;
 }
 
-ostime_t LMICcore_joinBackoff_earliest(ostime_t now, ostime_t want, ostime_t airtime) {
-	if (! LMIC.joinBackoff.fActive || s_backoff.fDisabled)
-		return want;
+u1_t LMICcore_joinBackoff_dutyRate(ostime_t now) {
+	lmic_join_backoff_state_t * const s = &LMIC.joinBackoff;
 
+	if (! s->fActive)
+		return 0;
 	advance(now);
-
-	u4_t const nowSec = LMIC.joinBackoff.elapsedSec;
-	u4_t const ms = airtimeMs(airtime);
-	s4_t const dWant = (s4_t)(want - now);
-	u4_t const wantSec = nowSec + (dWant > 0
-		? ((u4_t)dWant + LMIC.joinBackoff.residueTicks + (u4_t)LMIC_OSTICKS_PER_SEC - 1)
-			/ (u4_t)LMIC_OSTICKS_PER_SEC
-		: 0);
-	u4_t t = wantSec;
-
-	// pacing
-	if (LMIC.joinBackoff.nextOkSec > t)
-		t = LMIC.joinBackoff.nextOkSec;
-
-	// cap: move to a later window until the request fits. A fresh
-	// window always fits (the table check makes the budget larger than
-	// any Join-Request), so this runs at most twice.
-	for (int i = 0; i < 4; ++i) {
-		u4_t start, end, budget;
-
-		windowAt(t, &start, &end, &budget);
-		u4_t const used = (start == LMIC.joinBackoff.windowStartSec) ? LMIC.joinBackoff.windowUsedMs : 0;
-		if (used + ms < budget || used == 0)
-			break;
-		t = end + LMIC.joinBackoff.capJitterSec;
-	}
-
-	if (t <= wantSec)
-		return want;
-
-	if (t - nowSec > kMaxWaitSec)
-		t = nowSec + kMaxWaitSec;
-
-	// the moment elapsedSec reaches t.
-	ostime_t result = now + sec2osticks(t - nowSec) - (ostime_t)LMIC.joinBackoff.residueTicks;
-	if ((s4_t)(result - want) < 0)
-		result = want;
-	return result;
+	if (s_fDisabled)
+		return 0;
+	return TABLE_GET_U1(phaseRate, s->phase);
 }
-
-void LMICcore_joinBackoff_noteTx(ostime_t txbeg, ostime_t airtime) {
-	if (! LMIC.joinBackoff.fActive)
-		return;
-
-	advance(txbeg);
-
-	u4_t const now = LMIC.joinBackoff.elapsedSec;
-	u4_t const ms = airtimeMs(airtime);
-	u4_t start, end, budget;
-
-	windowAt(now, &start, &end, &budget);
-	if (start != LMIC.joinBackoff.windowStartSec) {
-		LMIC.joinBackoff.windowStartSec = start;
-		LMIC.joinBackoff.windowUsedMs = 0;
-	}
-	LMIC.joinBackoff.windowUsedMs += ms;
-
-	const lmic_join_backoff_step_t * const p = &s_backoff.pTable[stepAt(now)];
-	if (p->divisor != 0) {
-		// whole seconds, rounded up; +1 for the part second already
-		// gone since elapsedSec ticked.
-		u4_t const spacing = (ms * p->divisor + 999) / 1000;
-		LMIC.joinBackoff.nextOkSec = now + 1 + spacing
-			+ rndBelow(spacing * p->jitterPct / 100 + 1);
-	} else {
-		LMIC.joinBackoff.nextOkSec = 0;
-	}
-
-	// jitter for the start of the next window, should the cap stop us.
-	LMIC.joinBackoff.capJitterSec = (u2_t)os_getRndU1();
-}
-
-/****************************************************************************\
-|
-|	Control and status
-|
-\****************************************************************************/
 
 void LMIC_setJoinBackoffEnabled(bit_t fEnable) {
-	s_backoff.fDisabled = ! fEnable;
+	s_fDisabled = ! fEnable;
 }
 
 void LMIC_clearJoinBackoff(void) {
 	LMIC.joinBackoff.fActive = 0;
-}
-
-void LMIC_getJoinBackoffStatus(lmic_join_backoff_status_t *pStatus) {
-	if (pStatus == NULL)
-		return;
-
-	if (LMIC.joinBackoff.fActive)
-		advance(os_getTime());
-
-	u4_t const now = LMIC.joinBackoff.elapsedSec;
-	u4_t start, end, budget;
-
-	windowAt(now, &start, &end, &budget);
-
-	pStatus->fActive = LMIC.joinBackoff.fActive;
-	pStatus->fEnabled = ! s_backoff.fDisabled;
-	pStatus->iStep = stepAt(now);
-	pStatus->elapsedSec = LMIC.joinBackoff.fActive ? now : 0;
-	pStatus->windowStartSec = start;
-	pStatus->windowEndSec = end;
-	pStatus->windowUsedMs = (LMIC.joinBackoff.fActive && start == LMIC.joinBackoff.windowStartSec)
-					? LMIC.joinBackoff.windowUsedMs : 0;
-	pStatus->budgetMs = budget;
-	pStatus->nextOkSec = LMIC.joinBackoff.nextOkSec;
 }
