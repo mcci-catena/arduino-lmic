@@ -892,6 +892,10 @@ struct lmic_t {
 #endif
     // Public part of MAC state
     u1_t        txCnt;
+    /// 1: the uplink in progress is a MAC-only frame sent ahead of the
+    /// pending application payload; 2: that frame is done, and the next
+    /// uplink carries the payload. 0 otherwise.
+    u1_t        txMacOnly;
     u2_t        txrxFlags;  ///< transaction flags (TX-RX combo)
 
     u1_t        dataBeg;    // 0 or start of data (dataBeg-1 is port)
