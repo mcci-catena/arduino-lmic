@@ -23,4 +23,18 @@
 # shellcheck source=../../../../ci/lmic-filter-common.sh
 source "$(dirname "$MCCI_CI_FILTER_NAME")"/../../../../ci/lmic-filter-common.sh
 
+#### this sketch uses ABP, so on AVR also build without join, to fit
+#### the feather32u4's flash (the sketch expects DISABLE_JOIN; see its
+#### comments).
+eval "$(declare -f _lmic_filter | sed '1s/_lmic_filter/_lmic_filter_common/')"
+
+function _lmic_filter {
+	if [[ "$1" = "projcfg" && "$MCCI_CI_ARCH" = "avr" ]]; then
+		shift 2
+		_projcfg_class_a "$@" "DISABLE_LMIC_FAILURE_TO" "DISABLE_JOIN"
+	else
+		_lmic_filter_common "$@"
+	fi
+}
+
 #### end of file ####
