@@ -1559,6 +1559,15 @@ static void txDone (ostime_t delay, osjobcb_t func) {
 // ======================================== Join frames
 
 
+// copy the radio's receive results to the MAC; the join and data paths both
+// use it, so it is outside the DISABLE_JOIN block.
+static void radioGetRxResults(void) {
+    if (LMIC.radio.state & LMIC_RADIO_EV_RXDONE) {
+        LMIC.dataLen = LMIC.radio.dataLen;
+        LMIC.rxtime = LMIC.radio.rxtime;
+    }
+}
+
 #if !defined(DISABLE_JOIN)
 static void onJoinFailed (xref2osjob_t osjob) {
     LMIC_API_PARAMETER(osjob);
@@ -1716,13 +1725,6 @@ static bit_t processJoinAccept_nojoinframe(void) {
                             : FUNC_ADDR(runEngineUpdate)); // next step to be delayed
         // stop this join process.
         return 1;
-}
-
-static void radioGetRxResults(void) {
-    if (LMIC.radio.state & LMIC_RADIO_EV_RXDONE) {
-        LMIC.dataLen = LMIC.radio.dataLen;
-        LMIC.rxtime = LMIC.radio.rxtime;
-    }
 }
 
 static void processRx2Jacc (xref2osjob_t osjob) {
