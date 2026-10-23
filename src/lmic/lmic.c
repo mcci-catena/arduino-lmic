@@ -838,9 +838,11 @@ scan_mac_cmds(
     uint8_t cmd;
 
     LMIC.pendMacLen = 0;
-    if (port == 0) {
+    if (port == 0 && LMIC.txMacOnly == 0) {
         // port zero: mac data is in the normal payload, and there can't be
-        // piggyback mac data.
+        // piggyback mac data. (While an application payload waits behind a
+        // MAC-only frame, txMacOnly != 0, the answers can't go in the
+        // payload buffer; they go as piggyback answers instead.)
         LMIC.pendMacPiggyback = 0;
     } else {
         // port is either -1 (no port) or non-zero (piggyback): treat as piggyback.
@@ -1557,6 +1559,15 @@ static void txDone (ostime_t delay, osjobcb_t func) {
 // ======================================== Join frames
 
 
+// copy the radio's receive results to the MAC; the join and data paths both
+// use it, so it is outside the DISABLE_JOIN block.
+static void radioGetRxResults(void) {
+    if (LMIC.radio.state & LMIC_RADIO_EV_RXDONE) {
+        LMIC.dataLen = LMIC.radio.dataLen;
+        LMIC.rxtime = LMIC.radio.rxtime;
+    }
+}
+
 #if !defined(DISABLE_JOIN)
 static void onJoinFailed (xref2osjob_t osjob) {
     LMIC_API_PARAMETER(osjob);
@@ -1714,13 +1725,6 @@ static bit_t processJoinAccept_nojoinframe(void) {
                             : FUNC_ADDR(runEngineUpdate)); // next step to be delayed
         // stop this join process.
         return 1;
-}
-
-static void radioGetRxResults(void) {
-    if (LMIC.radio.state & LMIC_RADIO_EV_RXDONE) {
-        LMIC.dataLen = LMIC.radio.dataLen;
-        LMIC.rxtime = LMIC.radio.rxtime;
-    }
 }
 
 static void processRx2Jacc (xref2osjob_t osjob) {
@@ -1889,32 +1893,35 @@ static bit_t sendAdrAckReq(void) {
     }
 }
 
-static bit_t buildDataFrame (void) {
-    bit_t txdata = ((LMIC.opmode & (OP_TXDATA|OP_POLL)) != OP_POLL);
-    u1_t dlen = txdata ? LMIC.pendTxLen : 0;
+// MAC data for the next uplink, in priority order: the pending answers
+// (pendMacData, all or nothing), the sticky answers, DeviceTimeReq and
+// BeaconInfoReq. Puts the items that fit in room bytes at p, and returns
+// their length. With fCommit, also changes the state of each item it
+// places (the pending answers are used, DeviceTimeReq awaits its answer);
+// without, it changes nothing, so the caller can size the frame first. An
+// item that does not fit stays pending for a later uplink.
+static u1_t buildMacData (u1_t *p, u1_t room, bit_t fCommit) {
+    u1_t n = 0;
 
-    // Piggyback MAC options
-    // Prioritize by importance
-    // highest importance are the ones in the pendMac buffer.
-    int  end = OFF_DAT_OPTS;
-
-    // Send piggyback data if: !txdata or txport != 0
-    if ((! txdata || LMIC.pendTxPort != 0) && LMIC.pendMacPiggyback && LMIC.pendMacLen != 0) {
-        os_copyMem(LMIC.frame + end, LMIC.pendMacData, LMIC.pendMacLen);
-        end += LMIC.pendMacLen;
+    if (LMIC.pendMacPiggyback && LMIC.pendMacLen != 0 && LMIC.pendMacLen <= room) {
+        os_copyMem(p, LMIC.pendMacData, LMIC.pendMacLen);
+        n = LMIC.pendMacLen;
+        if (fCommit) {
+            LMIC.pendMacLen = 0;
+            LMIC.pendMacPiggyback = 0;
+        }
     }
-    LMIC.pendMacLen = 0;
-    LMIC.pendMacPiggyback = 0;
 
 #if !defined(DISABLE_MCMD_RXParamSetupReq)
-    // per 5.4, RxParamSetupAns is sticky.
+    // per 5.4, RxParamSetupAns is sticky. 0x40: already in pendMacData.
     if (LMIC.dn2Ans) {
         if (LMIC.dn2Ans & 0x40) {
-            LMIC.dn2Ans ^= 0x40;
-        } else {
-            LMIC.frame[end + 0] = MCMD_RXParamSetupAns;
-            LMIC.frame[end + 1] = LMIC.dn2Ans & ~MCMD_RXParamSetupAns_RFU;
-            end += 2;
+            if (fCommit)
+                LMIC.dn2Ans ^= 0x40;
+        } else if (n + 2 <= room) {
+            p[n + 0] = MCMD_RXParamSetupAns;
+            p[n + 1] = LMIC.dn2Ans & ~MCMD_RXParamSetupAns_RFU;
+            n += 2;
         }
     }
 #endif // !DISABLE_MCMD_RXParamSetupReq
@@ -1922,39 +1929,104 @@ static bit_t buildDataFrame (void) {
     // per 5.4, DlChannelAns is sticky.
     if (LMIC.macDlChannelAns) {
         if (LMIC.macDlChannelAns & 0x40) {
-            LMIC.macDlChannelAns ^= 0x40;
-        } else {
-            LMIC.frame[end + 0] = MCMD_DlChannelAns;
-            LMIC.frame[end + 1] = LMIC.macDlChannelAns & ~MCMD_DlChannelAns_RFU;
-            end += 2;
+            if (fCommit)
+                LMIC.macDlChannelAns ^= 0x40;
+        } else if (n + 2 <= room) {
+            p[n + 0] = MCMD_DlChannelAns;
+            p[n + 1] = LMIC.macDlChannelAns & ~MCMD_DlChannelAns_RFU;
+            n += 2;
         }
     }
 #endif // !DISABLE_MCMD_DlChannelReq
 #if !defined(DISABLE_MCMD_RXTimingSetupReq)
     // per 5.7, RXTimingSetupAns is sticky
     if (LMIC.macRxTimingSetupAns == 2) {
-        LMIC.macRxTimingSetupAns = 1;
-    } else if (LMIC.macRxTimingSetupAns) {
-        LMIC.frame[end++] = MCMD_RXTimingSetupAns;
+        if (fCommit)
+            LMIC.macRxTimingSetupAns = 1;
+    } else if (LMIC.macRxTimingSetupAns && n < room) {
+        p[n++] = MCMD_RXTimingSetupAns;
     }
 #endif // !DISABLE_MCMD_RXTimingSetupReq)
 
 #if LMIC_ENABLE_DeviceTimeReq
-    if ( LMIC.txDeviceTimeReqState == lmic_RequestTimeState_tx ) {
-        LMIC.frame[end+0] = MCMD_DeviceTimeReq;
-        end += 1;
-        LMIC.txDeviceTimeReqState = lmic_RequestTimeState_rx;
+    if ( LMIC.txDeviceTimeReqState == lmic_RequestTimeState_tx && n < room ) {
+        p[n++] = MCMD_DeviceTimeReq;
+        if (fCommit)
+            LMIC.txDeviceTimeReqState = lmic_RequestTimeState_rx;
     }
 #endif // LMIC_ENABLE_DeviceTimeReq
 #if !defined(DISABLE_BEACONS) && defined(ENABLE_MCMD_BeaconTimingAns)
-    if ( LMIC.bcninfoTries > 0 ) {
-        LMIC.frame[end+0] = MCMD_BeaconInfoReq;
-        end += 1;
+    if ( LMIC.bcninfoTries > 0 && n < room ) {
+        p[n++] = MCMD_BeaconInfoReq;
     }
 #endif
-    if (end > OFF_DAT_OPTS + 16) {
-        LMICOS_logEventUint32("piggyback mac opts too long", end);
+    return n;
+}
+
+static bit_t buildDataFrame (void) {
+    bit_t txdata = ((LMIC.opmode & (OP_TXDATA|OP_POLL)) != OP_POLL);
+    u1_t const dlen = txdata ? LMIC.pendTxLen : 0;
+    unsigned maxFlen = LMICbandplan_maxFrameLen(LMIC.datarate);
+    if (maxFlen > MAX_LEN_FRAME)
+        maxFlen = MAX_LEN_FRAME;
+
+    // the payload alone must fit; if not, the frame fails as before (the
+    // application chose the size). Nothing pending has been used yet.
+    unsigned const flenData = OFF_DAT_OPTS + 5 + dlen;
+    if (maxFlen < OFF_DAT_OPTS + 4 || (txdata && flenData > maxFlen)) {
+        LMICOS_logEventUint32("frame too long for this bandplan", ((u4_t)dlen << 16) | (flenData << 8) | maxFlen);
         return 0;
+    }
+
+    // size all the pending MAC data, without using any of it.
+    u1_t macAll;
+    {
+        u1_t mac[LWAN_FCtrl_FOptsLen_MAX + 8];
+        macAll = buildMacData(mac, sizeof(mac), /* fCommit */ 0);
+    }
+
+    // If the MAC data and the payload don't fit in one frame (FOpts holds
+    // 15 bytes, and none with a port 0 payload), send the MAC data in a
+    // frame of its own first; the payload stays pending and goes in the
+    // next uplink (txMacOnly 1 now, 2 then). Not on a retransmission.
+    if (txdata && macAll != 0 && LMIC.txMacOnly == 0 &&
+        LMIC.txCnt == 0 && LMIC.upRepeatCount == 0 &&
+        (LMIC.pendTxPort == 0 || macAll > LWAN_FCtrl_FOptsLen_MAX ||
+         flenData + macAll > maxFlen)) {
+        txdata = 0;
+        LMIC.txMacOnly = 1;
+    } else if (txdata) {
+        LMIC.txMacOnly = 0;
+    }
+
+    // place the MAC data: in FOpts, up to the room left; or, if more than
+    // FOpts holds and it all fits as a port 0 payload, there.
+    int  end = OFF_DAT_OPTS;
+    bit_t port0 = 0;
+    u1_t room;
+    unsigned flen;
+    if (txdata) {
+        room = 0;
+        if (LMIC.pendTxPort != 0) {
+            room = maxFlen - flenData;
+            if (room > LWAN_FCtrl_FOptsLen_MAX)
+                room = LWAN_FCtrl_FOptsLen_MAX;
+        }
+    } else if (macAll > LWAN_FCtrl_FOptsLen_MAX && OFF_DAT_OPTS + 5 + macAll <= maxFlen) {
+        port0 = 1;
+        room = macAll;
+    } else {
+        room = LWAN_FCtrl_FOptsLen_MAX;
+        if (OFF_DAT_OPTS + 4 + room > maxFlen)
+            room = maxFlen - (OFF_DAT_OPTS + 4);
+    }
+    u1_t const macLen = buildMacData(LMIC.frame + OFF_DAT_OPTS + port0, room, /* fCommit */ 1);
+    if (port0) {
+        LMIC.frame[OFF_DAT_OPTS] = 0;   // port 0
+        flen = OFF_DAT_OPTS + 5 + macLen;
+    } else {
+        end += macLen;
+        flen = end + (txdata ? 5 + dlen : 4);
     }
 
     if( LMIC.adrChanged ) {
@@ -1964,20 +2036,6 @@ static bit_t buildDataFrame (void) {
         if (LMIC.adrAckReq < LINK_CHECK_CONT)
             setAdrAckCount(LINK_CHECK_CONT);
         LMIC.adrChanged = 0;
-    }
-
-    unsigned int flen = end + (txdata ? 5+dlen : 4);
-    if( flen > MAX_LEN_FRAME ) {
-        // Options and payload too big - delay payload
-        txdata = 0;
-        flen = end+4;
-    }
-
-    u1_t maxFlen = LMICbandplan_maxFrameLen(LMIC.datarate);
-
-    if (flen > maxFlen) {
-        LMICOS_logEventUint32("frame too long for this bandplan", ((u4_t)dlen << 16) | (flen << 8) | maxFlen);
-        return 0;
     }
 
     LMIC.frame[OFF_DAT_HDR] = HDR_FTYPE_DAUP | HDR_MAJOR_V1;
@@ -2440,8 +2498,48 @@ static bit_t processDnData_norx(void) {
     return processDnData_txcomplete();
 }
 
+// if a DeviceTimeReq went out in the uplink that just finished, report
+// the result (its answer, if any, came in this uplink's receive windows).
+// A request not yet sent (state tx) waits for the next uplink.
+static void completeNetworkTimeRequest(void) {
+#if LMIC_ENABLE_DeviceTimeReq
+    lmic_request_time_state_t const requestTimeState = LMIC.txDeviceTimeReqState;
+    if ( requestTimeState == lmic_RequestTimeState_rx ||
+         requestTimeState == lmic_RequestTimeState_success ) {
+        lmic_request_network_time_cb_t * const pNetworkTimeCb = LMIC.client.pNetworkTimeCb;
+        int flagSuccess = (requestTimeState == lmic_RequestTimeState_success);
+        LMIC.txDeviceTimeReqState = lmic_RequestTimeState_idle;
+        if (pNetworkTimeCb != NULL) {
+            // reset the callback, so that the user's routine
+            // can post another request if desired.
+            LMIC.client.pNetworkTimeCb = NULL;
+
+            // call the user's notification routine.
+            (*pNetworkTimeCb)(LMIC.client.pNetworkTimeUserData, flagSuccess);
+        }
+    }
+#endif // LMIC_ENABLE_DeviceTimeReq
+}
+
 // this Class-A uplink-and-receive cycle is complete.
 static bit_t processDnData_txcomplete(void) {
+    if (LMIC.txMacOnly == 1) {
+        // the uplink was a MAC-only frame sent ahead of the application
+        // payload (buildDataFrame()). The payload is still pending: keep
+        // OP_TXDATA, report no EV_TXCOMPLETE, and send it next, after the
+        // usual turn-around wait. Deliver anything received.
+        LMIC.txMacOnly = 2;
+        LMIC.opmode &= ~OP_TXRXPEND;
+        LMIC.txCnt = LMIC.upRepeatCount = 0;
+        txDelay(os_getTime() + ms2osticks(LMICbandplan_TX_RECOVERY_ms), 0);
+        completeNetworkTimeRequest();
+        if (LMIC.dataLen != 0 || LMIC.dataBeg != 0)
+            reportEventAndUpdate(EV_RXCOMPLETE);
+        else
+            engineUpdate();
+        return 1;
+    }
+
     LMIC.opmode &= ~(OP_TXDATA|OP_TXRXPEND);
     // turn off all the repeat stuff.
     LMIC.txCnt = LMIC.upRepeatCount = 0;
@@ -2473,26 +2571,7 @@ static bit_t processDnData_txcomplete(void) {
     // from the band-plan files.
     txDelay(os_getTime() + ms2osticks(LMICbandplan_TX_RECOVERY_ms), 0);
 
-#if LMIC_ENABLE_DeviceTimeReq
-    //
-    // if the DeviceTimeReq FSM is active, we need to move it to idle,
-    // completing the callback.
-    //
-    lmic_request_time_state_t const requestTimeState = LMIC.txDeviceTimeReqState;
-    if ( requestTimeState != lmic_RequestTimeState_idle ) {
-        lmic_request_network_time_cb_t * const pNetworkTimeCb = LMIC.client.pNetworkTimeCb;
-        int flagSuccess = (LMIC.txDeviceTimeReqState == lmic_RequestTimeState_success);
-        LMIC.txDeviceTimeReqState = lmic_RequestTimeState_idle;
-        if (pNetworkTimeCb != NULL) {
-            // reset the callback, so that the user's routine
-            // can post another request if desired.
-            LMIC.client.pNetworkTimeCb = NULL;
-
-            // call the user's notification routine.
-            (*pNetworkTimeCb)(LMIC.client.pNetworkTimeUserData, flagSuccess);
-        }
-    }
-#endif // LMIC_ENABLE_DeviceTimeReq
+    completeNetworkTimeRequest();
 
     if( (LMIC.txrxFlags & (TXRX_DNW1|TXRX_DNW2|TXRX_PING)) != 0  &&  (LMIC.opmode & OP_LINKDEAD) != 0 ) {
         LMIC.opmode &= ~OP_LINKDEAD;
@@ -3009,6 +3088,7 @@ void LMIC_clrTxData (void) {
         return;
     }
     LMIC.pendTxLen = 0;
+    LMIC.txMacOnly = 0;
     opmode &= ~(OP_TXDATA | OP_POLL);
     if (! (opmode & OP_JOINING)) {
         // in this case, we are joining, and the TX data
@@ -3084,6 +3164,7 @@ void LMIC_setTxData_strict (void) {
 
     LMICOS_logEventUint32(__func__, ((u4_t)LMIC.pendTxPort << 24u) | ((u4_t)LMIC.pendTxConf << 16u) | (LMIC.pendTxLen << 0u));
     LMIC.opmode |= OP_TXDATA;
+    LMIC.txMacOnly = 0;
     if( (LMIC.opmode & OP_JOINING) == 0 ) {
         LMIC.txCnt = 0;             // reset the confirmed uplink FSM
         LMIC.upRepeatCount = 0;     // reset the unconfirmed repeat FSM

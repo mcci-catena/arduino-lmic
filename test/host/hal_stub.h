@@ -35,6 +35,10 @@ void hal_stub_startLmic(void);
 ///	radio never completes anything.
 void hal_stub_setRadioAutoComplete(bit_t fEnable);
 
+/// \brief deliver \p pFrame (a whole PHYPayload) in the next receive
+///	window, once, when the simulated radio is on.
+void hal_stub_injectDownlink(const u1_t *pFrame, u1_t nFrame);
+
 /// \brief ticks until the simulated radio's next event, 0 if due now, or
 ///	HAL_STUB_RADIO_IDLE if nothing is pending.
 u4_t hal_stub_radioTicksUntilEvent(void);

@@ -96,6 +96,8 @@ enum {
 	SX127X_OPMODE_RX_SINGLE = 0x06,
 	SX127X_IRQ_LORA_TXDONE = 0x08,
 	SX127X_IRQ_LORA_RXTOUT = 0x80,
+	SX127X_IRQ_LORA_RXDONE = 0x40,
+	SX127X_LORARegRxNbBytes = 0x13,
 	SX127X_RegVersion = 0x42,
 	SX1276_VERSION = 0x12,
 	SX127X_LORARegRssiWideband = 0x2C,
@@ -114,12 +116,27 @@ enum { RX_TIMEOUT_MS = 10 };
 enum radio_pending_e { STUB_RADIO_IDLE, STUB_RADIO_TX, STUB_RADIO_RX };
 
 static bit_t s_radioAuto;
+
+// a downlink to deliver in the next receive window (once).
+static u1_t s_dnFrame[256];
+static u1_t s_dnLen;		// bytes in s_dnFrame; 0: none waiting
+static u1_t s_dnRead;		// next FIFO byte to read
+static bit_t s_dnInFlight;	// the receive in progress delivers it
+
+void hal_stub_injectDownlink(const u1_t *pFrame, u1_t nFrame) {
+	memcpy(s_dnFrame, pFrame, nFrame);
+	s_dnLen = nFrame;
+	s_dnRead = 0;
+	s_dnInFlight = 0;
+}
 static u1_t s_radioPending = STUB_RADIO_IDLE;
 static u4_t s_radioDoneAt;
 
 void hal_stub_setRadioAutoComplete(bit_t fEnable) {
 	s_radioAuto = fEnable;
 	s_radioPending = STUB_RADIO_IDLE;
+	s_dnLen = 0;		// and forget any downlink not yet delivered
+	s_dnInFlight = 0;
 }
 
 u4_t hal_stub_radioTicksUntilEvent(void) {
@@ -142,6 +159,7 @@ static void radioOpMode(u1_t v) {
 		break;
 	case SX127X_OPMODE_RX_SINGLE:
 		s_radioPending = STUB_RADIO_RX;
+		s_dnInFlight = (s_dnLen != 0);
 		s_radioDoneAt = s_ticks + (u4_t)ms2osticks(RX_TIMEOUT_MS);
 		break;
 	default:
@@ -191,7 +209,10 @@ void lmic_hal_spi_read(u1_t cmd, u1_t *buf, size_t len) {
 	for (size_t i = 0; i < len; ++i) {
 		if (addr == SX127X_LORARegRssiWideband)
 			++s_regs[addr];				// noise: a new value every read
-		buf[i] = s_regs[addr];
+		if (addr == 0 && s_dnLen != 0 && s_regs[SX127X_LORARegIrqFlags] == SX127X_IRQ_LORA_RXDONE)
+			buf[i] = s_dnFrame[s_dnRead++];		// the injected downlink
+		else
+			buf[i] = s_regs[addr];
 		if (addr != 0)
 			addr = (addr + 1) & 0x7F;
 	}
@@ -211,11 +232,21 @@ void lmic_hal_processPendingIRQs(void) {
 		return;
 
 	u4_t const t = s_radioDoneAt;
-	s_regs[SX127X_LORARegIrqFlags] = (s_radioPending == STUB_RADIO_TX)
-		? SX127X_IRQ_LORA_TXDONE : SX127X_IRQ_LORA_RXTOUT;
+	bit_t const fDownlink = (s_radioPending == STUB_RADIO_RX && s_dnInFlight);
+	s_regs[SX127X_LORARegIrqFlags] = (s_radioPending == STUB_RADIO_TX) ? SX127X_IRQ_LORA_TXDONE
+				       : fDownlink ? SX127X_IRQ_LORA_RXDONE
+				       : SX127X_IRQ_LORA_RXTOUT;
+	if (fDownlink) {
+		s_regs[SX127X_LORARegRxNbBytes] = s_dnLen;
+		s_dnRead = 0;
+	}
 	s_regs[SX127X_RegOpMode] = (u1_t)((s_regs[SX127X_RegOpMode] & ~SX127X_OPMODE_MASK) | SX127X_OPMODE_STANDBY);
 	s_radioPending = STUB_RADIO_IDLE;
 	radio_irq_handler_v2(0, (ostime_t)t);
+	if (fDownlink) {
+		s_dnLen = 0;
+		s_dnInFlight = 0;
+	}
 }
 
 bit_t lmic_hal_hasPendingIrqs(void) {
