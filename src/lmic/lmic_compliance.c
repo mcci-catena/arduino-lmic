@@ -114,8 +114,11 @@ LMIC_complianceRxMessage(
 ) {
     lmic_compliance_state_t const complianceState = LMIC_Compliance.state;
 
-    // update the counter used by the status message.
-    ++LMIC_Compliance.downlinkCount;
+    // update the counter used by the status message. Frames with
+    // FPort 0, or with no FPort, carry only MAC commands; the tester
+    // doesn't count them.
+    if (port != 0)
+        ++LMIC_Compliance.downlinkCount;
 
     // filter normal messages.
     if (port != LORAWAN_PORT_COMPLIANCE) {
