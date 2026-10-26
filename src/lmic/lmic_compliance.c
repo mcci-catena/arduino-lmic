@@ -284,7 +284,9 @@ static void evMessage(
             break;
             }
         case LORAWAN_COMPLIANCE_CMD_LINK: {
-            // we are required to initiate a Link
+            // we are required to initiate a Link Check; the request
+            // goes out with the next uplink.
+            LMIC_requestLinkCheck(NULL, NULL);
             break;
         }
         case LORAWAN_COMPLIANCE_CMD_JOIN: {
