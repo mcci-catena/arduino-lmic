@@ -35,6 +35,6 @@ Description:
 
 /// Official ARDUINO LMIC version. Different from LMIC_VERSION_MAJOR etc. because those document the version released by IBM.
 #define	ARDUINO_LMIC_VERSION    \
-    ARDUINO_LMIC_VERSION_CALC(7, 0, 0, 16)  /* 7.0.0-pre16 */
+    ARDUINO_LMIC_VERSION_CALC(7, 0, 0, 17)  /* 7.0.0-pre17 */
 
 #endif /* _lmic_version_h_ */
