@@ -155,6 +155,14 @@ If disabled, stub routines are provided that will return failure (so you don't n
 
 By default, device network-time requests were disabled in versions prior to `v4.2.0-pre1`. As of v4.2.0-pre1, the default is that device network-time requests are enabled.
 
+## Enabling/Disabling Link Check Support
+
+`#define LMIC_ENABLE_LinkCheckReq  number  /* boolean: 0 or non-zero */`
+
+Disable or enable support for link check requests (LoRaWAN MAC request 0x02). If non-zero (the default), `LMIC_requestLinkCheck()` adds a LinkCheckReq to the next uplink and reports the margin and gateway count from the network's LinkCheckAns through its callback. The compliance module uses it to answer the test command that asks for a link check.
+
+If zero, support is disabled and `LMIC_requestLinkCheck()` reports failure at once, so you don't need conditional compiles in client code. This saves about 150 bytes of flash and 7 bytes of RAM on AVR.
+
 ## Rarely changed variables
 
 The remaining variables are rarely used, but we list them here for completeness.

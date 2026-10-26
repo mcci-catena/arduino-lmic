@@ -864,9 +864,14 @@ scan_mac_cmds(
 
         switch( cmd ) {
         case MCMD_LinkCheckAns: {
-            // TODO(tmm@mcci.com) capture these, reliably..
-            //int gwmargin = opts[oidx+1];
-            //int ngws = opts[oidx+2];
+#if LMIC_ENABLE_LinkCheckReq
+            // only accept an answer to a request that we sent.
+            if (LMIC.txLinkCheckReqState == lmic_RequestTimeState_rx) {
+                LMIC.linkCheckMargin = opts[oidx+1];
+                LMIC.linkCheckGwCnt = opts[oidx+2];
+                LMIC.txLinkCheckReqState = lmic_RequestTimeState_success;
+            }
+#endif // LMIC_ENABLE_LinkCheckReq
             break;
         }
         // from 1.0.3 spec section 5.2:
@@ -1935,6 +1940,13 @@ static bit_t buildDataFrame (void) {
         LMIC.txDeviceTimeReqState = lmic_RequestTimeState_rx;
     }
 #endif // LMIC_ENABLE_DeviceTimeReq
+#if LMIC_ENABLE_LinkCheckReq
+    if ( LMIC.txLinkCheckReqState == lmic_RequestTimeState_tx ) {
+        LMIC.frame[end+0] = MCMD_LinkCheckReq;
+        end += 1;
+        LMIC.txLinkCheckReqState = lmic_RequestTimeState_rx;
+    }
+#endif // LMIC_ENABLE_LinkCheckReq
 #if !defined(DISABLE_BEACONS) && defined(ENABLE_MCMD_BeaconTimingAns)
     if ( LMIC.bcninfoTries > 0 ) {
         LMIC.frame[end+0] = MCMD_BeaconInfoReq;
@@ -2411,6 +2423,27 @@ static bit_t processDnData_txcomplete(void) {
     }
 #endif // LMIC_ENABLE_DeviceTimeReq
 
+#if LMIC_ENABLE_LinkCheckReq
+    //
+    // likewise, complete a pending LinkCheckReq, unless the request
+    // hasn't been sent yet.
+    //
+    lmic_request_time_state_t const linkCheckState = LMIC.txLinkCheckReqState;
+    if ( linkCheckState == lmic_RequestTimeState_rx || linkCheckState == lmic_RequestTimeState_success ) {
+        lmic_request_link_check_cb_t * const pLinkCheckCb = LMIC.client.pLinkCheckCb;
+        int flagSuccess = (linkCheckState == lmic_RequestTimeState_success);
+        LMIC.txLinkCheckReqState = lmic_RequestTimeState_idle;
+        if (pLinkCheckCb != NULL) {
+            // reset the callback, so that the user's routine
+            // can post another request if desired.
+            LMIC.client.pLinkCheckCb = NULL;
+
+            // call the user's notification routine.
+            (*pLinkCheckCb)(LMIC.client.pLinkCheckUserData, flagSuccess, LMIC.linkCheckMargin, LMIC.linkCheckGwCnt);
+        }
+    }
+#endif // LMIC_ENABLE_LinkCheckReq
+
     if( (LMIC.txrxFlags & (TXRX_DNW1|TXRX_DNW2|TXRX_PING)) != 0  &&  (LMIC.opmode & OP_LINKDEAD) != 0 ) {
         LMIC.opmode &= ~OP_LINKDEAD;
         reportEventNoUpdate(EV_LINK_ALIVE);
@@ -2869,6 +2902,11 @@ void LMIC_reset (void) {
     LMIC.netDeviceTime = 0;     // the "invalid" time.
     LMIC.netDeviceTimeFrac = 0;
 #endif // LMIC_ENABLE_DeviceTimeReq
+#if LMIC_ENABLE_LinkCheckReq
+    LMIC.txLinkCheckReqState = lmic_RequestTimeState_idle;
+    LMIC.linkCheckMargin = 0;
+    LMIC.linkCheckGwCnt = 0;
+#endif // LMIC_ENABLE_LinkCheckReq
 
     // finally, initialize the secure element.
     // As a temporary measure for testing, we grab the keys from the client using `os_getDevKey()`
@@ -3172,6 +3210,32 @@ void LMIC_requestNetworkTime(lmic_request_network_time_cb_t *pCallbackfn, void *
     // report a failure.
     if (pCallbackfn != NULL)
         (*pCallbackfn)(pUserData, /* false */ 0);
+}
+
+///
+/// \brief post an asynchronous request for a link check.
+///
+/// \param pCallbackfn [in]    function to call when the request completes; may be NULL.
+/// \param pUserData [in]      value passed to \p pCallbackfn.
+///
+/// \details
+///     The LMIC adds a LinkCheckReq MAC command to the next uplink. When that
+///     uplink completes, the LMIC calls \p pCallbackfn with the margin and gateway
+///     count from the LinkCheckAns, or with \c flagSuccess false if no answer
+///     arrived. If link check support is not enabled, or a request is already
+///     pending, the LMIC calls \p pCallbackfn at once, reporting failure.
+///
+void LMIC_requestLinkCheck(lmic_request_link_check_cb_t *pCallbackfn, void *pUserData) {
+#if LMIC_ENABLE_LinkCheckReq
+    if (LMIC.txLinkCheckReqState == lmic_RequestTimeState_idle) {
+        LMIC.txLinkCheckReqState = lmic_RequestTimeState_tx;
+        LMIC.client.pLinkCheckCb = pCallbackfn;
+        LMIC.client.pLinkCheckUserData = pUserData;
+        return;
+    }
+#endif // LMIC_ENABLE_LinkCheckReq
+    if (pCallbackfn != NULL)
+        (*pCallbackfn)(pUserData, /* false */ 0, 0, 0);
 }
 
 // \brief return local/remote time pair (if valid, and DeviceTimeReq enabled),

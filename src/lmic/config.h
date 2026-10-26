@@ -176,6 +176,13 @@
 # define LMIC_ENABLE_DeviceTimeReq 1
 #endif
 
+// LMIC_ENABLE_LinkCheckReq
+// enable support for MCMD_LinkCheckReq and MCMD_LinkCheckAns
+// this is always defined, and non-zero to enable it.
+#if !defined(LMIC_ENABLE_LinkCheckReq)
+# define LMIC_ENABLE_LinkCheckReq 1
+#endif
+
 // LMIC_ENABLE_user_events
 // Enable/disable support for programmable callbacks for events, rx, and tx.
 // This is always defined, and non-zero to enable.  Default is enabled.

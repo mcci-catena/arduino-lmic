@@ -420,6 +420,22 @@ typedef void LMIC_ABI_STD lmic_event_cb_t(void *pUserData, ev_t e);
 ///
 typedef void LMIC_ABI_STD lmic_request_network_time_cb_t(void *pUserData, int flagSuccess);
 
+///
+/// \brief link check request callback function type
+///
+/// \param pUserData [in]   value passed to the corresponding link check request.
+/// \param flagSuccess [in] \c true if a LinkCheckAns was received, otherwise \c false.
+/// \param margin [in]      the link margin in dB reported by the network (valid only on success).
+/// \param gwCnt [in]       the number of gateways that received the uplink (valid only on success).
+///
+/// A function of this type is called when a link check request succeeds, or when
+/// the uplink carrying the request completes without a LinkCheckAns.
+///
+/// \note This type is defined unconditionally (even if link check support is
+///     not enabled), because we don't want APIs and types to change based on config.
+///
+typedef void LMIC_ABI_STD lmic_request_link_check_cb_t(void *pUserData, int flagSuccess, u1_t margin, u1_t gwCnt);
+
 /// \brief how the network represents time.
 typedef u4_t lmic_gpstime_t;
 
@@ -471,6 +487,10 @@ struct lmic_client_data_s {
 #if LMIC_ENABLE_DeviceTimeReq
     lmic_request_network_time_cb_t *pNetworkTimeCb; //!< call-back routine for network time
     void        *pNetworkTimeUserData;              //!< call-back data for network time.
+#endif
+#if LMIC_ENABLE_LinkCheckReq
+    lmic_request_link_check_cb_t *pLinkCheckCb;     //!< call-back routine for link check
+    void        *pLinkCheckUserData;                //!< call-back data for link check.
 #endif
 
 #if LMIC_ENABLE_user_events
@@ -846,6 +866,11 @@ struct lmic_t {
     lmic_request_time_state_t txDeviceTimeReqState;  // current state, initially idle.
     u1_t        netDeviceTimeFrac;     // updated on any DeviceTimeAns.
 #endif
+#if LMIC_ENABLE_LinkCheckReq
+    lmic_request_time_state_t txLinkCheckReqState;  // current state, initially idle; uses the time-request states.
+    u1_t        linkCheckMargin;       // margin from the last LinkCheckAns.
+    u1_t        linkCheckGwCnt;        // gateway count from the last LinkCheckAns.
+#endif
 
     // rx1DrOffset is the offset from uplink to downlink datarate
     u1_t        rx1DrOffset;  // captured from join. zero by default.
@@ -1049,6 +1074,7 @@ void LMIC_getSessionKeys (u4_t *netid, devaddr_t *devaddr, xref2u1_t nwkKey, xre
 
 void LMIC_requestNetworkTime(lmic_request_network_time_cb_t *pCallbackfn, void *pUserData);
 int LMIC_getNetworkTimeReference(lmic_time_reference_t *pReference);
+void LMIC_requestLinkCheck(lmic_request_link_check_cb_t *pCallbackfn, void *pUserData);
 
 int LMIC_registerRxMessageCb(lmic_rxmessage_cb_t *pRxMessageCb, void *pUserData);
 int LMIC_registerEventCb(lmic_event_cb_t *pEventCb, void *pUserData);
