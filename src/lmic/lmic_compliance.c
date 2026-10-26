@@ -114,8 +114,11 @@ LMIC_complianceRxMessage(
 ) {
     lmic_compliance_state_t const complianceState = LMIC_Compliance.state;
 
-    // update the counter used by the status message.
-    ++LMIC_Compliance.downlinkCount;
+    // update the counter used by the status message. Frames with
+    // FPort 0, or with no FPort, carry only MAC commands; the tester
+    // doesn't count them.
+    if (port != 0)
+        ++LMIC_Compliance.downlinkCount;
 
     // filter normal messages.
     if (port != LORAWAN_PORT_COMPLIANCE) {
@@ -228,7 +231,10 @@ static void evActivate(void) {
 
         fsmEvalDeferred();
     } else {
-        LMIC_COMPLIANCE_PRINTF("Redundant ActivateTM message ignored.\n");
+        // the tester expects the downlink count to restart at every
+        // ActivateTM, even when we are already in test mode.
+        LMIC_Compliance.downlinkCount = 0;
+        LMIC_COMPLIANCE_PRINTF("Redundant ActivateTM message: downlink count reset.\n");
     }
 }
 
@@ -284,7 +290,9 @@ static void evMessage(
             break;
             }
         case LORAWAN_COMPLIANCE_CMD_LINK: {
-            // we are required to initiate a Link
+            // we are required to initiate a Link Check; the request
+            // goes out with the next uplink.
+            LMIC_requestLinkCheck(NULL, NULL);
             break;
         }
         case LORAWAN_COMPLIANCE_CMD_JOIN: {

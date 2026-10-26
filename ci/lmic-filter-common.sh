@@ -74,7 +74,7 @@ function _lmic_filter {
 		_debug _lmic_filter: LMIC_FILTER_SKETCH="$LMIC_FILTER_SKETCH"
 		shift
 		if [[ "$MCCI_CI_ARCH" = "avr" ]]; then
-			_projcfg_class_a "$@"  "DISABLE_LMIC_FAILURE_TO"
+			_projcfg_class_a "$@"  "DISABLE_LMIC_FAILURE_TO" "LMIC_ENABLE_LinkCheckReq=0"
 		else
 			_projcfg "$@"
 		fi
