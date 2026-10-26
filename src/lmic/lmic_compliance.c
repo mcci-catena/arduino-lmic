@@ -228,7 +228,10 @@ static void evActivate(void) {
 
         fsmEvalDeferred();
     } else {
-        LMIC_COMPLIANCE_PRINTF("Redundant ActivateTM message ignored.\n");
+        // the tester expects the downlink count to restart at every
+        // ActivateTM, even when we are already in test mode.
+        LMIC_Compliance.downlinkCount = 0;
+        LMIC_COMPLIANCE_PRINTF("Redundant ActivateTM message: downlink count reset.\n");
     }
 }
 
