@@ -48,9 +48,20 @@
 // This is the SX1276/SX1277/SX1278/SX1279 radio, which is also used on
 // the HopeRF RFM95 boards.
 //#define CFG_sx1276_radio 1
+// If on the other hand the radio drivers are supplied externally,
+// then you can use external_radio, and the library will not
+// include any radio drivers. This is useful if you want to use a
+// different radio driver, or if you want to use the library with
+// a radio that is not supported by the library.
+//#define CFG_external_radio 1
 
 // ensure that a radio is defined.
-#if !(defined(CFG_sx1272_radio) || defined(CFG_sx1276_radio) || defined(CFG_sx1261_radio) || defined(CFG_sx1262_radio))
+#if defined(CFG_external_radio)
+# warning "Compiling with External radion definitions, make sure to supply the necessary function definitions"
+#if defined(CFG_sx1272_radio) || defined(CFG_sx1276_radio) || defined(CFG_sx1261_radio) || defined(CFG_sx1262_radio)
+# error "You cannot define CFG_external_radio and a target radio at the same time"
+#endif
+#elif !(defined(CFG_sx1272_radio) || defined(CFG_sx1276_radio) || defined(CFG_sx1261_radio) || defined(CFG_sx1262_radio))
 # warning Target radio not defined, assuming CFG_sx1276_radio
 #define CFG_sx1276_radio 1
 #elif defined(CFG_sx1272_radio) && (defined(CFG_sx1276_radio) || defined(CFG_sx1261_radio) || defined(CFG_sx1262_radio))
