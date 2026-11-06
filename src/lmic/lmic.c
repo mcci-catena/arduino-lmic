@@ -813,8 +813,10 @@ scan_mac_cmds_link_adr(
             adrAns &= ~MCMD_LinkADRAns_PowerACK;
         }
 
+        // stop at the end of the commands: the byte after them (FPort,
+        // or the MIC) may happen to equal MCMD_LinkADRReq.
         oidx += kAdrReqSize;
-        if (opts[oidx] != MCMD_LinkADRReq)
+        if (oidx >= olen || opts[oidx] != MCMD_LinkADRReq)
             break;
     }
 
