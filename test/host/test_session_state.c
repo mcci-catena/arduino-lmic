@@ -47,7 +47,12 @@ static int s_failures;
 
 enum { CLIENT_TAG = 0xBEEF };
 enum { OFF_TAG = 0, OFF_SIZE = 1, OFF_REGION = 2, OFF_FCNT_UP = 4,
-       OFF_CLIENT_TAG = 28, OFF_CHANNELS = 44 };
+       OFF_CLIENT_TAG = 28, OFF_CHANNELS = 44,
+       OFF_GLOBAL_AVAIL = 16,
+       OFF_JOIN_FLAGS = 216, OFF_BACKOFF_PHASE = 217, OFF_BACKOFF_PHASE_SEC = 218,
+       OFF_DEVNONCE_START = 220, OFF_DEVNONCE_COUNT = 222 };
+
+enum { TEST_DEVADDR = 0x26011234, TEST_DEVNONCE = 0x1234, TEST_DEVNONCE_COUNT = 0xF345 };
 
 /****************************************************************************\
 |
@@ -149,6 +154,27 @@ static void perturbMacState(ostime_t now) {
 	perturbChannels(now);
 }
 
+// a session (devaddr set), a DevNonce, and a back-off in progress.
+static void perturbJoinState(ostime_t now) {
+	LMIC.devaddr = TEST_DEVADDR;
+	CHECK(LMIC_setNextDevNonce(TEST_DEVNONCE));
+	LMIC.devNonceCount = TEST_DEVNONCE_COUNT;	// as if that many were sent
+	LMIC.devNonce = (u2_t)(TEST_DEVNONCE + TEST_DEVNONCE_COUNT);
+	LMIC.joinBackoff.fActive = 1;
+	LMIC.joinBackoff.phase = LMIC_JOIN_BACKOFF_PHASE_HOURS1_6;
+	LMIC.joinBackoff.phaseStart = now - 1234 * (ostime_t)LMIC_OSTICKS_PER_SEC;
+}
+
+static void checkJoinStateRestored(ostime_t now) {
+	CHECK_EQ(LMIC.devNonceStart, TEST_DEVNONCE);
+	CHECK_EQ(LMIC.devNonceCount, TEST_DEVNONCE_COUNT);
+	CHECK_EQ(LMIC_getNextDevNonce(), (u2_t)(TEST_DEVNONCE + TEST_DEVNONCE_COUNT));
+	CHECK_EQ(LMIC.joinBackoff.fActive, 1);
+	CHECK_EQ(LMIC.joinBackoff.phase, LMIC_JOIN_BACKOFF_PHASE_HOURS1_6);
+	// whole seconds into the phase, measured from the new now.
+	CHECK_EQ(now - LMIC.joinBackoff.phaseStart, 1234 * (ostime_t)LMIC_OSTICKS_PER_SEC);
+}
+
 static void checkMacStateRestored(ostime_t now, u1_t version) {
 	CHECK_EQ(LMIC_getFCntUp(), 0x01020304);
 	CHECK_EQ(LMIC_getFCntDown(), 0x0A0B0C0D);
@@ -180,14 +206,18 @@ static void test_size_header_and_query(void) {
 	CHECK_EQ(LMIC_getSessionStateSize(), LMIC_SESSION_STATE_SIZE);
 	CHECK_EQ(LMIC_saveSessionState(blob, sizeof blob, &nUsed, CLIENT_TAG), LMIC_SESSION_STATE_OK);
 	CHECK_EQ(nUsed, LMIC_SESSION_STATE_SIZE);
-	CHECK_EQ(blob[OFF_TAG], LMIC_SESSION_STATE_TAG_V2);
+	CHECK_EQ(LMIC_SESSION_STATE_SIZE, 224);
+	CHECK_EQ(blob[OFF_TAG], LMIC_SESSION_STATE_TAG_V3);
 	CHECK_EQ(blob[OFF_SIZE], LMIC_SESSION_STATE_SIZE);
+	CHECK_EQ(blob[OFF_JOIN_FLAGS], 0);	// fresh LMIC: no session, no back-off
+	CHECK_EQ(blob[OFF_BACKOFF_PHASE], 0);
 	CHECK_EQ(blob[OFF_REGION], CFG_region);
 	CHECK_EQ(blob[OFF_CHANNELS], EXPECTED_KIND);
 	CHECK_EQ(blob[OFF_CHANNELS + 1], EXPECTED_KIND_SIZE);
 
 	CHECK_EQ(LMIC_querySessionState(blob, sizeof blob, &info), LMIC_SESSION_STATE_OK);
-	CHECK_EQ(info.version, LMIC_SESSION_STATE_TAG_V2);
+	CHECK_EQ(info.version, LMIC_SESSION_STATE_TAG_V3);
+	CHECK_EQ(info.joinFlags, 0);
 	CHECK_EQ(info.region, CFG_region);
 	CHECK_EQ(info.channelKind, EXPECTED_KIND);
 	CHECK_EQ(info.size, LMIC_SESSION_STATE_SIZE);
@@ -206,9 +236,20 @@ static void test_little_endian(void) {
 	CHECK_EQ(blob[OFF_FCNT_UP + 3], 0x01);
 	CHECK_EQ(blob[OFF_CLIENT_TAG + 0], 0xEF);
 	CHECK_EQ(blob[OFF_CLIENT_TAG + 1], 0xBE);
+
+	perturbJoinState(os_getTime());
+	CHECK_EQ(LMIC_saveSessionState(blob, sizeof blob, NULL, CLIENT_TAG), LMIC_SESSION_STATE_OK);
+	CHECK_EQ(blob[OFF_JOIN_FLAGS], LMIC_SESSION_STATE_JOINFLAG_SESSION | LMIC_SESSION_STATE_JOINFLAG_BACKOFF);
+	CHECK_EQ(blob[OFF_DEVNONCE_START + 0], 0x34);
+	CHECK_EQ(blob[OFF_DEVNONCE_START + 1], 0x12);
+	CHECK_EQ(blob[OFF_DEVNONCE_COUNT + 0], 0x45);
+	CHECK_EQ(blob[OFF_DEVNONCE_COUNT + 1], 0xF3);
+	CHECK_EQ(blob[OFF_BACKOFF_PHASE], LMIC_JOIN_BACKOFF_PHASE_HOURS1_6);
+	CHECK_EQ(blob[OFF_BACKOFF_PHASE_SEC + 0], 1234 & 0xFF);
+	CHECK_EQ(blob[OFF_BACKOFF_PHASE_SEC + 1], 1234 >> 8);
 }
 
-static void test_round_trip_v2(void) {
+static void test_round_trip_v3(void) {
 	u1_t blob[LMIC_SESSION_STATE_SIZE];
 	ostime_t now;
 
@@ -216,14 +257,91 @@ static void test_round_trip_v2(void) {
 	hal_stub_startLmic();
 	now = os_getTime();
 	perturbMacState(now);
+	perturbJoinState(now);
 	CHECK_EQ(LMIC_saveSessionState(blob, sizeof blob, NULL, CLIENT_TAG), LMIC_SESSION_STATE_OK);
 
 	// a reset later, with the clock moved on: the deltas must be applied to the new now.
 	hal_stub_advanceTicks(50000);
 	hal_stub_startLmic();
+	CHECK(LMIC_setNextDevNonce(0));	// as at power-up
 	now = os_getTime();
 	CHECK_EQ(LMIC_restoreSessionState(blob, sizeof blob), LMIC_SESSION_STATE_OK);
+	checkMacStateRestored(now, LMIC_SESSION_STATE_TAG_V3);
+	checkJoinStateRestored(now);
+}
+
+static void test_unjoined_v3(void) {
+	u1_t blob[LMIC_SESSION_STATE_SIZE];
+	lmic_session_state_info_t info;
+	ostime_t now;
+
+	hal_stub_setTicks(300000);
+	hal_stub_startLmic();
+	now = os_getTime();
+	perturbMacState(now);
+	perturbJoinState(now);
+	LMIC.devaddr = 0;	// joining, no session
+	CHECK_EQ(LMIC_saveSessionState(blob, sizeof blob, NULL, CLIENT_TAG), LMIC_SESSION_STATE_OK);
+	CHECK_EQ(LMIC_querySessionState(blob, sizeof blob, &info), LMIC_SESSION_STATE_OK);
+	CHECK_EQ(info.joinFlags, LMIC_SESSION_STATE_JOINFLAG_BACKOFF);
+
+	// restore: join state yes, MAC state no.
+	hal_stub_startLmic();
+	CHECK(LMIC_setNextDevNonce(0));
+	LMIC.seqnoUp = 0x55;
+	now = os_getTime();
+	CHECK_EQ(LMIC_restoreSessionState(blob, sizeof blob), LMIC_SESSION_STATE_OK);
+	CHECK_EQ(LMIC.seqnoUp, 0x55);
+	CHECK(LMIC_getDataRate() != 3 || LMIC.rxDelay != 3);
+	checkJoinStateRestored(now);
+
+	// no back-off running: the restore leaves it cleared.
+	hal_stub_startLmic();
+	CHECK(LMIC_setNextDevNonce(9));
+	CHECK_EQ(LMIC_saveSessionState(blob, sizeof blob, NULL, CLIENT_TAG), LMIC_SESSION_STATE_OK);
+	CHECK_EQ(blob[OFF_JOIN_FLAGS], 0);
+	LMIC.joinBackoff.fActive = 1;
+	CHECK(LMIC_setNextDevNonce(0));
+	CHECK_EQ(LMIC_restoreSessionState(blob, sizeof blob), LMIC_SESSION_STATE_OK);
+	CHECK_EQ(LMIC.joinBackoff.fActive, 0);
+	CHECK_EQ(LMIC_getNextDevNonce(), 9);
+}
+
+// make a V1 or V2 blob out of a V3 one: same first 216 bytes.
+static void makeOldBlob(u1_t *pBlob, u1_t tag) {
+	pBlob[OFF_TAG] = tag;
+	pBlob[OFF_SIZE] = LMIC_SESSION_STATE_SIZE_V2;
+	memset(pBlob + LMIC_SESSION_STATE_SIZE_V2, 0xA5,
+	       LMIC_SESSION_STATE_SIZE_V3 - LMIC_SESSION_STATE_SIZE_V2);
+}
+
+static void test_round_trip_v2(void) {
+	u1_t blob[LMIC_SESSION_STATE_SIZE];
+	lmic_session_state_info_t info;
+	ostime_t now;
+
+	hal_stub_setTicks(100000);
+	hal_stub_startLmic();
+	now = os_getTime();
+	perturbMacState(now);
+	perturbJoinState(now);
+	CHECK_EQ(LMIC_saveSessionState(blob, sizeof blob, NULL, CLIENT_TAG), LMIC_SESSION_STATE_OK);
+	makeOldBlob(blob, LMIC_SESSION_STATE_TAG_V2);
+
+	// a V2 blob is complete in 216 bytes.
+	CHECK_EQ(LMIC_querySessionState(blob, LMIC_SESSION_STATE_SIZE_V2, &info), LMIC_SESSION_STATE_OK);
+	CHECK_EQ(info.size, LMIC_SESSION_STATE_SIZE_V2);
+	CHECK_EQ(info.joinFlags, LMIC_SESSION_STATE_JOINFLAG_SESSION);
+
+	hal_stub_advanceTicks(50000);
+	hal_stub_startLmic();
+	now = os_getTime();
+	CHECK_EQ(LMIC_restoreSessionState(blob, LMIC_SESSION_STATE_SIZE_V2), LMIC_SESSION_STATE_OK);
 	checkMacStateRestored(now, LMIC_SESSION_STATE_TAG_V2);
+
+	// no join state in V2: back-off cleared, DevNonce random (0..0xFFFF).
+	CHECK_EQ(LMIC.joinBackoff.fActive, 0);
+	CHECK(LMIC_getNextDevNonce() <= 0xFFFF);
 }
 
 static void test_round_trip_v1(void) {
@@ -237,12 +355,12 @@ static void test_round_trip_v1(void) {
 	CHECK_EQ(LMIC_saveSessionState(blob, sizeof blob, NULL, CLIENT_TAG), LMIC_SESSION_STATE_OK);
 
 	// make it look like a V1 blob from Arduino-LoRaWAN.
-	blob[OFF_TAG] = LMIC_SESSION_STATE_TAG_V1;
+	makeOldBlob(blob, LMIC_SESSION_STATE_TAG_V1);
 	corruptDutyDenomLikeV1(blob);
 
 	hal_stub_startLmic();
 	now = os_getTime();
-	CHECK_EQ(LMIC_restoreSessionState(blob, sizeof blob), LMIC_SESSION_STATE_OK);
+	CHECK_EQ(LMIC_restoreSessionState(blob, LMIC_SESSION_STATE_SIZE_V2), LMIC_SESSION_STATE_OK);
 	checkMacStateRestored(now, LMIC_SESSION_STATE_TAG_V1);
 }
 
@@ -253,6 +371,7 @@ static void test_rejections(void) {
 	u4_t const untouched = 0x11223344;
 
 	hal_stub_startLmic();
+	LMIC.devaddr = TEST_DEVADDR;	// a session, so restore reads the channels
 	CHECK_EQ(LMIC_saveSessionState(blob, sizeof blob, NULL, CLIENT_TAG), LMIC_SESSION_STATE_OK);
 
 	CHECK_EQ(LMIC_saveSessionState(bad, sizeof bad - 1, NULL, 0), LMIC_SESSION_STATE_BUFFER_TOO_SMALL);
@@ -261,8 +380,39 @@ static void test_rejections(void) {
 	memcpy(bad, blob, sizeof bad);
 	bad[OFF_TAG] = LMIC_SESSION_STATE_TAG_NULL;
 	CHECK_EQ(LMIC_querySessionState(bad, sizeof bad, &info), LMIC_SESSION_STATE_BAD_TAG);
-	bad[OFF_TAG] = 3;
+	bad[OFF_TAG] = 4;
 	CHECK_EQ(LMIC_querySessionState(bad, sizeof bad, &info), LMIC_SESSION_STATE_BAD_TAG);
+
+	// V3 join state: unknown flag bits, reserved byte, impossible DevNonce.
+	memcpy(bad, blob, sizeof bad);
+	bad[OFF_JOIN_FLAGS] = 0x08;
+	CHECK_EQ(LMIC_querySessionState(bad, sizeof bad, &info), LMIC_SESSION_STATE_BAD_JOIN_STATE);
+	memcpy(bad, blob, sizeof bad);
+	bad[OFF_BACKOFF_PHASE] = LMIC_JOIN_BACKOFF_PHASE_AFTER + 1;
+	CHECK_EQ(LMIC_querySessionState(bad, sizeof bad, &info), LMIC_SESSION_STATE_BAD_JOIN_STATE);
+	bad[OFF_BACKOFF_PHASE] = LMIC_JOIN_BACKOFF_PHASE_AFTER;
+	CHECK_EQ(LMIC_querySessionState(bad, sizeof bad, &info), LMIC_SESSION_STATE_OK);
+	// all DevNonces used: flag bit 2 with a count of 0; not with another count.
+	memcpy(bad, blob, sizeof bad);
+	bad[OFF_JOIN_FLAGS] |= LMIC_SESSION_STATE_JOINFLAG_DEVNONCE_USED;
+	bad[OFF_DEVNONCE_COUNT + 0] = 0;
+	bad[OFF_DEVNONCE_COUNT + 1] = 0;
+	CHECK_EQ(LMIC_querySessionState(bad, sizeof bad, &info), LMIC_SESSION_STATE_OK);
+	bad[OFF_DEVNONCE_COUNT + 0] = 1;
+	CHECK_EQ(LMIC_querySessionState(bad, sizeof bad, &info), LMIC_SESSION_STATE_BAD_JOIN_STATE);
+
+	// a V2 blob shorter than 216, a V3 blob shorter than 224.
+	memcpy(bad, blob, sizeof bad);
+	makeOldBlob(bad, LMIC_SESSION_STATE_TAG_V2);
+	CHECK_EQ(LMIC_querySessionState(bad, LMIC_SESSION_STATE_SIZE_V2 - 1, &info), LMIC_SESSION_STATE_BUFFER_TOO_SMALL);
+	CHECK_EQ(LMIC_querySessionState(blob, LMIC_SESSION_STATE_SIZE_V3 - 1, &info), LMIC_SESSION_STATE_BUFFER_TOO_SMALL);
+	// a V3 tag with the V2 size, and the reverse.
+	memcpy(bad, blob, sizeof bad);
+	bad[OFF_SIZE] = LMIC_SESSION_STATE_SIZE_V2;
+	CHECK_EQ(LMIC_querySessionState(bad, sizeof bad, &info), LMIC_SESSION_STATE_BAD_SIZE);
+	memcpy(bad, blob, sizeof bad);
+	bad[OFF_TAG] = LMIC_SESSION_STATE_TAG_V2;
+	CHECK_EQ(LMIC_querySessionState(bad, sizeof bad, &info), LMIC_SESSION_STATE_BAD_SIZE);
 
 	memcpy(bad, blob, sizeof bad);
 	bad[OFF_SIZE] = LMIC_SESSION_STATE_SIZE - 1;
@@ -308,6 +458,8 @@ int main(void) {
 	printf("session state tests, region code %d\n", (int)CFG_region);
 	test_size_header_and_query();
 	test_little_endian();
+	test_round_trip_v3();
+	test_unjoined_v3();
 	test_round_trip_v2();
 	test_round_trip_v1();
 	test_rejections();
