@@ -1148,6 +1148,18 @@ static void setAdrAckCount (s2_t count) {
     }
 }
 
+// the data rate of the receive window that LMIC.txrxFlags names.
+static dr_t rxDataRate (void) {
+    if (LMIC_txrxFlags_isRx1(LMIC.txrxFlags))
+        return LMIC.dndr;
+#if !defined(DISABLE_PING)
+    if (! LMIC_txrxFlags_isRx2(LMIC.txrxFlags) && ! LMIC_txrxFlags_isClassC(LMIC.txrxFlags))
+        return LMIC.ping.dr;
+#endif
+    // RX2 and Class C
+    return LMIC.dn2Dr;
+}
+
 static bit_t decodeFrame (void) {
     xref2u1_t d = LMIC.radio.pFrame;
     u1_t hdr    = d[0];
@@ -1192,6 +1204,14 @@ static bit_t decodeFrame (void) {
                             e_.info   = addr,
                             e_.info2  = LMIC.devaddr));
         goto norx;
+    }
+    // drop a frame longer than the region allows at the data rate it came in on.
+    {
+        unsigned const maxFlen = LMICbandplan_maxDownlinkFrameLen(rxDataRate());
+        if (maxFlen != 0 && (unsigned)dlen > maxFlen) {
+            LMICOS_logEventUint32("decodeFrame: frame too long for data rate", ((u4_t)rxDataRate() << 16) | ((u4_t)dlen << 8) | maxFlen);
+            goto norx;
+        }
     }
     if( poff > pend ) {
         LMICOS_logEventUint32("decodeFrame: corrupted frame", ((u4_t)dlen << 16) | (fct << 8) | (poff - pend));
