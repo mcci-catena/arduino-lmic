@@ -90,7 +90,9 @@ enum {
 	SX127X_OPMODE_TX = 0x03,
 	SX127X_OPMODE_RX_SINGLE = 0x06,
 	SX127X_IRQ_LORA_TXDONE = 0x08,
+	SX127X_IRQ_LORA_RXDONE = 0x40,
 	SX127X_IRQ_LORA_RXTOUT = 0x80,
+	SX127X_LORARegRxNbBytes = 0x13,
 	SX127X_RegVersion = 0x42,
 	SX1276_VERSION = 0x12,
 	SX127X_LORARegRssiWideband = 0x2C,
@@ -112,9 +114,24 @@ static bit_t s_radioAuto;
 static u1_t s_radioPending = STUB_RADIO_IDLE;
 static u4_t s_radioDoneAt;
 
+// a frame for a later single receive (hal_stub_setRxFrame()), and where
+// FIFO reads have got to.
+static u1_t s_rxFrame[256];
+static unsigned s_rxFrameLen;
+static int s_rxFrameSkip = -1;		// receives to let time out first; -1: none armed
+static unsigned s_fifoNext, s_fifoLen;
+
 void hal_stub_setRadioAutoComplete(bit_t fEnable) {
 	s_radioAuto = fEnable;
 	s_radioPending = STUB_RADIO_IDLE;
+}
+
+void hal_stub_setRxFrame(const u1_t *pFrame, unsigned nFrame, int nSkip) {
+	if (nFrame > sizeof s_rxFrame)
+		nFrame = sizeof s_rxFrame;
+	memcpy(s_rxFrame, pFrame, nFrame);
+	s_rxFrameLen = nFrame;
+	s_rxFrameSkip = nSkip;
 }
 
 u4_t hal_stub_radioTicksUntilEvent(void) {
@@ -186,6 +203,8 @@ void lmic_hal_spi_read(u1_t cmd, u1_t *buf, size_t len) {
 	for (size_t i = 0; i < len; ++i) {
 		if (addr == SX127X_LORARegRssiWideband)
 			++s_regs[addr];				// noise: a new value every read
+		if (addr == 0 && s_fifoNext < s_fifoLen)
+			s_regs[0] = s_rxFrame[s_fifoNext++];	// the received frame
 		buf[i] = s_regs[addr];
 		if (addr != 0)
 			addr = (addr + 1) & 0x7F;
@@ -206,8 +225,22 @@ void lmic_hal_processPendingIRQs(void) {
 		return;
 
 	u4_t const t = s_radioDoneAt;
-	s_regs[SX127X_LORARegIrqFlags] = (s_radioPending == STUB_RADIO_TX)
-		? SX127X_IRQ_LORA_TXDONE : SX127X_IRQ_LORA_RXTOUT;
+	u1_t irq = SX127X_IRQ_LORA_TXDONE;
+
+	if (s_radioPending == STUB_RADIO_RX) {
+		irq = SX127X_IRQ_LORA_RXTOUT;
+		if (s_rxFrameSkip == 0) {
+			// deliver the armed frame, once.
+			irq = SX127X_IRQ_LORA_RXDONE;
+			s_regs[SX127X_LORARegRxNbBytes] = (u1_t)s_rxFrameLen;
+			s_fifoNext = 0;
+			s_fifoLen = s_rxFrameLen;
+			s_rxFrameSkip = -1;
+		} else if (s_rxFrameSkip > 0) {
+			--s_rxFrameSkip;
+		}
+	}
+	s_regs[SX127X_LORARegIrqFlags] = irq;
 	s_regs[SX127X_RegOpMode] = (u1_t)((s_regs[SX127X_RegOpMode] & ~SX127X_OPMODE_MASK) | SX127X_OPMODE_STANDBY);
 	s_radioPending = STUB_RADIO_IDLE;
 	radio_irq_handler_v2(0, (ostime_t)t);
