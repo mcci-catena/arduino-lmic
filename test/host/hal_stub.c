@@ -116,27 +116,32 @@ enum { RX_TIMEOUT_MS = 10 };
 enum radio_pending_e { STUB_RADIO_IDLE, STUB_RADIO_TX, STUB_RADIO_RX };
 
 static bit_t s_radioAuto;
-
-// a downlink to deliver in the next receive window (once).
-static u1_t s_dnFrame[256];
-static u1_t s_dnLen;		// bytes in s_dnFrame; 0: none waiting
-static u1_t s_dnRead;		// next FIFO byte to read
-static bit_t s_dnInFlight;	// the receive in progress delivers it
-
-void hal_stub_injectDownlink(const u1_t *pFrame, u1_t nFrame) {
-	memcpy(s_dnFrame, pFrame, nFrame);
-	s_dnLen = nFrame;
-	s_dnRead = 0;
-	s_dnInFlight = 0;
-}
 static u1_t s_radioPending = STUB_RADIO_IDLE;
 static u4_t s_radioDoneAt;
+
+// a frame for a later single receive (hal_stub_setRxFrame()), and where
+// FIFO reads have got to.
+static u1_t s_rxFrame[256];
+static unsigned s_rxFrameLen;
+static int s_rxFrameSkip = -1;		// receives to let time out first; -1: none armed
+static unsigned s_fifoNext, s_fifoLen;
 
 void hal_stub_setRadioAutoComplete(bit_t fEnable) {
 	s_radioAuto = fEnable;
 	s_radioPending = STUB_RADIO_IDLE;
-	s_dnLen = 0;		// and forget any downlink not yet delivered
-	s_dnInFlight = 0;
+	s_rxFrameSkip = -1;	// and forget any frame not yet delivered
+}
+
+void hal_stub_setRxFrame(const u1_t *pFrame, unsigned nFrame, int nSkip) {
+	if (nFrame > sizeof s_rxFrame)
+		nFrame = sizeof s_rxFrame;
+	memcpy(s_rxFrame, pFrame, nFrame);
+	s_rxFrameLen = nFrame;
+	s_rxFrameSkip = nSkip;
+}
+
+void hal_stub_injectDownlink(const u1_t *pFrame, u1_t nFrame) {
+	hal_stub_setRxFrame(pFrame, nFrame, 0);
 }
 
 u4_t hal_stub_radioTicksUntilEvent(void) {
@@ -159,7 +164,6 @@ static void radioOpMode(u1_t v) {
 		break;
 	case SX127X_OPMODE_RX_SINGLE:
 		s_radioPending = STUB_RADIO_RX;
-		s_dnInFlight = (s_dnLen != 0);
 		s_radioDoneAt = s_ticks + (u4_t)ms2osticks(RX_TIMEOUT_MS);
 		break;
 	default:
@@ -209,10 +213,9 @@ void lmic_hal_spi_read(u1_t cmd, u1_t *buf, size_t len) {
 	for (size_t i = 0; i < len; ++i) {
 		if (addr == SX127X_LORARegRssiWideband)
 			++s_regs[addr];				// noise: a new value every read
-		if (addr == 0 && s_dnLen != 0 && s_regs[SX127X_LORARegIrqFlags] == SX127X_IRQ_LORA_RXDONE)
-			buf[i] = s_dnFrame[s_dnRead++];		// the injected downlink
-		else
-			buf[i] = s_regs[addr];
+		if (addr == 0 && s_fifoNext < s_fifoLen)
+			s_regs[0] = s_rxFrame[s_fifoNext++];	// the received frame
+		buf[i] = s_regs[addr];
 		if (addr != 0)
 			addr = (addr + 1) & 0x7F;
 	}
@@ -232,21 +235,25 @@ void lmic_hal_processPendingIRQs(void) {
 		return;
 
 	u4_t const t = s_radioDoneAt;
-	bit_t const fDownlink = (s_radioPending == STUB_RADIO_RX && s_dnInFlight);
-	s_regs[SX127X_LORARegIrqFlags] = (s_radioPending == STUB_RADIO_TX) ? SX127X_IRQ_LORA_TXDONE
-				       : fDownlink ? SX127X_IRQ_LORA_RXDONE
-				       : SX127X_IRQ_LORA_RXTOUT;
-	if (fDownlink) {
-		s_regs[SX127X_LORARegRxNbBytes] = s_dnLen;
-		s_dnRead = 0;
+	u1_t irq = SX127X_IRQ_LORA_TXDONE;
+
+	if (s_radioPending == STUB_RADIO_RX) {
+		irq = SX127X_IRQ_LORA_RXTOUT;
+		if (s_rxFrameSkip == 0) {
+			// deliver the armed frame, once.
+			irq = SX127X_IRQ_LORA_RXDONE;
+			s_regs[SX127X_LORARegRxNbBytes] = (u1_t)s_rxFrameLen;
+			s_fifoNext = 0;
+			s_fifoLen = s_rxFrameLen;
+			s_rxFrameSkip = -1;
+		} else if (s_rxFrameSkip > 0) {
+			--s_rxFrameSkip;
+		}
 	}
+	s_regs[SX127X_LORARegIrqFlags] = irq;
 	s_regs[SX127X_RegOpMode] = (u1_t)((s_regs[SX127X_RegOpMode] & ~SX127X_OPMODE_MASK) | SX127X_OPMODE_STANDBY);
 	s_radioPending = STUB_RADIO_IDLE;
 	radio_irq_handler_v2(0, (ostime_t)t);
-	if (fDownlink) {
-		s_dnLen = 0;
-		s_dnInFlight = 0;
-	}
 }
 
 bit_t lmic_hal_hasPendingIrqs(void) {

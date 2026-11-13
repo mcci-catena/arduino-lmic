@@ -114,10 +114,12 @@ LMIC_complianceRxMessage(
 ) {
     lmic_compliance_state_t const complianceState = LMIC_Compliance.state;
 
-    // update the counter used by the status message. Frames with
-    // FPort 0, or with no FPort, carry only MAC commands; the tester
-    // doesn't count them.
-    if (port != 0)
+    // update the counter used by the status message. The tester counts
+    // every downlink except those with FPort 0. The client sees port 0
+    // for a frame with no FPort as well, so look at the frame: it has an
+    // FPort if the data starts after the FOpts.
+    if (port != 0 ||
+        LMIC.dataBeg <= OFF_DAT_OPTS + (LMIC.radio.pFrame[OFF_DAT_FCT] & FCT_OPTLEN))
         ++LMIC_Compliance.downlinkCount;
 
     // filter normal messages.

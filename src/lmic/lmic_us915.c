@@ -65,7 +65,7 @@ LMICus915_validDR(dr_t dr) {
 
 static CONST_TABLE(u1_t, maxFrameLens)[] = {
         19+5, 61+5, 133+5, 250+5, 250+5, 0, 0,0,
-        61+5, 133+5, 250+5, 250+5, 250+5, 250+5
+        61+5, 137+5, 250+5, 250+5, 250+5, 250+5
         };
 
 uint8_t LMICus915_maxFrameLen(uint8_t dr) {
