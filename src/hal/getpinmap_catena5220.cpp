@@ -23,6 +23,12 @@ Author:
 
 namespace Arduino_LMIC {
 
+// Power: VDD_MCU is tied to +VDD, and VDD_RF is +VDD through a trace jumper
+// (SJ2) and a ferrite bead (L1). Neither is switched, so no
+// begin()/setModuleActive() override is needed. PA0 (A3) is the RS485
+// receive line, not a radio pin.
+// The TCXO is powered from the SX1262's DIO3 (see
+// queryUsingDIO3AsTCXOSwitch() below), so PIN_TCXO_VDD is unused.
 class HalConfiguration_Catena5220_t : public HalConfiguration_t
         {
 public:
