@@ -4,8 +4,9 @@ Module:  test_downlink.c
 
 Function:
 	Host unit tests for downlink checks in decodeFrame(): the size limit
-	for the receive data rate (compliance test 5.9.d), and LinkADRReq at
-	the end of FOpts followed by FPort 3.
+	for the receive data rate (compliance test 5.9.d), LinkADRReq at
+	the end of FOpts followed by FPort 3, and the compliance downlink
+	counter for frames with FPort 0 or no FPort.
 
 Copyright and License:
 	See LICENSE file accompanying this project.
@@ -26,6 +27,7 @@ Description:
 #include "lmic.h"
 #include "lmic_bandplan.h"
 #include "lmic_aes_api.h"
+#include "lmic_compliance.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -198,6 +200,40 @@ static void testLinkAdrBeforePort(int port) {
 }
 #endif // CFG_LMIC_EU_like
 
+static int s_nRxMessage;
+
+static void onRxMessage_(void *pUserData, uint8_t port, const uint8_t *pMessage, size_t nMessage) {
+	LMIC_UNREFERENCED_PARAMETER(pUserData);
+	++s_nRxMessage;
+	(void) LMIC_complianceRxMessage(port, pMessage, nMessage);
+}
+
+// deliver a downlink in RX1 and check whether the compliance downlink
+// counter counted it.
+static void testCountFrame(const char *pName, int port, unsigned nPayload, int fCounted) {
+	u1_t buf[32];
+	unsigned const count = LMIC_Compliance.downlinkCount;
+	int const nRxMessage = s_nRxMessage;
+	unsigned const n = buildDownlink(buf, NULL, 0, port, nPayload);
+
+	hal_stub_setRxFrame(buf, n, SKIP_RX1);
+	uplink();
+	printf("  compliance count, %s: %u -> %u\n", pName, count, (unsigned)LMIC_Compliance.downlinkCount);
+	CHECK_EQ(s_nRxMessage, nRxMessage + 1);
+	CHECK_EQ(LMIC_Compliance.downlinkCount, count + (fCounted ? 1 : 0));
+}
+
+// the tester counts every downlink except those with FPort 0
+// (compliance tests 4.2.b and 5.10.a).
+static void testComplianceCount(void) {
+	startSession();
+	LMIC_registerRxMessageCb(onRxMessage_, NULL);
+	uplink();
+	testCountFrame("no FPort", -1, 0, 1);
+	testCountFrame("FPort 0", 0, 0, 0);
+	testCountFrame("FPort 1", 1, 2, 1);
+}
+
 static void testLinkAdr(void) {
 #if CFG_LMIC_EU_like
 	testLinkAdrBeforePort(1);
@@ -210,6 +246,7 @@ static void testLinkAdr(void) {
 int main(void) {
 	testSizes();
 	testLinkAdr();
+	testComplianceCount();
 
 	if (s_failures == 0)
 		printf("test_downlink: all passed\n");
