@@ -6,7 +6,8 @@ Function:
 	Host unit tests for downlink checks in decodeFrame(): the size limit
 	for the receive data rate (compliance test 5.9.d), LinkADRReq at
 	the end of FOpts followed by FPort 3, and the compliance downlink
-	counter for frames with FPort 0 or no FPort.
+	counter for frames with FPort 0 or no FPort. Also checks the AS923
+	DR2 uplink limit, next to the downlink limits.
 
 Copyright and License:
 	See LICENSE file accompanying this project.
@@ -234,6 +235,26 @@ static void testComplianceCount(void) {
 	testCountFrame("FPort 1", 1, 2, 1);
 }
 
+#if CFG_as923
+// with the uplink dwell limit off, AS923 DR2 carries 123 bytes of
+// MACPayload, 115 of them FRMPayload (RP002-1.0.3 Table 75).
+static void testAs923UplinkDr2(void) {
+	static u1_t data[116];
+
+	startSession();
+	LMIC.txParam = 0;	// no dwell limits, MaxEIRP 8 dBm
+	LMIC_setDrTxpow(LORAWAN_DR2, KEEP_TXPOW);
+	printf("  AS923 DR2 uplink, no dwell limit: limit %u\n", LMICbandplan_maxFrameLen(LORAWAN_DR2));
+	CHECK_EQ(LMIC_setTxData2_strict(1, data, 116, 0), LMIC_ERROR_TX_NOT_FEASIBLE);
+	s_txComplete = 0;
+	hal_stub_runUntilStop((u4_t)os_getTime() + 60u * TICKS, &s_txComplete);
+	s_txComplete = 0;
+	CHECK_EQ(LMIC_setTxData2_strict(1, data, 115, 0), LMIC_ERROR_SUCCESS);
+	hal_stub_runUntilStop((u4_t)os_getTime() + 3600u * TICKS, &s_txComplete);
+	CHECK(s_txComplete);
+}
+#endif // CFG_as923
+
 static void testLinkAdr(void) {
 #if CFG_LMIC_EU_like
 	testLinkAdrBeforePort(1);
@@ -247,6 +268,9 @@ int main(void) {
 	testSizes();
 	testLinkAdr();
 	testComplianceCount();
+#if CFG_as923
+	testAs923UplinkDr2();
+#endif
 
 	if (s_failures == 0)
 		printf("test_downlink: all passed\n");
