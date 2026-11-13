@@ -60,6 +60,11 @@ LMIC_BEGIN_DECLS
 # error "LMICbandplan_maxFrameLen() not defined by bandplan"
 #endif
 
+// regions whose downlink limits differ from the uplink limits define their own.
+#ifndef LMICbandplan_maxDownlinkFrameLen
+# define LMICbandplan_maxDownlinkFrameLen(dr) LMICbandplan_maxFrameLen(dr)
+#endif
+
 #ifndef pow2dBm
 # error "pow2dBm() not defined by bandplan"
 #endif
