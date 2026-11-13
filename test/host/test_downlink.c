@@ -166,6 +166,13 @@ static void testSizes(void) {
 
 	testSize("RX2", LMICbandplan_maxDownlinkFrameLen(LMIC.dn2Dr), SKIP_RX2);
 	testSize("RX1", LMICbandplan_maxDownlinkFrameLen(LMIC.dndr), SKIP_RX1);
+
+#if CFG_us915 || CFG_au915
+	// DR9 is downlink only; RP002 gives 137 bytes of MACPayload.
+	LMIC.dn2Dr = LORAWAN_DR9;
+	CHECK_EQ(LMICbandplan_maxDownlinkFrameLen(LORAWAN_DR9), 137 + 5);
+	testSize("RX2 DR9", LMICbandplan_maxDownlinkFrameLen(LORAWAN_DR9), SKIP_RX2);
+#endif
 }
 
 #if CFG_LMIC_EU_like
