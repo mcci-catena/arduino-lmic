@@ -119,7 +119,8 @@ The [`doc/`](doc/) directory contains the full documentation set. Key references
 - [Encoding Utilities](doc/encoding-utilities.md) -- `sflt16`, `uflt16`, `sflt12`, `uflt12` formats with JavaScript decoders
 - [Radio Driver](doc/RadioDriver.md) -- radio driver interface specification
 - [Adding Regions](doc/HOWTO-ADD-REGION.md) -- step-by-step guide for new regional configurations
-- [API Reference PDF](doc/LMIC-v5.0.0.pdf) -- based on the original IBM documentation (v6 update pending)
+- [API Reference PDF](doc/LMIC-v5.0.0.pdf) -- based on the original IBM documentation; covers v5.0.0
+- [APIs added in v6.1](doc/new-in-v6.1.md) -- session state, accessors, channel queries, sleeping between jobs, link check, joining
 
 See [`doc/README.md`](doc/README.md) for the complete documentation index.
 
@@ -205,6 +206,7 @@ The following boards are pre-integrated.
 - MCCI Catena 4410, 4420, [4450][3], [4460][4] and [4470][5] boards (based on Adafruit Feather boards plus wings) (SX1276)
 - MCCI Catena 4551, [4610][6], 4611, [4612][7], 4617, [4618][7a], 4630, [4801][8] and [4802][12] boards (based on the Murata CMWX1ZZABZ-078 module) (SX1276)
 - MCCI Model 4916, [4917][13], [4931][14] and [4933][15] boards (based on the Murata CMWX1ZZABZ-078 module) (SX1276)
+- MCCI Catena 5220 and 5230 boards (STM32L072 with SX1262)
 - [TTGo LoRa32 V1][10] (based on the ESP32)
 - [Heltec WiFi LoRa 32 V2][11] (based on the ESP32)
 
@@ -292,7 +294,7 @@ See [Encoding Utilities](doc/encoding-utilities.md) for `sflt16`, `uflt16`, `sfl
 
 ## Release History
 
-Current version: **6.0.0** -- adds Class C support, secure element abstraction, SX1261/SX1262 radio drivers. **Breaking change:** `LMIC.rxtime` renamed to `LMIC.nextRxTime`.
+Current version: **6.1.0** -- adds session-state save and restore, accessors for the LMIC object, channel queries, sleep between jobs, link check, the LoRaWAN 1.0.4 join back-off and DevNonce sequence, and SX127x and SX126x FSK fixes. See [APIs added in v6.1](doc/new-in-v6.1.md).
 
 See [CHANGELOG.md](CHANGELOG.md) for the full release history.
 
