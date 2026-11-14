@@ -806,7 +806,48 @@ static void setupFskRxTx(bit_t fDisableAutoClear) {
     writeReg(FSKRegSyncValue3, 0xC1);
 }
 
+// The radio's FIFO holds 64 bytes, but an FSK frame can carry up to 256
+// (the length byte, then up to 255 bytes of payload). txfsk() loads what
+// fits, starts the transmit, then stays and loads the rest as the FIFO
+// empties: about 27 ms for a 230-byte frame at 50 kbps. It doesn't return
+// between loads, because a polled HAL can miss a FifoLevel edge, and a
+// late load lets the FIFO run dry mid-frame (#1138).
+//
+// FifoLevel is set while the FIFO holds more than FSK_TX_FIFO_THRESH bytes;
+// once it clears, FSK_TX_BURST bytes fit.
+enum { FSK_TX_FIFO_THRESH = 31 };
+enum { FSK_TX_BURST = 32 };
+
+// txfsk() gives up if the FIFO doesn't empty enough for the next load
+// within this long. Draining FSK_TX_FIFO_SIZE - FSK_TX_FIFO_THRESH bytes,
+// after the preamble and sync word, takes under 7 ms.
+enum { FSK_TX_DWELL_MS = 20 };
+enum { FSK_TX_FIFO_SIZE = 64 };
+
+// Load the rest of the frame while it is sent. Returns 0 if the radio stopped
+// taking bytes.
+static bit_t fskTxDwell (u1_t *pData, u1_t nData) {
+    ostime_t tLast = os_getTime();
+
+    while (nData > 0) {
+        if ((readReg(FSKRegIrqFlags2) & IRQ_FSK2_FIFOLEVEL_MASK) == 0) {
+            u1_t const n = nData < FSK_TX_BURST ? nData : FSK_TX_BURST;
+
+            writeBuf(RegFifo, pData, n);
+            pData += n;
+            nData -= n;
+            tLast = os_getTime();
+        } else if (os_getTime() - tLast > ms2osticks(FSK_TX_DWELL_MS)) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
 static void txfsk () {
+    u1_t const nFirst = LMIC.radio.dataLen < FSK_TX_FIFO_SIZE - 1 ?
+                            LMIC.radio.dataLen : FSK_TX_FIFO_SIZE - 1;
+
     // select FSK modem (from sleep mode)
     opmodeFSK();
 
@@ -835,16 +876,17 @@ static void txfsk () {
     // Start sending as soon as the FIFO holds a byte. rxfsk() leaves the
     // start condition at "FIFO level above the threshold", and a receive
     // of a long frame leaves the threshold at FSK_RX_BURST - 1, so a
-    // shorter frame would never be sent (#1145).
-    writeReg(FSKRegFifoThresh, FSK_FIFOTHRESH_TXSTART_NOTEMPTY);
+    // shorter frame would never be sent (#1145). The threshold itself
+    // paces the loads in fskTxDwell().
+    writeReg(FSKRegFifoThresh, FSK_FIFOTHRESH_TXSTART_NOTEMPTY | FSK_TX_FIFO_THRESH);
 
     // initialize the payload size and address pointers
     // TODO(tmm@mcci.com): datasheet says this is not used in variable packet length mode
     writeReg(FSKRegPayloadLength, LMIC.radio.dataLen+1); // (insert length byte into payload))
 
-    // download length byte and buffer to the radio FIFO
+    // download the length byte and as much of the frame as fits
     writeReg(RegFifo, LMIC.radio.dataLen);
-    writeBuf(RegFifo, LMIC.radio.pFrame, LMIC.radio.dataLen);
+    writeBuf(RegFifo, LMIC.radio.pFrame, nFirst);
 
     // enable antenna switch for TX
     lmic_hal_pin_rxtx(1);
@@ -859,6 +901,15 @@ static void txfsk () {
     }
     LMICOS_logEventUint32("+Tx FSK", LMIC.radio.dataLen);
     opmode(OPMODE_TX);
+
+    // load the rest of the frame as the radio sends it
+    if (! fskTxDwell(LMIC.radio.pFrame + nFirst, LMIC.radio.dataLen - nFirst)) {
+        // PacketSent won't come; end the transmit here
+        LMICOS_logEventUint32("FSK tx stalled", readReg(FSKRegIrqFlags2));
+        opmode(OPMODE_STANDBY);
+        opmode(OPMODE_SLEEP);
+        radio_complete(LMIC_RADIO_EV_TXDONE | LMIC_RADIO_EV_TXUNKNOWN);
+    }
 }
 
 static void txlora () {
