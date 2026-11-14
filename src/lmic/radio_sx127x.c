@@ -1153,11 +1153,24 @@ static u1_t const fskRxMaxLen = MAX_LEN_FRAME;
 static u1_t fskRxLen;       // length byte, valid once fskRxHaveLen is set
 static u1_t fskRxCount;     // payload bytes read so far
 static bit_t fskRxHaveLen;
+static u1_t fskRxRssi;      // RegRssiValue, valid once fskRxHaveRssi is set
+static bit_t fskRxHaveRssi;
 
 static void fskRxReset (void) {
     fskRxLen = 0;
     fskRxCount = 0;
     fskRxHaveLen = 0;
+    fskRxHaveRssi = 0;
+}
+
+// The SX127x has no packet RSSI for FSK; RegRssiValue gives the signal
+// strength now, as -RssiValue/2 dBm. Read it once per frame, while the frame
+// is on the air; after PayloadReady it would measure the noise (#1139).
+static void fskRxSampleRssi (void) {
+    if (! fskRxHaveRssi) {
+        fskRxRssi = readReg(FSKRegRssiValue);
+        fskRxHaveRssi = 1;
+    }
 }
 
 // Store one byte from the FIFO. The first is the length; payload bytes
@@ -1689,6 +1702,9 @@ void radio_irq_handler_v2 (u1_t dio, ostime_t now) {
                 (flags2 & IRQ_FSK2_FIFOEMPTY_MASK) != 0)
                 return;
 
+            // the frame is on the air, so RegRssiValue measures it
+            fskRxSampleRssi();
+
             // read the frame as it arrives; if it stops, the "unexpected"
             // path below ends the receive
             if (! fskRxDwell())
@@ -1725,10 +1741,11 @@ void radio_irq_handler_v2 (u1_t dio, ostime_t now) {
             } else {
                 LMIC.radio.dataLen = fskRxLen;
             }
-            // read rx quality parameters
+            // read rx quality parameters. If the handler first ran at
+            // PayloadReady, the RSSI sample comes just after the frame.
+            fskRxSampleRssi();
             LMIC.snr  = 0;              // SX127x doesn't give SNR for FSK.
-            LMIC.rssi = -64 + RSSI_OFF; // SX127x doesn't give packet RSSI for FSK,
-                                        // so substitute a dummy value.
+            LMIC.rssi = (s1_t) (RSSI_OFF - (fskRxRssi >> 1)); // RSSI [dBm] (-127...0)
         } else if( flags1 & IRQ_FSK1_TIMEOUT_MASK ) {
             event = LMIC_RADIO_EV_RXDONE | LMIC_RADIO_EV_RXTIMEOUT;
             // indicate timeout
