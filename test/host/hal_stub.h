@@ -18,6 +18,11 @@ Author:
 
 #include "oslmic.h"
 
+// the tests use the V7 name for the tick rate; V6 calls it OSTICKS_PER_SEC.
+#ifndef LMIC_OSTICKS_PER_SEC
+# define LMIC_OSTICKS_PER_SEC OSTICKS_PER_SEC
+#endif
+
 LMIC_BEGIN_DECLS
 
 /// \brief set the clock the stub returns from lmic_hal_ticks().
@@ -35,13 +40,18 @@ void hal_stub_startLmic(void);
 ///	radio never completes anything.
 void hal_stub_setRadioAutoComplete(bit_t fEnable);
 
-/// \brief deliver \p pFrame (a whole PHYPayload) in the next receive
-///	window, once, when the simulated radio is on.
-void hal_stub_injectDownlink(const u1_t *pFrame, u1_t nFrame);
-
 /// \brief ticks until the simulated radio's next event, 0 if due now, or
 ///	HAL_STUB_RADIO_IDLE if nothing is pending.
 u4_t hal_stub_radioTicksUntilEvent(void);
+
+/// \brief deliver \p pFrame (a whole PHYPayload) in the next receive
+///	window, once: hal_stub_setRxFrame(pFrame, nFrame, 0).
+void hal_stub_injectDownlink(const u1_t *pFrame, u1_t nFrame);
+
+/// \brief have a later LoRa single receive deliver \p pFrame (\p nFrame
+///	bytes) instead of timing out: the first \p nSkip receives time out,
+///	the next one delivers the frame. Each call arms one frame.
+void hal_stub_setRxFrame(const u1_t *pFrame, unsigned nFrame, int nSkip);
 #define HAL_STUB_RADIO_IDLE	UINT32_C(0xFFFFFFFF)
 
 /// \brief run the LMIC scheduler until \p untilTick (an os time), moving

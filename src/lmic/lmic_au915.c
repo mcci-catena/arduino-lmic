@@ -94,6 +94,14 @@ uint8_t LMICau915_maxFrameLen(uint8_t dr) {
         }
 }
 
+// downlinks always use DownlinkDwellTime = 0 (RP002-1.0.3 2.8.2).
+uint8_t LMICau915_maxDownlinkFrameLen(uint8_t dr) {
+        if (dr < LENOF_TABLE(maxFrameLens_dwell0))
+                return TABLE_GET_U1(maxFrameLens_dwell0, dr);
+        else
+                return 0;
+}
+
 // from LoRaWAN 5.8: mapping from txParam to MaxEIRP
 static CONST_TABLE(s1_t, TXMAXEIRP)[16] = {
 	8, 10, 12, 13, 14, 16, 18, 20, 21, 24, 26, 27, 29, 30, 33, 36

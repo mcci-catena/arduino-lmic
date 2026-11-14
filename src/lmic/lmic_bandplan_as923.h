@@ -40,6 +40,10 @@ uint8_t LMICas923_maxFrameLen(uint8_t dr);
 // return maximum frame length (including PHY header) for this data rate; 0 --> not valid dr.
 #define LMICbandplan_maxFrameLen(dr) LMICas923_maxFrameLen(dr)
 
+// return maximum downlink frame length (including PHY header) for this data rate; 0 --> not valid dr.
+uint8_t LMICas923_maxDownlinkFrameLen(uint8_t dr);
+#define LMICbandplan_maxDownlinkFrameLen(dr) LMICas923_maxDownlinkFrameLen(dr)
+
 int8_t LMICas923_pow2dBm(uint8_t mcmd_ladr_p1);
 #define pow2dBm(mcmd_ladr_p1)   LMICas923_pow2dBm(mcmd_ladr_p1)
 

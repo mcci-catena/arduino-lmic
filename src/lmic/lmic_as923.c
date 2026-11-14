@@ -63,11 +63,11 @@ LMICas923_validDR(dr_t dr) {
         return TABLE_GET_U1(_DR2RPS_CRC, dr+1)!=ILLEGAL_RPS;
 }
 
-// see table in 2.7.6 -- this assumes UplinkDwellTime = 0.
+// see RP002-1.0.3 2.10.6, Table 75 -- this assumes UplinkDwellTime = 0.
 static CONST_TABLE(u1_t, maxFrameLens_dwell0)[] = {
 	59+5,   // [0]
 	59+5,   // [1]
-	59+5,   // [2]
+	123+5,  // [2]
 	123+5,  // [3]
 	250+5,  // [4]
 	250+5,  // [5]
@@ -75,7 +75,7 @@ static CONST_TABLE(u1_t, maxFrameLens_dwell0)[] = {
 	250+5   // [7]
 };
 
-// see table in 2.7.6 -- this assumes UplinkDwellTime = 1.
+// see RP002-1.0.3 2.10.6, Table 75 -- this assumes UplinkDwellTime = 1.
 static CONST_TABLE(u1_t, maxFrameLens_dwell1)[] = {
 	0,      // [0]
 	0,      // [1]
@@ -112,6 +112,26 @@ uint8_t LMICas923_maxFrameLen(uint8_t dr) {
 	} else {
                 return 0;
 	}
+}
+
+// a device enforces the downlink limits for DownlinkDwellTime = 0,
+// whatever the setting (RP002-1.0.3 2.10.6, Table 75).
+static CONST_TABLE(u1_t, maxDownlinkFrameLens)[] = {
+	59+5,   // [0]
+	59+5,   // [1]
+	123+5,  // [2]
+	123+5,  // [3]
+	250+5,  // [4]
+	250+5,  // [5]
+	250+5,  // [6]
+	250+5   // [7]
+};
+
+uint8_t LMICas923_maxDownlinkFrameLen(uint8_t dr) {
+        if (dr < LENOF_TABLE(maxDownlinkFrameLens))
+                return TABLE_GET_U1(maxDownlinkFrameLens, dr);
+        else
+                return 0;
 }
 
 // from section 2.7.3. These are all referenced to the max EIRP of the
