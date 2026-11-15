@@ -50,6 +50,8 @@ To restore, after a reset:
 
 Then start the first transaction or join.
 
+The LMIC's clock doesn't survive a reset, so the blob holds each wait (the duty cycle of each channel group, and the spacing between Join-Requests) as the time left when it was saved. The restore starts each wait again from that value; it can't subtract the time between the save and the restore. Save again just before the device sleeps or powers down, so the saved waits are short. In a region with a 1% channel group, such as EU868 or AS923, a blob saved at `EV_TXCOMPLETE` holds a wait of nearly 100 times the uplink's airtime: about 18 s for a 13-byte payload at SF9, and several minutes at SF12.
+
 `examples/ttn-otaa-session-sleep` saves and restores the state this way.
 
 `LMIC_querySessionState()` checks a blob and reports its version, region, channel kind, size, client tag and join flags. It does not change the LMIC. `clientTag` is stored in the blob and returned by the query; the LMIC does not interpret it.
