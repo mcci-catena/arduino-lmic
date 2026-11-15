@@ -50,6 +50,7 @@ function _lmic_filter {
 			# these exceed flash on AVR (feather32u4)
 			"avr:compliance-otaa-halconfig.ino" | \
 			"avr:helium-otaa.ino" | \
+			"avr:ttn-otaa-session-sleep.ino" | \
 			"avr:ttn-otaa-feather-us915-dht22.ino")
 				return 1
 				;;

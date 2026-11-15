@@ -263,6 +263,7 @@ This library provides several examples.
 - [`compliance-otaa-halconfig.ino`](examples/compliance-otaa-halconfig/compliance-otaa-halconfig.ino) -- LoRaWAN compliance testing sketch.
 - [`helium-otaa.ino`](examples/helium-otaa/helium-otaa.ino) -- OTAA configured for the Helium network.
 - [`ttn-otaa-network-time.ino`](examples/ttn-otaa-network-time/ttn-otaa-network-time.ino) -- demonstrates network time requests.
+- [`ttn-otaa-session-sleep.ino`](examples/ttn-otaa-session-sleep/ttn-otaa-session-sleep.ino) -- OTAA that saves and restores the session state, handles `EV_DEVNONCE_EXHAUSTED`, and sleeps between LMIC jobs.
 
 ## Timing
 

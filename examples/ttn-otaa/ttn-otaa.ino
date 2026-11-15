@@ -17,9 +17,9 @@
  * activation procedure where a DevAddr and session keys are
  * assigned/generated for use with all further communication.
  *
- * Note: LoRaWAN per sub-band duty-cycle limitation is enforced (1% in
- * g1, 0.1% in g2), but not the TTN fair usage policy (which is probably
- * violated by this sketch when left running for longer)!
+ * Note: the LMIC enforces the regional duty-cycle limits, but not the
+ * TTN fair use policy, which this sketch probably breaks when left
+ * running for long.
 
  * To use this sketch, first register your application and device with
  * the things network, to set or generate an AppEUI, DevEUI and AppKey.
@@ -134,10 +134,6 @@ void onEvent (ev_t ev) {
               }
               Serial.println();
             }
-            // Disable link check validation (automatically enabled
-            // during join, but because slow data rates change max TX
-	    // size, we don't use it in this example.
-            LMIC_setLinkCheckMode(0);
             break;
         /*
         || This event is defined but not used in the code. No
@@ -148,6 +144,8 @@ void onEvent (ev_t ev) {
         ||     break;
         */
         case EV_JOIN_FAILED:
+            // The LMIC keeps joining, with back-off; LMIC_stopJoining()
+            // stops it.
             Serial.println(F("EV_JOIN_FAILED"));
             break;
         case EV_REJOIN_FAILED:
@@ -194,6 +192,8 @@ void onEvent (ev_t ev) {
             break;
         case EV_TXCANCELED:
             Serial.println(F("EV_TXCANCELED"));
+            // The uplink was dropped and no EV_TXCOMPLETE follows.
+            os_setTimedCallback(&sendjob, os_getTime()+sec2osticks(TX_INTERVAL), do_send);
             break;
         case EV_RXSTART:
             /* do not print anything -- it wrecks timing */
@@ -202,6 +202,12 @@ void onEvent (ev_t ev) {
             Serial.println(F("EV_JOIN_TXCOMPLETE: no JoinAccept"));
             break;
 
+        case EV_DEVNONCE_EXHAUSTED:
+            // Every DevNonce has been used, and the LMIC has stopped joining.
+            // The device needs a new AppKey or JoinEUI, and then
+            // LMIC_clearJoinState().
+            Serial.println(F("EV_DEVNONCE_EXHAUSTED"));
+            break;
         default:
             Serial.print(F("Unknown event: "));
             Serial.println((unsigned) ev);
@@ -210,15 +216,22 @@ void onEvent (ev_t ev) {
 }
 
 void do_send(osjob_t* j){
-    // Check if there is not a current TX/RX job running
-    if (LMIC_getOpmode() & OP_TXRXPEND) {
-        Serial.println(F("OP_TXRXPEND, not sending"));
+    // LMIC_queryTxReady() is false while an uplink is queued or in progress,
+    // and then EV_TXCOMPLETE schedules the next one.
+    if (! LMIC_queryTxReady()) {
+        Serial.println(F("LMIC busy, not sending"));
     } else {
         // Prepare upstream data transmission at the next possible time.
-        LMIC_setTxData2(1, mydata, sizeof(mydata)-1, 0);
-        Serial.println(F("Packet queued"));
+        lmic_tx_error_t const err = LMIC_setTxData2(1, mydata, sizeof(mydata)-1, 0);
+        if (err == LMIC_ERROR_SUCCESS) {
+            Serial.println(F("Packet queued"));
+        } else {
+            // EV_TXCOMPLETE might not follow, so schedule the next try here.
+            Serial.print(F("LMIC_setTxData2() failed: "));
+            Serial.println(err);
+            os_setTimedCallback(j, os_getTime()+sec2osticks(TX_INTERVAL), do_send);
+        }
     }
-    // Next TX is scheduled after TX_COMPLETE event.
 }
 
 void setup() {
