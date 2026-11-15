@@ -26,7 +26,8 @@
  * Multiple devices can use the same AppEUI, but each device has its own
  * DevEUI and AppKey.
  *
- * Do not forget to define the radio type correctly in config.h.
+ * Do not forget to define the radio type correctly in
+ * arduino-lmic/project_config/lmic_project_config.h or from your BOARDS.txt.
  * 
  * You will need to also install the library github.com/PaulStoffregen/Time;
  * you need a version that has TimeLib.h.
@@ -254,9 +255,11 @@ void user_request_network_time_callback(void *pVoidUserUTCTime, int flagSuccess)
         return;
     }
 
-    // Update userUTCTime, considering the difference between the GPS and UTC
-    // epoch, and the leap seconds
-    *pUserUTCTime = lmicTimeReference.tNetwork + 315964800;
+    // Convert GPS time to UTC. 315964800 is the GPS epoch (1980-01-06) in
+    // Unix time. GPS time has no leap seconds, so it runs ahead of UTC:
+    // by 18 seconds since 2017-01-01. Change the 18 if a leap second is
+    // added.
+    *pUserUTCTime = lmicTimeReference.tNetwork + 315964800 - 18;
 
     // Add the delay between the instant the time was transmitted and
     // the current time
