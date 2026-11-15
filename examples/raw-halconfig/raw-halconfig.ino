@@ -3,9 +3,9 @@
 Module:  raw-halconfig.ino
 
 Function:
-  Auto-configured raw test example, for Adafruit Feather M0 LoRa
-  /!\ By default Adafruit Feather M0's pin 6 and DIO1 are not connected.
-  Please ensure they are connected.
+  Raw test example. It takes the pin map from the board support package
+  (GetPinmap_ThisBoard()), so it runs on any board that the LMIC's HAL
+  configuration knows.
 
 Copyright notice and License:
   See LICENSE file accompanying this project.
@@ -133,13 +133,16 @@ static void tx_func (osjob_t* job);
 
 // Transmit the given string and call the given function afterwards
 void tx(const char *str, osjobcb_t func) {
-  // the radio is probably in RX mode; stop it.
-  os_radio(RADIO_RST);
-  // wait a bit so the radio can come out of RX mode
-  delay(1);
-
-  // prepare data
+  // Load the frame first. The raw setters write fields in LMIC, and
+  // os_radio_v2() uses its own copy of them in LMIC.radio, which only
+  // os_radio() loads.
   LMIC_setRawTxData((const u1_t *)str, (u1_t)strlen(str));
+
+  // Stop RX, if it is running, and load LMIC.radio from the raw settings
+  // and the frame.
+  os_radio(RADIO_RST);
+  // give the radio time to leave RX mode
+  delay(1);
 
   // set completion function.
   radiojob.func = func;
@@ -152,9 +155,9 @@ void tx(const char *str, osjobcb_t func) {
 // Enable rx mode and call func when a packet is received
 void rx(osjobcb_t func) {
   radiojob.func = func;
-  LMIC_setNextRxTime(os_getTime()); // RX _now_
   // Enable "continuous" RX (e.g. without a timeout, still stops after
-  // receiving a packet)
+  // receiving a packet). RXON starts at once, with the settings that tx()
+  // loaded into LMIC.radio.
   os_radio_v2(RADIO_RXON, &radiojob);
   Serial.println("RX");
 }
@@ -212,8 +215,10 @@ void setup() {
   // you get to the crash before the host can break in.
   delay(3000);
 
-  // even after the delay, we wait for the host to open the port. operator
-  // bool(Serial) just checks dtr(), and it tosses in a 10ms delay.
+  // Even after the delay, wait for the host to open the port. operator
+  // bool(Serial) just checks dtr(), and it adds a 10 ms delay. A board
+  // with no USB host stops here; remove the wait for a device that runs
+  // on its own.
   while(! getDtr(Serial))
         /* wait for the PC */;
 
@@ -243,10 +248,6 @@ void setup() {
   os_init_ex(pPinMap);
 
   // Set up these settings once, and use them for both TX and RX
-#ifdef ARDUINO_ARCH_STM32
-  LMIC_setClockError(10*65536/100);
-#endif
-
 #if defined(CFG_eu868)
   // Use a frequency in the g3 which allows 10% duty cycling.
   LMIC_setFrequency(869525000);
@@ -308,7 +309,7 @@ void setup() {
 
   // Use a suitable spreading factor
   if (uBandwidth < 500)
-        LMIC_setDataRate(US915_DR_SF7);         // DR4
+        LMIC_setDataRate(US915_DR_SF7);         // DR3
   else
         LMIC_setDataRate(US915_DR_SF12CR);      // DR8
 
@@ -366,7 +367,7 @@ void setup() {
 
   // Use a suitable spreading factor
   if (uBandwidth < 500)
-        LMIC_setDataRate(AU915_DR_SF7);         // DR4
+        LMIC_setDataRate(AU915_DR_SF7);         // DR5
   else
         LMIC_setDataRate(AU915_DR_SF12CR);      // DR8
 
@@ -390,11 +391,11 @@ void setup() {
 
   // Use a suitable spreading factor
   if (uBandwidth == 125)
-    LMIC_setDataRate(AS923_DR_SF7);         // DR7
+    LMIC_setDataRate(AS923_DR_SF7);         // DR5
   else
-    LMIC_setDataRate(AS923_DR_SF7B);        // DR8
+    LMIC_setDataRate(AS923_DR_SF7B);        // DR6
 
-  // default tx power for AS: 21 dBm
+  // default tx power for AS: 16 dBm
   LMIC_setRadioTxPower(16);
 
   if (LMIC_COUNTRY_CODE == LMIC_COUNTRY_CODE_JP)
@@ -417,7 +418,7 @@ void setup() {
   LMIC_setFrequency(KR920_F1 + kChannel * 200000);
   uBandwidth = 125;
 
-  LMIC_setDataRate(KR920_DR_SF7);         // DR7
+  LMIC_setDataRate(KR920_DR_SF7);         // DR5
   // default tx power for KR: 14 dBm
   LMIC_setRadioTxPower(KR920_TX_EIRP_MAX_DBM);
   if (LMIC_getFrequency() < KR920_F14DBM)
@@ -440,7 +441,7 @@ void setup() {
   LMIC_setFrequency(IN866_F1 + kChannel * 200000);
   uBandwidth = 125;
 
-  LMIC_setDataRate(IN866_DR_SF7);         // DR7
+  LMIC_setDataRate(IN866_DR_SF7);         // DR5
   // default tx power for IN: 30 dBm
   LMIC_setRadioTxPower(IN866_TX_EIRP_MAX_DBM);
 #else
