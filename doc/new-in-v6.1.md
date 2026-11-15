@@ -39,6 +39,7 @@ To save:
 
 - On `EV_JOINED`, save the NetID, DevAddr and keys from `LMIC_getSessionKeys()`.
 - After each transaction (`EV_TXCOMPLETE`), save the blob in non-volatile memory.
+- Just before the device sleeps or powers down, save the blob again. The paragraph on waits, below, says why.
 - While joining, also save the blob on `EV_TXSTART` when `LMIC_getOpmode() & OP_JOINING` is set. The LMIC reports `EV_TXSTART` after it has used the DevNonce and before the radio transmits, so the saved DevNonce doesn't repeat after a power failure.
 
 To restore, after a reset:
@@ -46,7 +47,7 @@ To restore, after a reset:
 1. `LMIC_reset()`.
 2. If a session was saved, `LMIC_setSession()` with the saved NetID, DevAddr and keys.
 3. `LMIC_restoreSessionState()` with the saved blob. This must come after `LMIC_setSession()`, which resets the frame counters and channels.
-4. Set again anything that `LMIC_reset()` returns to its default and the blob doesn't hold, such as `LMIC_setAdrMode()` and `LMIC_setAdrAckLimits()`.
+4. Set again anything that `LMIC_reset()` returns to its default and the blob doesn't hold, such as `LMIC_setAdrMode()`, `LMIC_setAdrAckLimits()` and `LMIC_enableClassC()`.
 
 Then start the first transaction or join.
 
