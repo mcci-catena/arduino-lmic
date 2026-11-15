@@ -10,19 +10,18 @@
  *
  * This example sends a valid LoRaWAN packet with payload "Hello,
  * world!", using frequency and encryption settings matching those of
- * the The Things Network. It's pre-configured for the Adafruit
- * Feather M0 LoRa.
- * /!\ By default Adafruit Feather M0's pin 6 and DIO1 are not connected.
- * Please ensure they are connected.
+ * the Helium network. It takes the pin map from the board support package
+ * (GetPinmap_ThisBoard()), so it runs on any board that the LMIC's HAL
+ * configuration knows.
  *
  * This uses OTAA (Over-the-air activation), where where a DevEUI and
  * application key is configured, which are used in an over-the-air
  * activation procedure where a DevAddr and session keys are
  * assigned/generated for use with all further communication.
  *
- * Note: LoRaWAN per sub-band duty-cycle limitation is enforced (1% in
- * g1, 0.1% in g2), but not the TTN fair usage policy (which is probably
- * violated by this sketch when left running for longer)!
+ * Note: the LMIC enforces the regional duty-cycle limits, but not the
+ * TTN fair use policy, which this sketch probably breaks when left
+ * running for long.
 
  * To use this sketch, first register your application and device with
  * the things network, to set or generate an AppEUI, DevEUI and AppKey.
@@ -131,10 +130,6 @@ void onEvent (ev_t ev) {
               }
               Serial.println();
             }
-            // Disable link check validation (automatically enabled
-            // during join, but because slow data rates change max TX
-	    // size, we don't use it in this example.
-            LMIC_setLinkCheckMode(0);
             break;
         /*
         || This event is defined but not used in the code. No
@@ -145,6 +140,8 @@ void onEvent (ev_t ev) {
         ||     break;
         */
         case EV_JOIN_FAILED:
+            // The LMIC keeps joining, with back-off; LMIC_stopJoining()
+            // stops it.
             Serial.println(F("EV_JOIN_FAILED"));
             break;
         case EV_REJOIN_FAILED:
@@ -192,6 +189,8 @@ void onEvent (ev_t ev) {
             break;
         case EV_TXCANCELED:
             Serial.println(F("EV_TXCANCELED"));
+            // The uplink was dropped and no EV_TXCOMPLETE follows.
+            os_setTimedCallback(&sendjob, os_getTime()+sec2osticks(TX_INTERVAL), do_send);
             break;
         case EV_RXSTART:
             /* do not print anything -- it wrecks timing */
@@ -200,6 +199,12 @@ void onEvent (ev_t ev) {
             Serial.println(F("EV_JOIN_TXCOMPLETE: no JoinAccept"));
             break;
 
+        case EV_DEVNONCE_EXHAUSTED:
+            // Every DevNonce has been used, and the LMIC has stopped joining.
+            // The device needs a new AppKey or JoinEUI, and then
+            // LMIC_clearJoinState().
+            Serial.println(F("EV_DEVNONCE_EXHAUSTED"));
+            break;
         default:
             Serial.print(F("Unknown event: "));
             Serial.println((unsigned) ev);
@@ -208,19 +213,29 @@ void onEvent (ev_t ev) {
 }
 
 void do_send(osjob_t* j){
-    // Check if there is not a current TX/RX job running
-    if (LMIC_getOpmode() & OP_TXRXPEND) {
-        Serial.println(F("OP_TXRXPEND, not sending"));
+    // LMIC_queryTxReady() is false while an uplink is queued or in progress,
+    // and then EV_TXCOMPLETE schedules the next one.
+    if (! LMIC_queryTxReady()) {
+        Serial.println(F("LMIC busy, not sending"));
     } else {
         // Prepare upstream data transmission at the next possible time.
-        LMIC_setTxData2(1, mydata, sizeof(mydata)-1, 0);
-        Serial.println(F("Packet queued"));
+        lmic_tx_error_t const err = LMIC_setTxData2(1, mydata, sizeof(mydata)-1, 0);
+        if (err == LMIC_ERROR_SUCCESS) {
+            Serial.println(F("Packet queued"));
+        } else {
+            // EV_TXCOMPLETE might not follow, so schedule the next try here.
+            Serial.print(F("LMIC_setTxData2() failed: "));
+            Serial.println(err);
+            os_setTimedCallback(j, os_getTime()+sec2osticks(TX_INTERVAL), do_send);
+        }
     }
-    // Next TX is scheduled after TX_COMPLETE event.
 }
 
 void setup() {
     delay(5000);
+    // Wait for a USB host to open the serial port, so that the log starts
+    // at the beginning. A board with no USB host stops here; remove the
+    // wait for a device that runs on its own.
     while (! Serial)
         ;
     Serial.begin(9600);
@@ -268,19 +283,18 @@ void setup() {
     // Reset the MAC state. Session and pending data transfers will be discarded.
     LMIC_reset();
 
-    // allow much more clock error than the X/1000 default. See:
+    // Allow for more clock error. The argument is a fraction of
+    // MAX_CLOCK_ERROR, so MAX_CLOCK_ERROR / 40 asks for 2.5%. Unless
+    // LMIC_ENABLE_arbitrary_clock_error is set, the LMIC limits it to 0.4%.
+    // See doc/timing.md and
     // https://github.com/mcci-catena/arduino-lorawan/issues/74#issuecomment-462171974
-    // https://github.com/mcci-catena/arduino-lmic/commit/42da75b56#diff-16d75524a9920f5d043fe731a27cf85aL633
-    // the X/1000 means an error rate of 0.1%; the above issue discusses using values up to 10%.
-    // so, values from 10 (10% error, the most lax) to 1000 (0.1% error, the most strict) can be used.
     LMIC_setClockError(1 * MAX_CLOCK_ERROR / 40);
 
-    LMIC_setLinkCheckMode(0);
-    LMIC_setDrTxpow(DR_SF7,14);
-
 #if CFG_LMIC_US_like
-    // This makes joins faster in the US because we don't wander all over the
-    // spectrum.
+    // Start on sub-band 2 (channels 8-15; LMIC_selectSubBand() counts from
+    // 0), which TTN and Helium use in US915 and AU915. Other networks may
+    // use another sub-band. After the join, the network can change the
+    // channels.
     LMIC_selectSubBand(1);
 #endif
 

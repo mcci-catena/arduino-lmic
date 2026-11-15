@@ -63,10 +63,21 @@ static void tx_func (osjob_t* job);
 
 // Transmit the given string and call the given function afterwards
 void tx(const char *str, osjobcb_t func) {
-  os_radio(RADIO_RST); // Stop RX first
-  delay(1); // Wait a bit, without this os_radio below asserts, apparently because the state hasn't changed yet
+  // Load the frame first. The raw setters write fields in LMIC, and
+  // os_radio_v2() uses its own copy of them in LMIC.radio, which only
+  // os_radio() loads.
   LMIC_setRawTxData((const u1_t *)str, (u1_t)strlen(str));
+
+  // Stop RX, if it is running, and load LMIC.radio from the raw settings
+  // and the frame.
+  os_radio(RADIO_RST);
+  // give the radio time to leave RX mode
+  delay(1);
+
+  // set completion function.
   radiojob.func = func;
+
+  // start the transmission
   os_radio_v2(RADIO_TX, &radiojob);
   Serial.println("TX");
 }
@@ -74,9 +85,9 @@ void tx(const char *str, osjobcb_t func) {
 // Enable rx mode and call func when a packet is received
 void rx(osjobcb_t func) {
   radiojob.func = func;
-  LMIC_setNextRxTime(os_getTime()); // RX _now_
   // Enable "continuous" RX (e.g. without a timeout, still stops after
-  // receiving a packet)
+  // receiving a packet). RXON starts at once, with the settings that tx()
+  // loaded into LMIC.radio.
   os_radio_v2(RADIO_RXON, &radiojob);
   Serial.println("RX");
 }
@@ -204,7 +215,7 @@ void setup() {
 
   // Use a suitable spreading factor
   if (uBandwidth < 500)
-        LMIC_setDataRate(US915_DR_SF7);         // DR4
+        LMIC_setDataRate(US915_DR_SF7);         // DR3
   else
         LMIC_setDataRate(US915_DR_SF12CR);      // DR8
 
@@ -262,7 +273,7 @@ void setup() {
 
   // Use a suitable spreading factor
   if (uBandwidth < 500)
-        LMIC_setDataRate(AU915_DR_SF7);         // DR4
+        LMIC_setDataRate(AU915_DR_SF7);         // DR5
   else
         LMIC_setDataRate(AU915_DR_SF12CR);      // DR8
 
@@ -286,11 +297,11 @@ void setup() {
 
         // Use a suitable spreading factor
         if (uBandwidth == 125)
-                LMIC_setDataRate(AS923_DR_SF7);         // DR7
+                LMIC_setDataRate(AS923_DR_SF7);         // DR5
         else
-                LMIC_setDataRate(AS923_DR_SF7B);        // DR8
+                LMIC_setDataRate(AS923_DR_SF7B);        // DR6
 
-        // default tx power for AS: 21 dBm
+        // default tx power for AS: 16 dBm
         LMIC_setRadioTxPower(16);
 
         if (LMIC_COUNTRY_CODE == LMIC_COUNTRY_CODE_JP)
@@ -313,7 +324,7 @@ void setup() {
         LMIC_setFrequency(KR920_F1 + kChannel * 200000);
         uBandwidth = 125;
 
-        LMIC_setDataRate(KR920_DR_SF7);         // DR7
+        LMIC_setDataRate(KR920_DR_SF7);         // DR5
         // default tx power for KR: 14 dBm
         LMIC_setRadioTxPower(KR920_TX_EIRP_MAX_DBM);
         if (LMIC_getFrequency() < KR920_F14DBM)
@@ -336,7 +347,7 @@ void setup() {
         LMIC_setFrequency(IN866_F1 + kChannel * 200000);
         uBandwidth = 125;
 
-        LMIC_setDataRate(IN866_DR_SF7);         // DR7
+        LMIC_setDataRate(IN866_DR_SF7);         // DR5
         // default tx power for IN: 30 dBm
         LMIC_setRadioTxPower(IN866_TX_EIRP_MAX_DBM);
 #else
@@ -355,12 +366,6 @@ void setup() {
             Serial.print("MHz");
   Serial.print("  LMIC_getDataRate(): "); Serial.print(LMIC_getDataRate());
   Serial.print("  LMIC_getRadioTxPower(): "); Serial.println(LMIC_getRadioTxPower());
-
-  // This sets CR 4/5, BW125 (except for DR_SF7B, which uses BW250)
-  LMIC_setRps(updr2rps(LMIC_getDataRate()));
-
-  // disable RX IQ inversion
-  LMIC_setNoRxIqInversion(true);
 
   Serial.println("Started");
   Serial.flush();

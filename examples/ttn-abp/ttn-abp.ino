@@ -17,9 +17,15 @@
  * application key is configured, while the DevAddr and session keys are
  * assigned/generated in the over-the-air-activation procedure).
  *
- * Note: LoRaWAN per sub-band duty-cycle limitation is enforced (1% in
- * g1, 0.1% in g2), but not the TTN fair usage policy (which is probably
- * violated by this sketch when left running for longer)!
+ * This sketch starts the uplink frame counter at 0 after every reset. A
+ * network that checks frame counters drops the uplinks until the counter
+ * passes the last value it saw. A device in the field must keep the
+ * counter (LMIC_getSeqnoUp()), or the whole session state
+ * (LMIC_saveSessionState()), in nonvolatile memory.
+ *
+ * Note: the LMIC enforces the regional duty-cycle limits, but not the
+ * TTN fair use policy, which this sketch probably breaks when left
+ * running for long.
  *
  * To use this sketch, first register your application and device with
  * the things network, to set or generate a DevAddr, NwkSKey and
@@ -168,6 +174,8 @@ void onEvent (ev_t ev) {
             break;
         case EV_TXCANCELED:
             Serial.println(F("EV_TXCANCELED"));
+            // The uplink was dropped and no EV_TXCOMPLETE follows.
+            os_setTimedCallback(&sendjob, os_getTime()+sec2osticks(TX_INTERVAL), do_send);
             break;
         case EV_RXSTART:
             /* do not print anything -- it wrecks timing */
@@ -183,20 +191,30 @@ void onEvent (ev_t ev) {
 }
 
 void do_send(osjob_t* j){
-    // Check if there is not a current TX/RX job running
-    if (LMIC_getOpmode() & OP_TXRXPEND) {
-        Serial.println(F("OP_TXRXPEND, not sending"));
+    // LMIC_queryTxReady() is false while an uplink is queued or in progress,
+    // and then EV_TXCOMPLETE schedules the next one.
+    if (! LMIC_queryTxReady()) {
+        Serial.println(F("LMIC busy, not sending"));
     } else {
         // Prepare upstream data transmission at the next possible time.
-        LMIC_setTxData2(1, mydata, sizeof(mydata)-1, 0);
-        Serial.println(F("Packet queued"));
+        lmic_tx_error_t const err = LMIC_setTxData2(1, mydata, sizeof(mydata)-1, 0);
+        if (err == LMIC_ERROR_SUCCESS) {
+            Serial.println(F("Packet queued"));
+        } else {
+            // EV_TXCOMPLETE might not follow, so schedule the next try here.
+            Serial.print(F("LMIC_setTxData2() failed: "));
+            Serial.println(err);
+            os_setTimedCallback(j, os_getTime()+sec2osticks(TX_INTERVAL), do_send);
+        }
     }
-    // Next TX is scheduled after TX_COMPLETE event.
 }
 
 void setup() {
-//    pinMode(13, OUTPUT);
-    while (!Serial); // wait for Serial to be initialized
+    // Wait for a USB host to open the serial port, so that the log starts
+    // at the beginning. A board with no USB host stops here; remove the
+    // wait for a device that runs on its own.
+    while (! Serial)
+        ;
     Serial.begin(115200);
     delay(100);     // per sample code on RF_95 test
     Serial.println(F("Starting"));
@@ -252,6 +270,10 @@ void setup() {
     // devices' ping slots. LMIC does not have an easy way to define set this
     // frequency and support for class B is spotty and untested, so this
     // frequency is not configured here.
+
+    // TTN uses SF9 for its RX2 window in EU868; the LoRaWAN default is
+    // SF12. The other regions use the default, which LMIC_reset() sets.
+    LMIC_setRX2DataRate(DR_SF9);
     #elif defined(CFG_us915) || defined(CFG_au915)
     // NA-US and AU channels 0-71 are configured automatically
     // but only one group of 8 should (a subband) should be active
@@ -287,12 +309,6 @@ void setup() {
     # error Region not supported
     #endif
 
-    // Disable link check validation
-    LMIC_setLinkCheckMode(0);
-
-    // TTN uses SF9 for its RX2 window.
-    LMIC_setRX2DataRate(DR_SF9);
-
     // Set data rate and transmit power for uplink
     LMIC_setDrTxpow(DR_SF7,14);
 
@@ -301,15 +317,5 @@ void setup() {
 }
 
 void loop() {
-    unsigned long now;
-    now = millis();
-    if ((now & 512) != 0) {
-      digitalWrite(13, HIGH);
-    }
-    else {
-      digitalWrite(13, LOW);
-    }
-
     os_runloop_once();
-
 }
