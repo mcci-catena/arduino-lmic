@@ -57,7 +57,7 @@ The functions return `LMIC_SESSION_STATE_OK` or a reason for refusing the blob, 
 
 `LMIC_getFRMPayload(&pData, &len)` returns the FPort of the last received frame, or zero if it had no payload, and sets `pData` and `len` to the payload.
 
-For raw (non-LoRaWAN) radio use, `LMIC_setFrequency()`, `LMIC_setRps()`, `LMIC_setRadioTxPower()`, `LMIC_setRawTxData()`, `LMIC_getRawRxData()`, `LMIC_setNextRxTime()` and the others set up the radio without touching the MAC. The raw examples show how; each passes its own `osjob_t` to `os_radio_v2()`.
+For raw (non-LoRaWAN) radio use, `LMIC_setFrequency()`, `LMIC_setRps()`, `LMIC_setRawTxData()`, `LMIC_setNextRxTime()` and the other raw setters write fields in `LMIC`. The radio driver reads its own copy of them in `LMIC.radio`, which `os_radio()` loads and `os_radio_v2()` does not. Call `os_radio(RADIO_RST)` after the setters and before `os_radio_v2()`, as the raw examples do. Each example passes its own `osjob_t` to `os_radio_v2()`, and reads the received frame with `LMIC_getRawRxData()`.
 
 ## Channels and channel groups
 
