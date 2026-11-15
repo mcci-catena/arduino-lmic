@@ -51,6 +51,7 @@ Examples ([#1180](https://github.com/mcci-catena/arduino-lmic/issues/1180), [#11
 
 Build.
 
+- Class B (beacon tracking and ping slots) is no longer compiled by default. Set `LMIC_ENABLE_class_b` to 1 to include it ([#1189](https://github.com/mcci-catena/arduino-lmic/issues/1189)). Builds that didn't define `DISABLE_PING` and `DISABLE_BEACONS` get smaller: 2.2 KB of flash and 56 bytes of RAM on an STM32L0.
 - `arduino_lmic.h` no longer wraps its includes in `extern "C"`; each header wraps its own declarations ([#1102](https://github.com/mcci-catena/arduino-lmic/issues/1102), [#1104](https://github.com/mcci-catena/arduino-lmic/issues/1104)).
 - Builds with `DISABLE_JOIN` link again ([#1167](https://github.com/mcci-catena/arduino-lmic/issues/1167)).
 - The default branch is `main` ([#1078](https://github.com/mcci-catena/arduino-lmic/issues/1078)). CI runs one job per board ([#1079](https://github.com/mcci-catena/arduino-lmic/issues/1079)) and runs host unit tests in all regions ([#1095](https://github.com/mcci-catena/arduino-lmic/issues/1095)).
