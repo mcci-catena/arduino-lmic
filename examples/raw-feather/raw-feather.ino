@@ -281,10 +281,6 @@ void setup() {
   os_init();
 
   // Set up these settings once, and use them for both TX and RX
-#ifdef ARDUINO_ARCH_STM32
-  LMIC_setClockError(10*65536/100);
-#endif
-
 #if defined(CFG_eu868)
   // Use a frequency in the g3 which allows 10% duty cycling.
   LMIC_setFrequency(869525000);
