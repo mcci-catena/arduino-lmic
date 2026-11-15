@@ -101,10 +101,11 @@ What certainly works:
 What has not been tested:
 
 - Class B operation.
-- FSK has not been extensively tested. (Testing with the RedwoodComm RWC5020A analyzer in 2019 indicated that FSK downlink is stable but not reliable. This prevents successful completion of LoRaWAN pre-certification in regions that require support for FSK.)
 
-If you try one of these untested features and it works, be sure to let
+If you try an untested feature and it works, be sure to let
 us know (creating a GitHub issue is probably the best way for that).
+
+Version 6.1.0 fixed FSK transmit and receive on the SX127x and SX126x radios; [CHANGELOG.md](CHANGELOG.md) lists the fixes.
 
 ## Documentation
 
@@ -176,7 +177,7 @@ SX1279 which only differ in the available frequencies, bandwidths and
 spreading factors). It has been tested with both SX1272 and SX1276
 chips on a variety of platforms.
 
-* The SX1261 and SX1262 families are supported. This has been tested with Heltec and TTGo boards.
+* The SX1261 and SX1262 families are supported. This has been tested with Heltec and TTGo boards, and with the MCCI Catena 5230.
 
 This library contains a full LoRaWAN stack and is intended to drive
 these Transceivers directly. It is *not* intended to be used with
@@ -207,8 +208,11 @@ The following boards are pre-integrated.
 - MCCI Catena 4551, [4610][6], 4611, [4612][7], 4617, [4618][7a], 4630, [4801][8] and [4802][12] boards (based on the Murata CMWX1ZZABZ-078 module) (SX1276)
 - MCCI Model 4916, [4917][13], [4931][14] and [4933][15] boards (based on the Murata CMWX1ZZABZ-078 module) (SX1276)
 - MCCI Catena 5220 and 5230 boards (STM32L072 with SX1262)
-- [TTGo LoRa32 V1][10] (based on the ESP32)
-- [Heltec WiFi LoRa 32 V2][11] (based on the ESP32)
+- ST B-L072Z-LRWAN1 Discovery kit (SX1276)
+- [TTGo LoRa32 V1][10] and V2.1 (based on the ESP32) (SX1276)
+- [Heltec WiFi LoRa 32 V2][11] and Heltec Wireless Stick (based on the ESP32) (SX1276)
+- Heltec WiFi LoRa 32 V3 (based on the ESP32-S3) (SX1262)
+- TTGo T-Beam S3 (based on the ESP32-S3) (SX1262)
 
 [1]: https://www.adafruit.com/products/3078
 [2]: https://www.adafruit.com/products/3178
@@ -279,7 +283,7 @@ The library must track precise timing for opening RX1 and RX2 receive windows af
 
 Note that the data rate used for downlink packets in the RX2 window varies by region. Consult your network's manual for any divergences from the LoRaWAN Regional Parameters. This library assumes that the network follows the regional default.
 
-Some networks use different values than the specification. For example, in Europe, the specification default is DR0 (SF12, 125 kHz bandwidth). However, iot.semtech.com and The Things Network both used SF9 / 125 kHz or DR3). If using over-the-air activation (OTAA), the network will download RX2 parameters as part of the JoinAccept message; the LMIC will honor the downloaded parameters.
+Some networks use different values than the specification. For example, in Europe, the specification default is DR0 (SF12, 125 kHz bandwidth). However, iot.semtech.com and The Things Network both used SF9 / 125 kHz (DR3). If using over-the-air activation (OTAA), the network will download RX2 parameters as part of the JoinAccept message; the LMIC will honor the downloaded parameters.
 
 However, when using personalized activation (ABP), it is your
 responsibility to set the right settings, e.g. by adding this to your
@@ -320,7 +324,7 @@ This library started from the IBM V1.5 open-source code.
 
 - Tristan Webber ([`@TristanWebber`](https://github.com/TristanWebber)) contributed sx1261 and sx1262 support.
 
-There are many others, who have contributed code and also participated in discussions, performed testing, reported problems and results. Thanks to all who have participated. We hope to use something like [All Contributors](https://https://allcontributors.org/) to help keep this up to date, but so far the automation isn't working.
+There are many others, who have contributed code and also participated in discussions, performed testing, reported problems and results. Thanks to all who have participated. We hope to use something like [All Contributors](https://allcontributors.org/) to help keep this up to date, but so far the automation isn't working.
 
 ## Trademark Acknowledgements
 
@@ -337,7 +341,7 @@ and the merge which synchronized this repository therefore migrated
 the core files to the Berkeley license. However, modifications made
 in the Arduino branch were done under the Eclipse license, so the
 overall license of this repository is still Eclipse Public License
-v1.0. The examples which use a more liberal
+v1.0. The examples use a more liberal
 license. Some of the AES code is available under the LGPL. Refer to each
 individual source file for more details, but bear in mind that until
 the upstream developers look into this issue, it is safest to assume
