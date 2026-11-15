@@ -63,7 +63,7 @@ The functions return `LMIC_SESSION_STATE_OK` or a reason for refusing the blob, 
 
 ## Accessors
 
-`src/lmic/lmic_accessors.h` has `static inline` getters for the LMIC fields that clients read, and setters for the few that a client may change. Use them instead of reading or writing `LMIC.*`. Where the LMIC's field name differs from the LoRaWAN name, the accessor uses the LoRaWAN name, for example `LMIC_getFCntUp()`, `LMIC_getDevAddr()`, `LMIC_getDataRate()`, `LMIC_getRSSI()` and `LMIC_getSNR()`.
+`src/lmic/lmic_accessors.h` has `static inline` getters for the LMIC fields that clients read, and setters for the few that a client may change. Use them instead of reading or writing `LMIC.*`. Where the LMIC's field name differs from the LoRaWAN name, the accessor uses the LoRaWAN name, for example `LMIC_getFCntUp()`, `LMIC_getDevAddr()`, `LMIC_getDataRate()`, `LMIC_getRSSI()` and `LMIC_getSNR()`. `LMIC_getRSSI()` returns dBm, without the offset of 64 (`RSSI_OFF`) that `LMIC.rssi` carries. `LMIC_getSNR()` returns the SNR in dB times 4.
 
 `LMIC_getFRMPayload(&pData, &len)` returns the FPort of the last received frame, or zero if it had no payload, and sets `pData` and `len` to the payload.
 
