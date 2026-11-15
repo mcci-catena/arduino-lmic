@@ -187,6 +187,8 @@ void onEvent (ev_t ev) {
             break;
         case EV_TXCANCELED:
             Serial.println(F("EV_TXCANCELED"));
+            // The uplink was dropped and no EV_TXCOMPLETE follows.
+            os_setTimedCallback(&sendjob, os_getTime()+sec2osticks(TX_INTERVAL), do_send);
             break;
         case EV_RXSTART:
             /* do not print anything -- it wrecks timing */
@@ -203,15 +205,22 @@ void onEvent (ev_t ev) {
 }
 
 void do_send(osjob_t* j){
-    // Check if there is not a current TX/RX job running
-    if (LMIC_getOpmode() & OP_TXRXPEND) {
-        Serial.println(F("OP_TXRXPEND, not sending"));
+    // LMIC_queryTxReady() is false while an uplink is queued or in progress,
+    // and then EV_TXCOMPLETE schedules the next one.
+    if (! LMIC_queryTxReady()) {
+        Serial.println(F("LMIC busy, not sending"));
     } else {
         // Prepare upstream data transmission at the next possible time.
-        LMIC_setTxData2(1, mydata, sizeof(mydata)-1, 0);
-        Serial.println(F("Packet queued"));
+        lmic_tx_error_t const err = LMIC_setTxData2(1, mydata, sizeof(mydata)-1, 0);
+        if (err == LMIC_ERROR_SUCCESS) {
+            Serial.println(F("Packet queued"));
+        } else {
+            // EV_TXCOMPLETE might not follow, so schedule the next try here.
+            Serial.print(F("LMIC_setTxData2() failed: "));
+            Serial.println(err);
+            os_setTimedCallback(j, os_getTime()+sec2osticks(TX_INTERVAL), do_send);
+        }
     }
-    // Next TX is scheduled after TX_COMPLETE event.
 }
 
 void setup() {
