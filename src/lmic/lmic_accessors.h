@@ -100,8 +100,13 @@ static inline s1_t LMIC_getRadioTxPower(void) {
 }
 
 /// \brief return the RSSI of the last received frame, in dBm.
-static inline s1_t LMIC_getRSSI(void) {
-	return LMIC.rssi;
+///
+/// \details
+///	LMIC.rssi holds the RSSI plus RSSI_OFF (64), so that it fits an
+///	s1_t; this function removes the offset. The result ranges from
+///	-192 to +63, which is why it is an s2_t.
+static inline s2_t LMIC_getRSSI(void) {
+	return (s2_t)(LMIC.rssi - RSSI_OFF);
 }
 
 /// \brief return the SNR of the last received frame, times 4.
