@@ -189,6 +189,8 @@ void onEvent (ev_t ev) {
         ||     break;
         */
         case EV_JOIN_FAILED:
+            // The LMIC keeps joining, with back-off; LMIC_stopJoining()
+            // stops it.
             Serial.println(F("EV_JOIN_FAILED"));
             break;
         case EV_REJOIN_FAILED:
@@ -246,6 +248,12 @@ void onEvent (ev_t ev) {
             Serial.println(F("EV_JOIN_TXCOMPLETE: no JoinAccept"));
             break;
 
+        case EV_DEVNONCE_EXHAUSTED:
+            // Every DevNonce has been used, and the LMIC has stopped joining.
+            // The device needs a new AppKey or JoinEUI, and then
+            // LMIC_clearJoinState().
+            Serial.println(F("EV_DEVNONCE_EXHAUSTED"));
+            break;
         default:
             Serial.print(F("Unknown event: "));
             Serial.println((unsigned) ev);

@@ -17,6 +17,12 @@
  * application key is configured, while the DevAddr and session keys are
  * assigned/generated in the over-the-air-activation procedure).
  *
+ * This sketch starts the uplink frame counter at 0 after every reset. A
+ * network that checks frame counters drops the uplinks until the counter
+ * passes the last value it saw. A device in the field must keep the
+ * counter (LMIC_getSeqnoUp()), or the whole session state
+ * (LMIC_saveSessionState()), in nonvolatile memory.
+ *
  * Note: LoRaWAN per sub-band duty-cycle limitation is enforced (1% in
  * g1, 0.1% in g2), but not the TTN fair usage policy (which is probably
  * violated by this sketch when left running for longer)!
