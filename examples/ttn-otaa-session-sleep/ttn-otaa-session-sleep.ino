@@ -354,6 +354,13 @@ void setup() {
     }
 
     os_init_ex(pPinMap);
+
+    // If the board's clock is less accurate than the LMIC assumes, the LMIC
+    // misses its receive windows and never joins. Such a board needs
+    // LMIC_setClockError() here; see doc/timing.md. For example, an MCCI
+    // Catena 4612 needs LMIC_setClockError(4 * MAX_CLOCK_ERROR / 1000)
+    // unless the sketch calibrates its system clock.
+
     startLmic();
 
     // The first uplink also starts the join, if the device hasn't joined.
