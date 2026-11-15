@@ -36,10 +36,18 @@ Radio fixes.
 - SX126x FSK: packet parameters, receive timeout and CRC handling ([#1123](https://github.com/mcci-catena/arduino-lmic/issues/1123), [#1124](https://github.com/mcci-catena/arduino-lmic/issues/1124)); 10 ms allowance for late downlinks in a single window ([#1131](https://github.com/mcci-catena/arduino-lmic/issues/1131)).
 - SX126x: take operation parameters from `LMIC.radio`, and keep the class C receive running ([#1112](https://github.com/mcci-catena/arduino-lmic/issues/1112), [#1115](https://github.com/mcci-catena/arduino-lmic/issues/1115)); allow time for the cold-start setup ([#1108](https://github.com/mcci-catena/arduino-lmic/issues/1108), [#1110](https://github.com/mcci-catena/arduino-lmic/issues/1110)); use `LMIC.nextRxTime`, not the stale `LMIC.rxtime` ([#1058](https://github.com/mcci-catena/arduino-lmic/issues/1058)); initialize a loop variable in `setRx()` ([#1052](https://github.com/mcci-catena/arduino-lmic/issues/1052), [#1062](https://github.com/mcci-catena/arduino-lmic/issues/1062)); fix the DIO2 RF switch check ([#1063](https://github.com/mcci-catena/arduino-lmic/issues/1063)); store the packet status, so RSSI and SNR are valid ([#1090](https://github.com/mcci-catena/arduino-lmic/issues/1090)).
 - Raw receive takes the received length from `LMIC.radio` ([#1125](https://github.com/mcci-catena/arduino-lmic/issues/1125), [#1127](https://github.com/mcci-catena/arduino-lmic/issues/1127)).
+- `LMIC_setRadioTxPower()` sets the power in raw mode; before, it had no effect ([#1179](https://github.com/mcci-catena/arduino-lmic/issues/1179), [#1181](https://github.com/mcci-catena/arduino-lmic/issues/1181)).
 
 Boards.
 
 - Pin maps for the MCCI Model 4916, 4917, 4931 and 4933 ([#915](https://github.com/mcci-catena/arduino-lmic/issues/915), [#917](https://github.com/mcci-catena/arduino-lmic/issues/917), [#1003](https://github.com/mcci-catena/arduino-lmic/issues/1003), [#1004](https://github.com/mcci-catena/arduino-lmic/issues/1004), [#1005](https://github.com/mcci-catena/arduino-lmic/issues/1005)), the MCCI Catena 5230 ([#1101](https://github.com/mcci-catena/arduino-lmic/issues/1101), [#1106](https://github.com/mcci-catena/arduino-lmic/issues/1106)) and the MCCI Catena 5220 ([#1070](https://github.com/mcci-catena/arduino-lmic/issues/1070), [#1168](https://github.com/mcci-catena/arduino-lmic/issues/1168)).
+
+Examples ([#1180](https://github.com/mcci-catena/arduino-lmic/issues/1180), [#1181](https://github.com/mcci-catena/arduino-lmic/issues/1181)).
+
+- New example `ttn-otaa-session-sleep`: saves and restores the session state, handles `EV_DEVNONCE_EXHAUSTED`, and sleeps between LMIC jobs.
+- The LoRaWAN examples no longer turn off the ADR_ACK back-off with `LMIC_setLinkCheckMode(0)`, check the result of `LMIC_setTxData2()`, and handle `EV_TXCANCELED` and `EV_DEVNONCE_EXHAUSTED`.
+- `ttn-abp` sets RX2 to SF9 only in EU868. `ttn-otaa-network-time` subtracts the leap seconds.
+- The raw examples load the frame before `os_radio(RADIO_RST)`, so the first frame no longer goes out with length 0.
 
 Build.
 
