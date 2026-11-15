@@ -294,7 +294,7 @@ See [Encoding Utilities](doc/encoding-utilities.md) for `sflt16`, `uflt16`, `sfl
 
 ## Release History
 
-Current version: **6.1.0** -- adds session-state save and restore, accessors for the LMIC object, channel queries, sleep between jobs, link check, the LoRaWAN 1.0.4 join back-off and DevNonce sequence, and SX127x and SX126x FSK fixes. See [APIs added in v6.1](doc/new-in-v6.1.md).
+Current version: **6.0.0** -- adds Class C support, secure element abstraction, SX1261/SX1262 radio drivers. **Breaking change:** `LMIC.rxtime` renamed to `LMIC.nextRxTime`.
 
 See [CHANGELOG.md](CHANGELOG.md) for the full release history.
 
