@@ -15,6 +15,7 @@
 #	make            build and run the tests for REGION (default eu868)
 #	make REGION=us915
 #	make all-regions   run the tests for every region
+#	make CLASS_B=1     build with LMIC_ENABLE_class_b=1 (works with the above)
 #	make clean
 #
 #	Needs gcc and g++ on the host. The whole core is compiled with the
@@ -28,10 +29,19 @@ REGION ?= eu868
 RADIO ?= sx1276
 REGIONS := eu868 us915 au915 as923 kr920 in866
 
+CLASS_B ?= 0
+
 TOP := ../..
 BUILD := build/$(REGION)
 
 DEFS := -DARDUINO_LMIC_PROJECT_CONFIG_H_SUPPRESS -DCFG_$(REGION) -DCFG_$(RADIO)_radio -DCOMPILE_REGRESSION_TEST
+
+# Class B is off by default in the LMIC; CLASS_B=1 compiles it in, in its own
+# build directory, so that the code keeps building.
+ifneq ($(CLASS_B),0)
+BUILD := build/$(REGION)-classb
+DEFS += -DLMIC_ENABLE_class_b=1
+endif
 INCS := -I. -I$(TOP)/src/lmic -I$(TOP)/src/hal -I$(TOP)/src -I$(TOP)/src/aes -I$(TOP)/src/se -I$(TOP)/src/se/i
 
 # -MMD -MP: each object gets a .d file listing the headers it read, so a

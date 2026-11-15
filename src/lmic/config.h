@@ -112,11 +112,31 @@
 
 // define this in lmic_project_config.h to disable all code related to joining
 //#define DISABLE_JOIN
-// define this in lmic_project_config.h to disable all code related to ping
+
+// LMIC_ENABLE_class_b
+// Define this non-zero in lmic_project_config.h to include Class B support
+// (beacon tracking and ping slots) in the code. The default is zero: the
+// Class B code is untested, and costs flash and RAM in every build. If zero,
+// DISABLE_PING and DISABLE_BEACONS are defined here.
+#if !defined(LMIC_ENABLE_class_b)
+# define LMIC_ENABLE_class_b 0	/* PARAM */
+#endif
+
+// With LMIC_ENABLE_class_b non-zero, define this in lmic_project_config.h to
+// disable all code related to ping
 //#define DISABLE_PING
-// define this in lmic_project_config.h to disable all code related to beacon tracking.
-// Requires ping to be disabled too
+// With LMIC_ENABLE_class_b non-zero, define this in lmic_project_config.h to
+// disable all code related to beacon tracking. Requires ping to be disabled too
 //#define DISABLE_BEACONS
+
+#if ! LMIC_ENABLE_class_b
+# if !defined(DISABLE_PING)
+#  define DISABLE_PING
+# endif
+# if !defined(DISABLE_BEACONS)
+#  define DISABLE_BEACONS
+# endif
+#endif
 
 // define these in lmic_project_config.h to disable the corresponding MAC commands.
 // Class A
