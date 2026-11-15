@@ -13,6 +13,11 @@ A sketch that builds with 6.0.x builds with 6.1, but these changes can affect it
 - **Deprecated names.** `LMIC_setupBand()` is now `LMIC_setupChannelGroup()`, and `ARDUINO_LMIC_VERSION_GET_LOCAL()` is now `ARDUINO_LMIC_VERSION_GET_PRE()`. The old names still work. They draw a deprecation warning on GCC 6 and later and on Clang, if compiler warnings are enabled; the Arduino IDE turns warnings off by default.
 - **C linkage.** `arduino_lmic.h` no longer wraps its includes in `extern "C"`; each LMIC header wraps its own declarations. Sketches need no change. A port that adds a C header to the LMIC must wrap it in `LMIC_BEGIN_DECLS` and `LMIC_END_DECLS`.
 - **Direct use of `LMIC.*`.** Use the accessors (below) instead. The layout of the LMIC object changes in v7, and the accessors don't.
+- **Code copied from the 6.0 examples.** The examples changed in 6.1 ([#1180](https://github.com/mcci-catena/arduino-lmic/issues/1180)). A sketch based on them should check these:
+  - Remove `LMIC_setLinkCheckMode(0)`. It turns off the ADR_ACK back-off, so the device never notices that the network is gone and never lowers its data rate.
+  - Check the result of `LMIC_setTxData2()`. After an error `EV_TXCOMPLETE` might not follow, so schedule the next uplink there, and on `EV_TXCANCELED`.
+  - Call `LMIC_setRX2DataRate(DR_SF9)` for TTN only in EU868. In US915 and AU915, `DR_SF9` is an uplink data rate.
+  - In raw mode, load the frame with `LMIC_setRawTxData()` before `os_radio(RADIO_RST)`.
 
 ## Session state
 
@@ -44,6 +49,8 @@ To restore, after a reset:
 4. Set again anything that `LMIC_reset()` returns to its default and the blob doesn't hold, such as `LMIC_setAdrMode()` and `LMIC_setAdrAckLimits()`.
 
 Then start the first transaction or join.
+
+`examples/ttn-otaa-session-sleep` saves and restores the state this way.
 
 `LMIC_querySessionState()` checks a blob and reports its version, region, channel kind, size, client tag and join flags. It does not change the LMIC. `clientTag` is stored in the blob and returned by the query; the LMIC does not interpret it.
 
@@ -103,6 +110,8 @@ void loop() {
 `sleepUpTo()` is the application's. It arms a wake-up timer for `ticks` (none for `OS_NEXT_JOB_NEVER`) and sleeps until that timer or any interrupt. On Arm Cortex-M, `__WFI()` does this: it wakes when an interrupt becomes pending even though `lmic_hal_disableIRQs()` has masked it, and the interrupt runs at `lmic_hal_enableIRQs()`. On AVR, the sleep instruction must directly follow `sei`, so the masked check and the sleep take board-specific code.
 
 `os_getTime()` must keep counting during the sleep, or the LMIC misses its receive windows. The Arduino HAL takes it from `micros()`, which stops in the deeper sleep modes of many MCUs; `__WFI()` sleep keeps it running. The Arduino HAL also needs `os_getTime()` called at least every 30 minutes to follow the wrap of `micros()`, so cap the sleep at that.
+
+`examples/ttn-otaa-session-sleep` uses this loop, with `__WFI()` on Arm.
 
 ## Link check
 
