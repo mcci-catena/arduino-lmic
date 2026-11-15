@@ -18,9 +18,9 @@
  * activation procedure where a DevAddr and session keys are
  * assigned/generated for use with all further communication.
  *
- * Note: LoRaWAN per sub-band duty-cycle limitation is enforced (1% in
- * g1, 0.1% in g2), but not the TTN fair usage policy (which is probably
- * violated by this sketch when left running for longer)!
+ * Note: the LMIC enforces the regional duty-cycle limits, but not the
+ * TTN fair use policy, which this sketch probably breaks when left
+ * running for long.
 
  * To use this sketch, first register your application and device with
  * the things network, to set or generate an AppEUI, DevEUI and AppKey.
@@ -302,8 +302,12 @@ void setup() {
     // Reset the MAC state. Session and pending data transfers will be discarded.
     LMIC_reset();
 
-    LMIC_setDrTxpow(DR_SF7,14);
+#if CFG_LMIC_US_like
+    // Start on sub-band 2 (channels 8-15; LMIC_selectSubBand() counts from
+    // 0), which TTN uses in US915 and AU915. Other networks may use another
+    // sub-band. After the join, the network can change the channels.
     LMIC_selectSubBand(1);
+#endif
 
     // Start job (sending automatically starts OTAA too)
     do_send(&sendjob);

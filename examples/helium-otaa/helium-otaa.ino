@@ -10,19 +10,18 @@
  *
  * This example sends a valid LoRaWAN packet with payload "Hello,
  * world!", using frequency and encryption settings matching those of
- * the The Things Network. It's pre-configured for the Adafruit
- * Feather M0 LoRa.
- * /!\ By default Adafruit Feather M0's pin 6 and DIO1 are not connected.
- * Please ensure they are connected.
+ * the Helium network. It takes the pin map from the board support package
+ * (GetPinmap_ThisBoard()), so it runs on any board that the LMIC's HAL
+ * configuration knows.
  *
  * This uses OTAA (Over-the-air activation), where where a DevEUI and
  * application key is configured, which are used in an over-the-air
  * activation procedure where a DevAddr and session keys are
  * assigned/generated for use with all further communication.
  *
- * Note: LoRaWAN per sub-band duty-cycle limitation is enforced (1% in
- * g1, 0.1% in g2), but not the TTN fair usage policy (which is probably
- * violated by this sketch when left running for longer)!
+ * Note: the LMIC enforces the regional duty-cycle limits, but not the
+ * TTN fair use policy, which this sketch probably breaks when left
+ * running for long.
 
  * To use this sketch, first register your application and device with
  * the things network, to set or generate an AppEUI, DevEUI and AppKey.
@@ -291,11 +290,11 @@ void setup() {
     // https://github.com/mcci-catena/arduino-lorawan/issues/74#issuecomment-462171974
     LMIC_setClockError(1 * MAX_CLOCK_ERROR / 40);
 
-    LMIC_setDrTxpow(DR_SF7,14);
-
 #if CFG_LMIC_US_like
-    // This makes joins faster in the US because we don't wander all over the
-    // spectrum.
+    // Start on sub-band 2 (channels 8-15; LMIC_selectSubBand() counts from
+    // 0), which TTN and Helium use in US915 and AU915. Other networks may
+    // use another sub-band. After the join, the network can change the
+    // channels.
     LMIC_selectSubBand(1);
 #endif
 
