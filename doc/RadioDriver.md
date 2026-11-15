@@ -70,7 +70,7 @@ This specifies the transmit power in dBm.
 
 The array of data to be sent.
 
-### `LMIC.radio.datalen` (IN)
+### `LMIC.radio.dataLen` (IN)
 
 The length of the array to be sent.
 
@@ -118,4 +118,4 @@ Set to SNR * 4 after LoRa receive. (Set to 0 for FSK receive.)
 
 ### `LMIC.rssi` (OUT)
 
-Set to RSSI + `RSSI_OFF` after LoRa receive. (Set to 0 for FSK receive; `RSSI_OFF` is 64.) You must subtract RSSI_OFF from `LMIC.rssi` to get the RSSI in dB.
+Set to RSSI + `RSSI_OFF` after a LoRa or FSK receive. (`RSSI_OFF` is 64.) You must subtract `RSSI_OFF` from `LMIC.rssi` to get the RSSI in dBm.
