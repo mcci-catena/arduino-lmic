@@ -1678,7 +1678,8 @@ void os_radio(u1_t mode) {
     LMIC.radio.rps = LMIC.rps;
     LMIC.radio.rxsyms = LMIC.rxsyms;
     LMIC.radio.dataLen = LMIC.dataLen;
-    // Note: LMIC.radio.txpow is already set by lmic.c before calling os_radio()
+    // Note: LMIC.radio.txpow is not copied: lmic.c sets it before a LoRaWAN
+    // transmission, and LMIC_setRadioTxPower() sets it for a raw one.
     LMIC.radio.flags = 0;
     if (LMIC.noRXIQinversion) {
         LMIC.radio.flags |= LMIC_RADIO_FLAGS_NO_RX_IQ_INVERSION;
