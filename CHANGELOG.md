@@ -45,7 +45,7 @@ Boards.
 Examples ([#1180](https://github.com/mcci-catena/arduino-lmic/issues/1180), [#1181](https://github.com/mcci-catena/arduino-lmic/issues/1181)).
 
 - New example `ttn-otaa-session-sleep`: saves and restores the session state, handles `EV_DEVNONCE_EXHAUSTED`, and sleeps between LMIC jobs.
-- The LoRaWAN examples no longer turn off the ADR_ACK back-off with `LMIC_setLinkCheckMode(0)`, check the result of `LMIC_setTxData2()`, and handle `EV_TXCANCELED` and `EV_DEVNONCE_EXHAUSTED`.
+- The LoRaWAN examples no longer turn off the ADR_ACK back-off with `LMIC_setLinkCheckMode(0)`. They check the result of `LMIC_setTxData2()`, and handle `EV_TXCANCELED` and `EV_DEVNONCE_EXHAUSTED`.
 - `ttn-abp` sets RX2 to SF9 only in EU868. `ttn-otaa-network-time` subtracts the leap seconds.
 - The raw examples load the frame before `os_radio(RADIO_RST)`, so the first frame no longer goes out with length 0.
 
