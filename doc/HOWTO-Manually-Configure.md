@@ -73,7 +73,7 @@ DIOx pins can be left disconnected. On the Arduino side, they can
 connect to any I/O pin. If interrupts are used, the accuracy of timing
 will be improved, particularly the rest of your `loop()` function has
 lengthy calculations; but in that case, the enabled DIO pins must all
-support rising-edge interrupts. See the [Timing](#timing) section below.
+support rising-edge interrupts. See [Timing](timing.md).
 
 In LoRa mode the DIO pins are used as follows:
 

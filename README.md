@@ -83,10 +83,10 @@ Raise a GitHub issue at [`github.com/mcci-catena/arduino-lmic`](https://github.c
 ## Features
 
 The LMIC library provides a fairly complete LoRaWAN Class A, Class B, and Class C
-implementation, supporting the EU-868, US-915, AU-921, AS-923, and IN-866 bands. Only a limited
+implementation, supporting the EU-868, US-915, AU-915, AS-923, KR-920 and IN-866 bands. Only a limited
 number of features was tested using this port on Arduino hardware, so be careful when using any of the untested features.
 
-The library has only been tested with LoRaWAN 1.0.2/1.03 networks and does not have the separated key structure defined by LoRaWAN 1.1.
+The library has only been tested with LoRaWAN 1.0.2 and 1.0.3 networks and does not have the separated key structure defined by LoRaWAN 1.1.
 
 What certainly works:
 
@@ -101,10 +101,11 @@ What certainly works:
 What has not been tested:
 
 - Class B operation.
-- FSK has not been extensively tested. (Testing with the RedwoodComm RWC5020A analyzer in 2019 indicated that FSK downlink is stable but not reliable. This prevents successful completion of LoRaWAN pre-certification in regions that require support for FSK.)
 
-If you try one of these untested features and it works, be sure to let
+If you try an untested feature and it works, be sure to let
 us know (creating a GitHub issue is probably the best way for that).
+
+Version 6.1.0 fixed FSK transmit and receive on the SX127x and SX126x radios; [CHANGELOG.md](CHANGELOG.md) lists the fixes.
 
 ## Documentation
 
@@ -119,7 +120,8 @@ The [`doc/`](doc/) directory contains the full documentation set. Key references
 - [Encoding Utilities](doc/encoding-utilities.md) -- `sflt16`, `uflt16`, `sflt12`, `uflt12` formats with JavaScript decoders
 - [Radio Driver](doc/RadioDriver.md) -- radio driver interface specification
 - [Adding Regions](doc/HOWTO-ADD-REGION.md) -- step-by-step guide for new regional configurations
-- [API Reference PDF](doc/LMIC-v5.0.0.pdf) -- based on the original IBM documentation (v6 update pending)
+- [API Reference PDF](doc/LMIC-v5.0.0.pdf) -- based on the original IBM documentation; covers v5.0.0
+- [APIs added in v6.1](doc/new-in-v6.1.md) -- session state, accessors, channel queries, sleeping between jobs, link check, joining
 
 See [`doc/README.md`](doc/README.md) for the complete documentation index.
 
@@ -175,7 +177,7 @@ SX1279 which only differ in the available frequencies, bandwidths and
 spreading factors). It has been tested with both SX1272 and SX1276
 chips on a variety of platforms.
 
-* The SX1261 and SX1262 families are supported. This has been tested with Heltec and TTGo boards.
+* The SX1261 and SX1262 families are supported. This has been tested with Heltec and TTGo boards, and with the MCCI Catena 5230.
 
 This library contains a full LoRaWAN stack and is intended to drive
 these Transceivers directly. It is *not* intended to be used with
@@ -205,8 +207,12 @@ The following boards are pre-integrated.
 - MCCI Catena 4410, 4420, [4450][3], [4460][4] and [4470][5] boards (based on Adafruit Feather boards plus wings) (SX1276)
 - MCCI Catena 4551, [4610][6], 4611, [4612][7], 4617, [4618][7a], 4630, [4801][8] and [4802][12] boards (based on the Murata CMWX1ZZABZ-078 module) (SX1276)
 - MCCI Model 4916, [4917][13], [4931][14] and [4933][15] boards (based on the Murata CMWX1ZZABZ-078 module) (SX1276)
-- [TTGo LoRa32 V1][10] (based on the ESP32)
-- [Heltec WiFi LoRa 32 V2][11] (based on the ESP32)
+- MCCI Catena 5220 and 5230 boards (STM32L072 with SX1262)
+- ST B-L072Z-LRWAN1 Discovery kit (SX1276)
+- [TTGo LoRa32 V1][10] and V2.1 (based on the ESP32) (SX1276)
+- [Heltec WiFi LoRa 32 V2][11] and Heltec Wireless Stick (based on the ESP32) (SX1276)
+- Heltec WiFi LoRa 32 V3 (based on the ESP32-S3) (SX1262)
+- TTGo T-Beam S3 (based on the ESP32-S3) (SX1262)
 
 [1]: https://www.adafruit.com/products/3078
 [2]: https://www.adafruit.com/products/3178
@@ -256,7 +262,7 @@ This library provides several examples.
 - [`raw-feather.ino`](examples/raw-feather/raw-feather.ino) -- `raw.ino` configured for Feather M0 LoRa.
 - [`raw-halconfig.ino`](examples/raw-halconfig/raw-halconfig.ino) -- `raw.ino` using automatic HAL configuration.
 - [`ttn-abp.ino`](examples/ttn-abp/ttn-abp.ino) -- activation by personalization (ABP). ABP should not be used with production networks; use OTAA instead.
-- [`ttn-abp-feather-us915-dht22.ino`](examples/ttn-abp-feather-us915-dht22/ttn-abp-feather-us915-dht22.ino) -- ABP with DHT22 sensor, Feather M0, US915.
+- [`ttn-abp-feather-us915-dht22.ino`](examples/ttn-abp-feather-us915-dht22/ttn-abp-feather-us915-dht22.ino) -- ABP with DHT22 sensor, Feather M0, US915; only for a single-channel gateway.
 - [`header_test.ino`](examples/header_test/header_test.ino) -- header file regression test.
 - [`compliance-otaa-halconfig.ino`](examples/compliance-otaa-halconfig/compliance-otaa-halconfig.ino) -- LoRaWAN compliance testing sketch.
 - [`helium-otaa.ino`](examples/helium-otaa/helium-otaa.ino) -- OTAA configured for the Helium network.
@@ -269,6 +275,7 @@ The library must track precise timing for opening RX1 and RX2 receive windows af
 
 - Call `os_runloop_once()` frequently, especially during transmit/receive cycles. Use `os_queryTimeCriticalJobs(ms2osticks(n))` to check if the LMIC needs attention within `n` milliseconds.
 - FSK receive on SX127x radios is tighter still. The radio's FIFO holds 64 bytes, which fill in about 10 ms at 50 kbps, so `os_runloop_once()` must run within 10 ms of the start of an FSK downlink, or the frame is lost. The LMIC then stays in the radio driver, reading the frame as it arrives, for the frame's air time (up to 42 ms for a 255-byte frame).
+- To sleep between LMIC jobs, use `os_runloop_once_ex()`, which returns the time until the LMIC next needs to run. [APIs added in v6.1](doc/new-in-v6.1.md) and `ttn-otaa-session-sleep.ino` show how.
 - By default, the library polls DIO pins. Optionally, define `LMIC_USE_INTERRUPTS` for hardware interrupt-driven timing (requires DIO pins wired to interrupt-capable Arduino pins).
 - For boards with inaccurate oscillators (100-4000 ppm), call `LMIC_setClockError()` to widen the receive window. See [Timing](doc/timing.md) for the full discussion including `LMIC_setClockError()` API reference and interrupt implementation details.
 
@@ -276,15 +283,15 @@ The library must track precise timing for opening RX1 and RX2 receive windows af
 
 Note that the data rate used for downlink packets in the RX2 window varies by region. Consult your network's manual for any divergences from the LoRaWAN Regional Parameters. This library assumes that the network follows the regional default.
 
-Some networks use different values than the specification. For example, in Europe, the specification default is DR0 (SF12, 125 kHz bandwidth). However, iot.semtech.com and The Things Network both used SF9 / 125 kHz or DR3). If using over-the-air activation (OTAA), the network will download RX2 parameters as part of the JoinAccept message; the LMIC will honor the downloaded parameters.
+Some networks use different values than the specification. For example, in Europe, the specification default is DR0 (SF12, 125 kHz bandwidth). However, iot.semtech.com and The Things Network both used SF9 / 125 kHz (DR3). If using over-the-air activation (OTAA), the network will download RX2 parameters as part of the JoinAccept message; the LMIC will honor the downloaded parameters.
 
-However, when using personalized activate (ABP), it is your
+However, when using personalized activation (ABP), it is your
 responsibility to set the right settings, e.g. by adding this to your
-sketch (after calling `LMIC_setSession`). `ttn-abp.ino` already does
-this.
+sketch (after calling `LMIC_setSession()`). `ttn-abp.ino` does this in
+EU868.
 
 ```c++
-LMIC.dn2Dr = DR_SF9;
+LMIC_setRX2DataRate(DR_SF9);
 ```
 
 ## Encoding Utilities
@@ -293,7 +300,7 @@ See [Encoding Utilities](doc/encoding-utilities.md) for `sflt16`, `uflt16`, `sfl
 
 ## Release History
 
-Current version: **6.0.0** -- adds Class C support, secure element abstraction, SX1261/SX1262 radio drivers. **Breaking change:** `LMIC.rxtime` renamed to `LMIC.nextRxTime`.
+Current version: **6.1.0** -- adds session state save and restore, accessors for the LMIC fields, channel queries, sleeping between jobs, link check requests, join controls and run-time ADR_ACK limits ([APIs added in v6.1](doc/new-in-v6.1.md)). It keeps Join-Requests within the LoRaWAN 1.0.4 airtime limits, counts DevNonce up across `LMIC_reset()`, fixes SX127x FSK and raw-mode transmit power, and corrects the examples. 6.0.0 added Class C support, the secure element abstraction and the SX1261/SX1262 radio drivers.
 
 See [CHANGELOG.md](CHANGELOG.md) for the full release history.
 
@@ -317,7 +324,7 @@ This library started from the IBM V1.5 open-source code.
 
 - Tristan Webber ([`@TristanWebber`](https://github.com/TristanWebber)) contributed sx1261 and sx1262 support.
 
-There are many others, who have contributed code and also participated in discussions, performed testing, reported problems and results. Thanks to all who have participated. We hope to use something like [All Contributors](https://https://allcontributors.org/) to help keep this up to date, but so far the automation isn't working.
+There are many others, who have contributed code and also participated in discussions, performed testing, reported problems and results. Thanks to all who have participated. We hope to use something like [All Contributors](https://allcontributors.org/) to help keep this up to date, but so far the automation isn't working.
 
 ## Trademark Acknowledgements
 
@@ -334,7 +341,7 @@ and the merge which synchronized this repository therefore migrated
 the core files to the Berkeley license. However, modifications made
 in the Arduino branch were done under the Eclipse license, so the
 overall license of this repository is still Eclipse Public License
-v1.0. The examples which use a more liberal
+v1.0. The examples use a more liberal
 license. Some of the AES code is available under the LGPL. Refer to each
 individual source file for more details, but bear in mind that until
 the upstream developers look into this issue, it is safest to assume

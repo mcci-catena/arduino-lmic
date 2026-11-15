@@ -225,6 +225,13 @@ static void startLmic(void) {
 void do_send(osjob_t* j);
 
 static void restartLmic(osjob_t* j) {
+    // Save again just before the restart, as a device does just before it
+    // sleeps or powers down. The blob holds each duty-cycle wait as the
+    // time left at the save, and the restore starts that wait again. A
+    // restore from the save at EV_TXCOMPLETE would hold the first uplink
+    // for the whole wait left then: in a 1% channel group, nearly 100
+    // times the airtime of the last uplink.
+    saveSession();
     Serial.println(F("Restarting the LMIC from the saved state"));
     startLmic();
     do_send(j);

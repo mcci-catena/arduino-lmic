@@ -21,10 +21,11 @@ Description:
 
 	The layout is the one Arduino-LoRaWAN has stored since 2021 as its
 	SessionStateV1, byte for byte, so blobs already in the field
-	restore. The LMIC reads V1 and V2 and writes V2; the two differ
-	only in the header tag. In V1 the channel-group duty-cycle divisor
-	was saved from the wrong field (mcci-catena/arduino-lorawan#231),
-	so a V1 restore takes it from the region defaults instead.
+	restore. The LMIC reads V1, V2 and V3 and writes V3. V1 and V2
+	differ only in the header tag; V3 adds the join state. In V1 the
+	channel-group duty-cycle divisor was saved from the wrong field
+	(mcci-catena/arduino-lorawan#231), so a V1 restore takes it from
+	the region defaults instead.
 
 	The channel part of the blob is a union with a discriminator and
 	three variants: configurable channels (16 frequencies and groups),
