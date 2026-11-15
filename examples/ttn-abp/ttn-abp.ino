@@ -252,6 +252,10 @@ void setup() {
     // devices' ping slots. LMIC does not have an easy way to define set this
     // frequency and support for class B is spotty and untested, so this
     // frequency is not configured here.
+
+    // TTN uses SF9 for its RX2 window in EU868; the LoRaWAN default is
+    // SF12. The other regions use the default, which LMIC_reset() sets.
+    LMIC_setRX2DataRate(DR_SF9);
     #elif defined(CFG_us915) || defined(CFG_au915)
     // NA-US and AU channels 0-71 are configured automatically
     // but only one group of 8 should (a subband) should be active
@@ -289,9 +293,6 @@ void setup() {
 
     // Disable link check validation
     LMIC_setLinkCheckMode(0);
-
-    // TTN uses SF9 for its RX2 window.
-    LMIC_setRX2DataRate(DR_SF9);
 
     // Set data rate and transmit power for uplink
     LMIC_setDrTxpow(DR_SF7,14);
