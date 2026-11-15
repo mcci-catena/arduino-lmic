@@ -267,8 +267,13 @@ static inline void LMIC_setRps(rps_t rps) {
 }
 
 /// \brief set the transmit power the radio uses for a raw transmission, in dBm.
+///
+/// The radio driver reads LMIC.radio.txpow, which os_radio() does not load,
+/// so set it here too. The MAC sets LMIC.radio.txpow again before each
+/// LoRaWAN transmission.
 static inline void LMIC_setRadioTxPower(s1_t txpow) {
 	LMIC.txpow = txpow;
+	LMIC.radio.txpow = txpow;
 }
 
 /// \brief set the listen-before-talk parameters (ticks of zero turns LBT off).

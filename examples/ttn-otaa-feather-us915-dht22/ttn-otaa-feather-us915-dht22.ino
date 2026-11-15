@@ -135,10 +135,6 @@ void onEvent (ev_t ev) {
               }
               Serial.println();
             }
-            // Disable link check validation (automatically enabled
-            // during join, but because slow data rates change max TX
-      // size, we don't use it in this example.
-            LMIC_setLinkCheckMode(0);
             break;
         /*
         || This event is defined but not used in the code. No
@@ -149,6 +145,8 @@ void onEvent (ev_t ev) {
         ||     break;
         */
         case EV_JOIN_FAILED:
+            // The LMIC keeps joining, with back-off; LMIC_stopJoining()
+            // stops it.
             Serial.println(F("EV_JOIN_FAILED"));
             break;
         case EV_REJOIN_FAILED:
@@ -196,6 +194,8 @@ void onEvent (ev_t ev) {
             break;
         case EV_TXCANCELED:
             Serial.println(F("EV_TXCANCELED"));
+            // The uplink was dropped and no EV_TXCOMPLETE follows.
+            os_setTimedCallback(&sendjob, os_getTime()+sec2osticks(TX_INTERVAL), do_send);
             break;
         case EV_RXSTART:
             /* do not print anything -- it wrecks timing */
@@ -204,6 +204,12 @@ void onEvent (ev_t ev) {
             Serial.println(F("EV_JOIN_TXCOMPLETE: no JoinAccept"));
             break;
 
+        case EV_DEVNONCE_EXHAUSTED:
+            // Every DevNonce has been used, and the LMIC has stopped joining.
+            // The device needs a new AppKey or JoinEUI, and then
+            // LMIC_clearJoinState().
+            Serial.println(F("EV_DEVNONCE_EXHAUSTED"));
+            break;
         default:
             Serial.print(F("Unknown event: "));
             Serial.println((unsigned) ev);
@@ -212,9 +218,10 @@ void onEvent (ev_t ev) {
 }
 
 void do_send(osjob_t* j){
-    // Check if there is not a current TX/RX job running
-    if (LMIC_getOpmode() & OP_TXRXPEND) {
-        Serial.println(F("OP_TXRXPEND, not sending"));
+    // LMIC_queryTxReady() is false while an uplink is queued or in progress,
+    // and then EV_TXCOMPLETE schedules the next one.
+    if (! LMIC_queryTxReady()) {
+        Serial.println(F("LMIC busy, not sending"));
     } else {
         // read the temperature from the DHT22
         float temperature = dht.readTemperature();
@@ -252,14 +259,25 @@ void do_send(osjob_t* j){
         // transmit on port 1 (the first parameter); you can use any value from 1 to 223 (others are reserved).
         // don't request an ack (the last parameter, if not zero, requests an ack from the network).
         // Remember, acks consume a lot of network resources; don't ask for an ack unless you really need it.
-        LMIC_setTxData2(1, payload, sizeof(payload)-1, 0);
+        lmic_tx_error_t const err = LMIC_setTxData2(1, payload, sizeof(payload)-1, 0);
+        if (err == LMIC_ERROR_SUCCESS) {
+            Serial.println(F("Packet queued"));
+        } else {
+            // EV_TXCOMPLETE might not follow, so schedule the next try here.
+            Serial.print(F("LMIC_setTxData2() failed: "));
+            Serial.println(err);
+            os_setTimedCallback(j, os_getTime()+sec2osticks(TX_INTERVAL), do_send);
+        }
     }
-    // Next TX is scheduled after TX_COMPLETE event.
 }
 
 void setup() {
     delay(5000);
-    while (! Serial);
+    // Wait for a USB host to open the serial port, so that the log starts
+    // at the beginning. A board with no USB host stops here; remove the
+    // wait for a device that runs on its own.
+    while (! Serial)
+        ;
     Serial.begin(9600);
     Serial.println(F("Starting"));
 
@@ -269,15 +287,13 @@ void setup() {
     os_init();
     // Reset the MAC state. Session and pending data transfers will be discarded.
     LMIC_reset();
-    // Disable link-check mode and ADR, because ADR tends to complicate testing.
-    LMIC_setLinkCheckMode(0);
-    // Set the data rate to Spreading Factor 7.  This is the fastest supported rate for 125 kHz channels, and it
-    // minimizes air time and battery power. Set the transmission power to 14 dBi (25 mW).
-    LMIC_setDrTxpow(DR_SF7,14);
-    // in the US, with TTN, it saves join time if we start on subband 1 (channels 8-15). This will
-    // get overridden after the join by parameters from the network. If working with other
-    // networks or in other regions, this will need to be changed.
+
+#if CFG_LMIC_US_like
+    // Start on sub-band 2 (channels 8-15; LMIC_selectSubBand() counts from
+    // 0), which TTN uses in US915 and AU915. Other networks may use another
+    // sub-band. After the join, the network can change the channels.
     LMIC_selectSubBand(1);
+#endif
 
     // Start job (sending automatically starts OTAA too)
     do_send(&sendjob);
