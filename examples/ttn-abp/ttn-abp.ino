@@ -210,8 +210,11 @@ void do_send(osjob_t* j){
 }
 
 void setup() {
-//    pinMode(13, OUTPUT);
-    while (!Serial); // wait for Serial to be initialized
+    // Wait for a USB host to open the serial port, so that the log starts
+    // at the beginning. A board with no USB host stops here; remove the
+    // wait for a device that runs on its own.
+    while (! Serial)
+        ;
     Serial.begin(115200);
     delay(100);     // per sample code on RF_95 test
     Serial.println(F("Starting"));
@@ -314,15 +317,5 @@ void setup() {
 }
 
 void loop() {
-    unsigned long now;
-    now = millis();
-    if ((now & 512) != 0) {
-      digitalWrite(13, HIGH);
-    }
-    else {
-      digitalWrite(13, LOW);
-    }
-
     os_runloop_once();
-
 }

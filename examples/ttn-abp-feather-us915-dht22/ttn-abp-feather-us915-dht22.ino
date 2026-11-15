@@ -246,7 +246,11 @@ void do_send(osjob_t* j){
 
 void setup() {
     delay(5000);
-    while (!Serial);
+    // Wait for a USB host to open the serial port, so that the log starts
+    // at the beginning. A board with no USB host stops here; remove the
+    // wait for a device that runs on its own.
+    while (! Serial)
+        ;
     Serial.begin(115200);
     delay(100);
     Serial.println(F("Starting"));

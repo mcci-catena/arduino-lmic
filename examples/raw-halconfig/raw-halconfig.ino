@@ -212,8 +212,10 @@ void setup() {
   // you get to the crash before the host can break in.
   delay(3000);
 
-  // even after the delay, we wait for the host to open the port. operator
-  // bool(Serial) just checks dtr(), and it tosses in a 10ms delay.
+  // Even after the delay, wait for the host to open the port. operator
+  // bool(Serial) just checks dtr(), and it adds a 10 ms delay. A board
+  // with no USB host stops here; remove the wait for a device that runs
+  // on its own.
   while(! getDtr(Serial))
         /* wait for the PC */;
 
