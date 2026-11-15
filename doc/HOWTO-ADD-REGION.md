@@ -87,7 +87,7 @@ At time of writing, you need to duplicate some code to copy some settings from `
 
 - If using an MCCI BSP, you should definitely edit the template files to add the new region to the list.
 
-- Modify the `.travis.yml` file to test the new region.
+- Modify `.github/workflows/ci-arduinocli.yml` to test the new region.
 
 ## Edit `lmic_bandplan.h`
 

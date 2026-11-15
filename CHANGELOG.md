@@ -1,5 +1,61 @@
 # Release History
 
+## v6.1.0
+
+New APIs. [doc/new-in-v6.1.md](doc/new-in-v6.1.md) describes them.
+
+- Save and restore the LoRaWAN session as an opaque blob: `LMIC_saveSessionState()`, `LMIC_restoreSessionState()`, `LMIC_querySessionState()` and `LMIC_getSessionStateSize()` ([#1089](https://github.com/mcci-catena/arduino-lmic/issues/1089), [#1095](https://github.com/mcci-catena/arduino-lmic/issues/1095)). The V3 blob also carries the next DevNonce and the join back-off ([#1167](https://github.com/mcci-catena/arduino-lmic/issues/1167)).
+- `lmic_accessors.h`: getters for the LMIC fields that clients read, named as in the LoRaWAN specification, and setters for raw transmission ([#1089](https://github.com/mcci-catena/arduino-lmic/issues/1089), [#1090](https://github.com/mcci-catena/arduino-lmic/issues/1090)). The examples use them instead of `LMIC.*`.
+- `LMIC_queryChannelCount()` and `LMIC_queryChannel()` ([#1092](https://github.com/mcci-catena/arduino-lmic/issues/1092)). What the LMIC called a band is now a channel group: `LMIC_setupChannelGroup()` replaces `LMIC_setupBand()`, which remains as a deprecated alias.
+- `os_queryNextJobTicks()` and `os_runloop_once_ex()` report when the LMIC next needs to run, so an application can sleep until then ([#1121](https://github.com/mcci-catena/arduino-lmic/issues/1121), [#1141](https://github.com/mcci-catena/arduino-lmic/issues/1141)).
+- With `LMIC_USE_INTERRUPTS`, a caller can sleep while the radio is busy. `lmic_hal_hasPendingIrqs()` reports a DIO event not yet processed ([#1148](https://github.com/mcci-catena/arduino-lmic/issues/1148), [#1149](https://github.com/mcci-catena/arduino-lmic/issues/1149)).
+- `LMIC_requestLinkCheck()`, enabled by `LMIC_ENABLE_LinkCheckReq` (default 1) ([#825](https://github.com/mcci-catena/arduino-lmic/issues/825), [#838](https://github.com/mcci-catena/arduino-lmic/issues/838), [#1164](https://github.com/mcci-catena/arduino-lmic/issues/1164)).
+- `LMIC_stopJoining()`, `LMIC_getNextDevNonce()`, `LMIC_setNextDevNonce()`, `LMIC_clearJoinState()`, `LMIC_clearJoinBackoff()`, `LMIC_setJoinBackoffEnabled()` and the event `EV_DEVNONCE_EXHAUSTED` ([#1156](https://github.com/mcci-catena/arduino-lmic/issues/1156), [#1167](https://github.com/mcci-catena/arduino-lmic/issues/1167)).
+- `LMIC_setAdrAckLimits()` and `LMIC_getAdrAckLimits()` ([#1154](https://github.com/mcci-catena/arduino-lmic/issues/1154), [#1167](https://github.com/mcci-catena/arduino-lmic/issues/1167)).
+- `LMIC_feasibleDataRateForFrame()` is declared in `lmic.h` ([#1135](https://github.com/mcci-catena/arduino-lmic/issues/1135), [#1136](https://github.com/mcci-catena/arduino-lmic/issues/1136)).
+- Version numbers are in `lmic_version.h` ([#1077](https://github.com/mcci-catena/arduino-lmic/issues/1077)). The fourth field of the version is "pre": `ARDUINO_LMIC_VERSION_GET_PRE()` replaces `ARDUINO_LMIC_VERSION_GET_LOCAL()`, which remains as a deprecated alias ([#1078](https://github.com/mcci-catena/arduino-lmic/issues/1078)).
+- SX126x boards can set the crystal trim with `HalConfiguration_t::querySX126xXTATrim()` and `querySX126xXTBTrim()` ([#1068](https://github.com/mcci-catena/arduino-lmic/issues/1068), from [#1054](https://github.com/mcci-catena/arduino-lmic/issues/1054) by [@PontusO](https://github.com/PontusO)).
+
+LoRaWAN fixes.
+
+- The LMIC keeps Join-Request airtime within the limits of LoRaWAN 1.0.4 section 7 ([#2](https://github.com/mcci-catena/arduino-lmic/issues/2), [#1167](https://github.com/mcci-catena/arduino-lmic/issues/1167)).
+- DevNonce counts up from a random start instead of changing at every `LMIC_reset()` ([#1156](https://github.com/mcci-catena/arduino-lmic/issues/1156), [#1167](https://github.com/mcci-catena/arduino-lmic/issues/1167)).
+- A downlink longer than its data rate allows is dropped ([#1170](https://github.com/mcci-catena/arduino-lmic/issues/1170), [#1173](https://github.com/mcci-catena/arduino-lmic/issues/1173)). The US915 DR9 limit is 137 bytes of MACPayload, not 133.
+- A LinkADRReq at the end of FOpts is no longer rejected ([#1169](https://github.com/mcci-catena/arduino-lmic/issues/1169), [#1173](https://github.com/mcci-catena/arduino-lmic/issues/1173)).
+- AS923 DR2 allows 123 bytes of MACPayload when the uplink dwell limit is off ([#1172](https://github.com/mcci-catena/arduino-lmic/issues/1172), [#1173](https://github.com/mcci-catena/arduino-lmic/issues/1173)).
+- Compliance: an ActivateTM in test mode resets the downlink count ([#1162](https://github.com/mcci-catena/arduino-lmic/issues/1162)); the count skips frames with FPort 0 ([#1163](https://github.com/mcci-catena/arduino-lmic/issues/1163)) and counts frames with no FPort ([#1171](https://github.com/mcci-catena/arduino-lmic/issues/1171)).
+- AU915: DutyCycleReq spacing no longer adds the transmit start time twice ([#1167](https://github.com/mcci-catena/arduino-lmic/issues/1167)).
+- `os_aes()` skipped frames with 128 to 255 bytes of payload, which went out in plain text with a wrong MIC ([#1071](https://github.com/mcci-catena/arduino-lmic/issues/1071), [#1072](https://github.com/mcci-catena/arduino-lmic/issues/1072), thanks to [@gerontec](https://github.com/gerontec)).
+- ABP works with the secure element: `LMIC_setSession()` passes the session keys to it ([#1049](https://github.com/mcci-catena/arduino-lmic/issues/1049), thanks to [@PontusO](https://github.com/PontusO)). Non-default secure element drivers are dispatched correctly ([#1064](https://github.com/mcci-catena/arduino-lmic/issues/1064)).
+
+Radio fixes.
+
+- SX127x FSK: receive length, timeouts, CRC check, and frames longer than the FIFO ([#1122](https://github.com/mcci-catena/arduino-lmic/issues/1122), [#1130](https://github.com/mcci-catena/arduino-lmic/issues/1130)); the transmit start condition ([#1145](https://github.com/mcci-catena/arduino-lmic/issues/1145), [#1146](https://github.com/mcci-catena/arduino-lmic/issues/1146)); transmit of frames over 63 bytes ([#1138](https://github.com/mcci-catena/arduino-lmic/issues/1138), [#1175](https://github.com/mcci-catena/arduino-lmic/issues/1175)); RSSI of received frames ([#1139](https://github.com/mcci-catena/arduino-lmic/issues/1139), [#1175](https://github.com/mcci-catena/arduino-lmic/issues/1175)).
+- SX127x: accept chip version 0x13, used in the S76G ([#1017](https://github.com/mcci-catena/arduino-lmic/issues/1017), thanks to [@Steve-Tech](https://github.com/Steve-Tech)).
+- SX127x and SX126x: reset the radio before a request only when an operation is active ([#1096](https://github.com/mcci-catena/arduino-lmic/issues/1096), [#1099](https://github.com/mcci-catena/arduino-lmic/issues/1099)).
+- SX126x FSK: packet parameters, receive timeout and CRC handling ([#1123](https://github.com/mcci-catena/arduino-lmic/issues/1123), [#1124](https://github.com/mcci-catena/arduino-lmic/issues/1124)); 10 ms allowance for late downlinks in a single window ([#1131](https://github.com/mcci-catena/arduino-lmic/issues/1131)).
+- SX126x: take operation parameters from `LMIC.radio`, and keep the class C receive running ([#1112](https://github.com/mcci-catena/arduino-lmic/issues/1112), [#1115](https://github.com/mcci-catena/arduino-lmic/issues/1115)); allow time for the cold-start setup ([#1108](https://github.com/mcci-catena/arduino-lmic/issues/1108), [#1110](https://github.com/mcci-catena/arduino-lmic/issues/1110)); use `LMIC.nextRxTime`, not the stale `LMIC.rxtime` ([#1058](https://github.com/mcci-catena/arduino-lmic/issues/1058)); initialize a loop variable in `setRx()` ([#1052](https://github.com/mcci-catena/arduino-lmic/issues/1052), [#1062](https://github.com/mcci-catena/arduino-lmic/issues/1062)); fix the DIO2 RF switch check ([#1063](https://github.com/mcci-catena/arduino-lmic/issues/1063)); store the packet status, so RSSI and SNR are valid ([#1090](https://github.com/mcci-catena/arduino-lmic/issues/1090)).
+- Raw receive takes the received length from `LMIC.radio` ([#1125](https://github.com/mcci-catena/arduino-lmic/issues/1125), [#1127](https://github.com/mcci-catena/arduino-lmic/issues/1127)).
+- `LMIC_setRadioTxPower()` sets the power in raw mode; before, it had no effect ([#1179](https://github.com/mcci-catena/arduino-lmic/issues/1179), [#1181](https://github.com/mcci-catena/arduino-lmic/issues/1181)).
+
+Boards.
+
+- Pin maps for the MCCI Model 4916, 4917, 4931 and 4933 ([#915](https://github.com/mcci-catena/arduino-lmic/issues/915), [#917](https://github.com/mcci-catena/arduino-lmic/issues/917), [#1003](https://github.com/mcci-catena/arduino-lmic/issues/1003), [#1004](https://github.com/mcci-catena/arduino-lmic/issues/1004), [#1005](https://github.com/mcci-catena/arduino-lmic/issues/1005)), the MCCI Catena 5230 ([#1101](https://github.com/mcci-catena/arduino-lmic/issues/1101), [#1106](https://github.com/mcci-catena/arduino-lmic/issues/1106)) and the MCCI Catena 5220 ([#1070](https://github.com/mcci-catena/arduino-lmic/issues/1070), [#1168](https://github.com/mcci-catena/arduino-lmic/issues/1168)).
+
+Examples ([#1180](https://github.com/mcci-catena/arduino-lmic/issues/1180), [#1181](https://github.com/mcci-catena/arduino-lmic/issues/1181)).
+
+- New example `ttn-otaa-session-sleep`: saves and restores the session state, handles `EV_DEVNONCE_EXHAUSTED`, and sleeps between LMIC jobs.
+- The LoRaWAN examples no longer turn off the ADR_ACK back-off with `LMIC_setLinkCheckMode(0)`. They check the result of `LMIC_setTxData2()`, and handle `EV_TXCANCELED` and `EV_DEVNONCE_EXHAUSTED`.
+- `ttn-abp` sets RX2 to SF9 only in EU868. `ttn-otaa-network-time` subtracts the leap seconds.
+- The raw examples load the frame before `os_radio(RADIO_RST)`, so the first frame no longer goes out with length 0.
+
+Build.
+
+- `arduino_lmic.h` no longer wraps its includes in `extern "C"`; each header wraps its own declarations ([#1102](https://github.com/mcci-catena/arduino-lmic/issues/1102), [#1104](https://github.com/mcci-catena/arduino-lmic/issues/1104)).
+- Builds with `DISABLE_JOIN` link again ([#1167](https://github.com/mcci-catena/arduino-lmic/issues/1167)).
+- The default branch is `main` ([#1078](https://github.com/mcci-catena/arduino-lmic/issues/1078)). CI runs one job per board ([#1079](https://github.com/mcci-catena/arduino-lmic/issues/1079)) and runs host unit tests in all regions ([#1095](https://github.com/mcci-catena/arduino-lmic/issues/1095)).
+- Fix the `uflt12f` JavaScript decoder ([#1080](https://github.com/mcci-catena/arduino-lmic/issues/1080)).
+
 ## v6.0.1
 
 - Fix loop overflow in SX126x `writeBuffer` ([#1041](https://github.com/mcci-catena/arduino-lmic/issues/1041)). Thanks to [@Maddocrus](https://github.com/Maddocrus) for reporting ([#1013](https://github.com/mcci-catena/arduino-lmic/issues/1013)).
