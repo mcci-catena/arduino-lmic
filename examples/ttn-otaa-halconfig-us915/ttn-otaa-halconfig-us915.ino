@@ -130,10 +130,6 @@ void onEvent (ev_t ev) {
               }
               Serial.println();
             }
-            // Disable link check validation (automatically enabled
-            // during join, but because slow data rates change max TX
-        // size, we don't use it in this example.
-            LMIC_setLinkCheckMode(0);
             break;
         /*
         || This event is defined but not used in the code. No
@@ -248,7 +244,6 @@ void setup() {
     // Reset the MAC state. Session and pending data transfers will be discarded.
     LMIC_reset();
 
-    LMIC_setLinkCheckMode(0);
     LMIC_setDrTxpow(DR_SF7,14);
     LMIC_selectSubBand(1);
 

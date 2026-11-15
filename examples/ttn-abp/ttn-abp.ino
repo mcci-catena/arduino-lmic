@@ -291,9 +291,6 @@ void setup() {
     # error Region not supported
     #endif
 
-    // Disable link check validation
-    LMIC_setLinkCheckMode(0);
-
     // Set data rate and transmit power for uplink
     LMIC_setDrTxpow(DR_SF7,14);
 

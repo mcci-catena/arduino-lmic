@@ -261,9 +261,6 @@ void setup() {
     // We'll only enable Channel 16 (905.5Mhz) since we're transmitting on a single-channel
     LMIC_enableChannel(16);
 
-    // Disable link check validation
-    LMIC_setLinkCheckMode(0);
-
     // TTN uses SF9 for its RX2 window.
     LMIC_setRX2DataRate(DR_SF9);
 

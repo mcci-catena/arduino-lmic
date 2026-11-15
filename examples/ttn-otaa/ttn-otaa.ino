@@ -134,10 +134,6 @@ void onEvent (ev_t ev) {
               }
               Serial.println();
             }
-            // Disable link check validation (automatically enabled
-            // during join, but because slow data rates change max TX
-	    // size, we don't use it in this example.
-            LMIC_setLinkCheckMode(0);
             break;
         /*
         || This event is defined but not used in the code. No
