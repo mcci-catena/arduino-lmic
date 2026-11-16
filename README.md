@@ -324,6 +324,12 @@ This library started from the IBM V1.5 open-source code.
 
 - Tristan Webber ([`@TristanWebber`](https://github.com/TristanWebber)) contributed sx1261 and sx1262 support.
 
+- Pontus Oldberg ([`@PontusO`](https://github.com/PontusO)) fixed ABP with the secure element, fixed several SX126x driver bugs, and added the SX126x crystal trim hooks.
+
+- [`@gerontec`](https://github.com/gerontec) found and fixed the AES error with frames of 128 bytes or more.
+
+- Pranau R ([`@Pranau-R`](https://github.com/Pranau-R)) added pin maps for the MCCI Catena 5220 and 5230 and the MCCI Model 4916, 4917, 4931 and 4933.
+
 There are many others, who have contributed code and also participated in discussions, performed testing, reported problems and results. Thanks to all who have participated. We hope to use something like [All Contributors](https://allcontributors.org/) to help keep this up to date, but so far the automation isn't working.
 
 ## Trademark Acknowledgements
