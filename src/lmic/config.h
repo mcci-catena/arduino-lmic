@@ -133,7 +133,7 @@
 //#define DISABLE_MCMD_RXTimingSetupReq // delay between TX and RX
 // Class B
 //#define DISABLE_MCMD_PingSlotChannelReq // set ping freq, automatically disabled by DISABLE_PING
-//#define ENABLE_MCMD_BeaconTimingAns // next beacon start, DEPRECATED, normally disabled by DISABLE_BEACON
+//#define ENABLE_MCMD_BeaconTimingAns // next beacon start, DEPRECATED, normally disabled by DISABLE_BEACONS
 
 // DEPRECATED(tmm@mcci.com); replaced by LMIC.noRXIQinversion (dynamic). Don't define this.
 //#define DISABLE_INVERT_IQ_ON_RX
