@@ -2,7 +2,7 @@
 
 It is generally important to make LoRaWAN messages as small as practical. Extra bytes mean extra transmit time, which wastes battery power and interferes with other nodes on the network.
 
-To simplify coding, the Arduino header file <lmic.h> defines some data encoding utility functions to encode floating-point data into `uint16_t` values using `sflt16` or `uflt16` bit layout. For even more efficiency, there are versions that use only the bottom 12 bits of the `uint16_t`, allowing for other bits to be carried in the top 4 bits, or for two values to be crammed into three bytes.
+To simplify coding, the header file `lmic/lmic_util.h`, which `arduino_lmic.h` includes, declares some data encoding utility functions to encode floating-point data into `uint16_t` values using `sflt16` or `uflt16` bit layout. For even more efficiency, there are versions that use only the bottom 12 bits of the `uint16_t`, allowing for other bits to be carried in the top 4 bits, or for two values to be crammed into three bytes.
 
 - `uint16_t LMIC_f2sflt16(float)` converts a floating point number to a [`sflt16`](#sflt16)-encoded `uint16_t`.
 - `uint16_t LMIC_f2uflt16(float)` converts a floating-point number to a [`uflt16`](#uflt16)-encoded `uint16_t`.
@@ -13,7 +13,7 @@ JavaScript code for decoding the data can be found in the following sections.
 
 ## sflt16
 
-A `sflt16` datum represents an unsigned floating point number in the range [0, 1.0), transmitted as a 16-bit field. The encoded field is interpreted as follows:
+A `sflt16` datum represents a signed floating point number in the range (-1.0, 1.0), transmitted as a 16-bit field. The encoded field is interpreted as follows:
 
 bits | description
 :---:|:---
@@ -150,7 +150,7 @@ function uflt162f(rawUflt16)
 
 ## sflt12
 
-A `sflt12` datum represents an signed floating point number in the range [0, 1.0), transmitted as a 12-bit field. The encoded field is interpreted as follows:
+A `sflt12` datum represents a signed floating point number in the range (-1.0, 1.0), transmitted as a 12-bit field. The encoded field is interpreted as follows:
 
 bits | description
 :---:|:---
@@ -162,7 +162,7 @@ The corresponding floating point value is computed by computing `f`/128 * 2^(`b`
 
 For example, if the transmitted message contains 0x8, 0xD5, the equivalent floating point number is found as follows.
 
-1. The full 16-bit number is 0x8D5.
+1. The full 12-bit number is 0x8D5.
 2. The number is negative.
 3. `b` is 0x1, and `b`-15 is -14.  2^-14 is 1/16384
 4. `f` is 0x55. 0x55/128 is 85/128, or 0.66
@@ -226,7 +226,7 @@ function sflt12f(rawSflt12)
 
 ## uflt12
 
-A `uflt12` datum represents an unsigned floating point number in the range [0, 1.0), transmitted as a 16-bit field. The encoded field is interpreted as follows:
+A `uflt12` datum represents an unsigned floating point number in the range [0, 1.0), transmitted as a 12-bit field. The encoded field is interpreted as follows:
 
 bits | description
 :---:|:---
@@ -237,7 +237,7 @@ The corresponding floating point value is computed by computing `f`/256 * 2^(`b`
 
 For example, if the transmitted message contains 0x1, 0xAB, the equivalent floating point number is found as follows.
 
-1. The full 16-bit number is 0x1AB.
+1. The full 12-bit number is 0x1AB.
 2. `b`  is therefore 0x1, and `b`-15 is -14.  2^-14 is 1/16384
 3. `f` is 0xAB. 0xAB/256 is 0.67
 4. `f * 2^(b-15)` is therefore 0.67/16384 or 0.0000408 (to three significant digits)

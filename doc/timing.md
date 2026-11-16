@@ -5,7 +5,7 @@ responsible for keeping track of time of certain network events, and scheduling
 other events relative to those events. For Class A uplink transmissions, the library must note
 when a packet finishes transmitting, so it can open up the RX1 and RX2
 receive windows at a fixed time after the end of transmission. The library does this
-by watching for rising edges on the DIO0 output of the SX127x, and noting the time.
+by watching for rising edges on the DIO0 output of the SX127x (DIO1 of the SX126x), and noting the time.
 
 The library observes and processes rising edges on the pins as part of `os_runloop()` processing.
 This can be configured in one of two ways (see
@@ -23,6 +23,10 @@ is called, using the captured time. However, this requires that the
 DIO pins be wired to Arduino pins that support rising-edge interrupts,
 and it may require custom initialization code on your platform to
 hook up the interrupts.
+
+FSK receive on SX127x radios needs prompter service than LoRa. The radio's FIFO holds 64 bytes, which fill in about 10 ms at 50 kbps, so `os_runloop_once()` must run within 10 ms of the start of an FSK downlink, or the frame is lost. The LMIC then stays in the radio driver, reading the frame as it arrives, for the frame's air time (up to 42 ms for a 255-byte frame).
+
+To sleep between LMIC jobs, use `os_runloop_once_ex()`, which returns the time until the LMIC next needs to run. See [APIs added in v6.1](new-in-v6.1.md#sleeping-between-jobs).
 
 ## Controlling protocol timing
 
@@ -89,6 +93,6 @@ To avoid this, the LMIC processes events in several steps; these steps ensure th
 
 2. If interrupts are not enabled via `LMIC_USE_INTERRUPTS`, the digital I/O lines are polled every so often by calling the routine `lmic_hal_io_pollIRQs()`. This routine watches for edges on the relevant digital I/O lines, and records the time of transition.
 
-3. The LMIC `os_runloop_once()` routine calls `lmic_hal_processPendingIRQs()`. This routine uses the timestamps captured by the hardware ISRs and `lmic_hal_io_pollIRQs()` to invoke `radio_irq_hander_v2()` with the appropriate information.  `lmic_hal_processPendingIRQs()` in turn calls `lmic_hal_io_pollIRQs()` (in case interrupts are not configured).
+3. The LMIC `os_runloop_once()` routine calls `lmic_hal_processPendingIRQs()`. This routine uses the timestamps captured by the hardware ISRs and `lmic_hal_io_pollIRQs()` to invoke `radio_irq_handler_v2()` with the appropriate information.  `lmic_hal_processPendingIRQs()` in turn calls `lmic_hal_io_pollIRQs()` (in case interrupts are not configured).
 
 4. For compatibility with older versions of the Arduino LMIC, `lmic_hal_enableIRQs()` also calls `lmic_hal_io_pollIRQs()` when enabling interrupts. However, it does not dispatch the interrupts to `radio_irq_handler_v2()`; this must be done by a subsequent call to `lmic_hal_processPendingIRQs()`.

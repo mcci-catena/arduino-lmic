@@ -73,16 +73,16 @@ The library changes configuration pretty substantially according to the region s
 
 ### eu868, as923, in866, kr920
 
-If the library is configured for EU868, AS923, or IN866 operation, we make
+If the library is configured for EU868, AS923, IN866 or KR920 operation, we make
 the following changes:
 
-- Add the API `LMIC_setupBand()`.
+- Add the API `LMIC_setupChannelGroup()` (and its deprecated name, `LMIC_setupBand()`).
 - Add the constants `MAX_CHANNELS`, `MAX_BANDS`, `LIMIT_CHANNELS`, `BAND_MILLI`,
 `BAND_CENTI`, `BAND_DECI`, and `BAND_AUX`.
 
 ### us915, au915
 
-If the library is configured for US915 operation, we make the following changes:
+If the library is configured for US915 or AU915 operation, we make the following changes:
 
 - Add the APIs `LMIC_enableChannel()`,
 `LMIC_enableSubBand()`, `LMIC_disableSubBand()`, and `LMIC_selectSubBand()`.
@@ -185,7 +185,7 @@ If `LMIC_DEBUG_LEVEL` is zero, no output is produced. If `1`, limited output is 
 
 Note that debug output will influence the timing of various parts of the library and could introduce timing problems (especially in the RX window timing), so use it carefully.
 
-Debug output is generated using the standard `printf` function, so unless your environment already redirects `printf` / `stdout` somewhere, you should also configure `LIMC_PRINTF_TO`.
+Debug output is generated using the standard `printf` function, so unless your environment already redirects `printf` / `stdout` somewhere, you should also configure `LMIC_PRINTF_TO`.
 
 ### Selecting the AES library
 
@@ -237,7 +237,7 @@ If defined, removes code needed for OTAA activation. Removes the APIs `LMIC_star
 
 `DISABLE_MCMD_PingSlotChannelReq` disables the PING_SET MAC commands. It's implied by `DISABLE_PING`.
 
-`ENABLE_MCMD_BeaconTimingAns` enables the next-beacon start command. It's disabled by default, and overridden (if enabled) by `DISABLE_BEACON`. (This command is deprecated.)
+`ENABLE_MCMD_BeaconTimingAns` enables the next-beacon start command. It's disabled by default, and overridden (if enabled) by `DISABLE_BEACONS`. (This command is deprecated.)
 
 ### Disabling user events
 
@@ -263,6 +263,18 @@ When debugging the LMIC, debug prints change timing, and can make things not wor
 
 The compliance test script includes a suitable logging implementation; the other example scripts do not.
 
+### Allowing large clock errors
+
+`#define LMIC_ENABLE_arbitrary_clock_error 1`
+
+By default (0), the LMIC limits the clock error set by `LMIC_setClockError()` to 0.4% (4000 ppm). If this variable is non-zero, the LMIC uses any value. See [Timing](timing.md#lmic_setclockerror).
+
+### Selecting the secure element driver
+
+`#define LMIC_CFG_SecureElement_DRIVER name`
+
+This variable names the secure element driver that holds the keys and does the cryptography. The default is `Default`, the software driver in `src/se/drivers/default`, which is the only driver in this library. `LMIC_ENABLE_SecureElement_STATIC` must be 1 (the default); the LMIC only supports binding the driver at compile time.
+
 ### Special purpose
 
-`#define DISABLE_INVERT_IQ_ON_RX` disables the inverted Q-I polarity on RX. **Use of this variable is deprecated, see issue [#250](https://github.com/mcci-catena/arduino-lmic/issues/250).** Rather than defining this, set the value of `LMIC.noRXIQinversion`. If set non-zero, receive will be non-inverted. End-devices will be able to receive messages from each other, but will not be able to hear the gateway (other than Class B beacons)aa. If set zero, (the default), end devices will only be able to hear gateways, not each other.
+`#define DISABLE_INVERT_IQ_ON_RX` disables the inverted Q-I polarity on RX. **Use of this variable is deprecated, see issue [#250](https://github.com/mcci-catena/arduino-lmic/issues/250).** Rather than defining this, call `LMIC_setNoRxIqInversion()`. If set non-zero, receive will be non-inverted. End-devices will be able to receive messages from each other, but will not be able to hear the gateway (other than Class B beacons). If set zero (the default), end devices will only be able to hear gateways, not each other.

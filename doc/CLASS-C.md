@@ -70,7 +70,7 @@ Enables or disables Class C mode at runtime.
 
 - **Parameters:**
   - `fOnIfTrue`: Set to `1` to enable Class C, `0` to disable.
-- **Returns:** The previous state (1 if Class C was enabled, 0 if disabled).
+- **Returns:** `1` if the LMIC accepted the request, `0` if it did not: the LMIC is shut down, or the request is to enable Class C and Class C is not compiled in. The change takes effect from a job that the LMIC schedules, not before the function returns.
 
 When Class C is enabled:
 - The radio will start continuous reception on the RX2 channel after completing any Class A transaction.
@@ -89,18 +89,18 @@ static inline bit_t LMIC_txrxFlags_isClassC(u1_t flags);
 Checks if the received message was a Class C downlink (received outside the normal RX1/RX2 windows).
 
 - **Parameters:**
-  - `flags`: The `LMIC.txrxFlags` value.
+  - `flags`: The value of `LMIC_getTxrxFlags()`.
 - **Returns:** `1` if this was a Class C reception, `0` otherwise.
 
 Example usage in event handler:
 
 ```c
 case EV_RXCOMPLETE:
-    if (LMIC_txrxFlags_isClassC(LMIC.txrxFlags)) {
+    if (LMIC_txrxFlags_isClassC(LMIC_getTxrxFlags())) {
         // This was a Class C downlink
         Serial.println("Class C downlink received!");
     }
-    // Process LMIC.frame, LMIC.dataLen, etc.
+    // Get the payload with LMIC_getFRMPayload().
     break;
 ```
 
@@ -120,22 +120,27 @@ void onEvent(ev_t ev) {
             }
             break;
 
-        case EV_RXCOMPLETE:
+        case EV_RXCOMPLETE: {
+            const u1_t *pData;
+            u1_t nData;
+
+            LMIC_getFRMPayload(&pData, &nData);
             Serial.print("Received ");
-            Serial.print(LMIC.dataLen);
+            Serial.print(nData);
             Serial.println(" bytes");
 
-            if (LMIC_txrxFlags_isClassC(LMIC.txrxFlags)) {
+            if (LMIC_txrxFlags_isClassC(LMIC_getTxrxFlags())) {
                 Serial.println("(Class C downlink)");
             }
 
             // Process received data
-            for (int i = 0; i < LMIC.dataLen; i++) {
-                Serial.print(LMIC.frame[LMIC.dataBeg + i], HEX);
+            for (u1_t i = 0; i < nData; i++) {
+                Serial.print(pData[i], HEX);
                 Serial.print(" ");
             }
             Serial.println();
             break;
+        }
 
         // ... handle other events
     }
@@ -153,7 +158,8 @@ Class C operation significantly increases power consumption because the radio re
 ## Known Limitations
 
 - **Class B Interaction:** Class C and Class B features should not be used simultaneously.
-- **Frame Counters:** As with all LoRaWAN operation, frame counters must be preserved across reboots for production deployments.
+- **Frame Counters:** As with all LoRaWAN operation, frame counters must be preserved across reboots for production deployments. `LMIC_saveSessionState()` and `LMIC_restoreSessionState()` do this; see [APIs added in v6.1](new-in-v6.1.md).
+- **Reset and restore:** `LMIC_reset()` turns Class C off, and the saved session state doesn't hold it. Call `LMIC_enableClassC(1)` again after a reset or a restore.
 
 ## Building for Class C
 
@@ -163,7 +169,7 @@ Add to your `project_config/lmic_project_config.h`:
 
 ```c
 #define CFG_us915 1              // or your region
-#define CFG_sx1276_radio 1       // SX1276 recommended for Class C
+#define CFG_sx1276_radio 1       // or your radio
 #define LMIC_ENABLE_class_c 1
 ```
 
