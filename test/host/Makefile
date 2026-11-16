@@ -16,6 +16,7 @@
 #	make REGION=us915
 #	make RATE=32768    build and run at the STM32L0 LPTIM tick rate
 #	make all-regions   run the tests for every region, at both tick rates
+#	make CLASS_B=1     build with LMIC_ENABLE_class_b=1 (works with the above)
 #	make clean
 #
 #	Needs gcc and g++ on the host. The whole core is compiled with the
@@ -32,11 +33,20 @@ RATE ?= 62500
 REGIONS := eu868 us915 au915 as923 kr920 in866
 RATES := 62500 32768
 
+CLASS_B ?= 0
+
 TOP := ../..
 BUILD := build/$(REGION)-$(RATE)
 
 DEFS := -DARDUINO_LMIC_PROJECT_CONFIG_H_SUPPRESS -DCFG_$(REGION) -DCFG_$(RADIO)_radio -DCOMPILE_REGRESSION_TEST
 DEFS += -DLMIC_PLATFORM_OSTIME_INCLUDE=lmic_ostime_host.h -DLMIC_OSTICKS_PER_SEC=$(RATE)
+
+# Class B is off by default in the LMIC; CLASS_B=1 compiles it in, in its own
+# build directory, so that the code keeps building.
+ifneq ($(CLASS_B),0)
+BUILD := build/$(REGION)-$(RATE)-classb
+DEFS += -DLMIC_ENABLE_class_b=1
+endif
 INCS := -I. -I$(TOP)/src/lmic -I$(TOP)/src/hal -I$(TOP)/src/ostime/i -I$(TOP)/src -I$(TOP)/src/aes -I$(TOP)/src/se -I$(TOP)/src/se/i
 
 # -MMD -MP: each object gets a .d file listing the headers it read, so a
