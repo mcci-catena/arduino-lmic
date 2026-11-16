@@ -116,24 +116,20 @@ Configures the library for use with an sx1262 transceiver.
 
 If defined, configures the library to use interrupts for detecting events from the transceiver. If left undefined, the library will poll for events from the transceiver.  See [Timing](timing.md) for more info. Be aware that interrupts are not tested or supported on many platforms.
 
-## Disabling PING
+## Enabling Class B
 
-`#define DISABLE_PING`
+`#define LMIC_ENABLE_class_b 1`
 
-If defined, removes all code needed for Class B downlink during ping slots (PING).  Removes the APIs `LMIC_setPingable()` and `LMIC_stopPingable()`.
-Class A devices don't support PING, so defining `DISABLE_PING` is often a good idea.
+If defined to a non-zero value, includes the Class B code: beacon tracking (`LMIC_enableTracking()`, `LMIC_disableTracking()`) and downlink during ping slots (`LMIC_setPingable()`, `LMIC_stopPingable()`).
 
-By default, PING support is included in the library.
+By default, Class B support is disabled (`LMIC_ENABLE_class_b` is 0), and those APIs are not declared. The Class B code is untested, and it costs flash and RAM: about 2.2 KB of flash on an STM32L0. Before v6.1 it was included by default.
 
-## Disabling Beacons
+With `LMIC_ENABLE_class_b` non-zero, two older settings remove parts of it:
 
-`#define DISABLE_BEACONS`
+- `#define DISABLE_PING` removes the code for downlink during ping slots, and the APIs `LMIC_setPingable()` and `LMIC_stopPingable()`.
+- `#define DISABLE_BEACONS` removes the code for handling beacons, and the APIs `LMIC_enableTracking()` and `LMIC_disableTracking()`. It requires `DISABLE_PING` as well, because ping slots are timed from the beacon.
 
-If defined, removes all code needed for handling beacons. Removes the APIs `LMIC_enableTracking()` and `LMIC_disableTracking()`.
-
-Enabling beacon handling allows tracking of network time, and is required if you want to enable downlink during ping slots. However, many networks don't support Class B devices. Class A devices don't support tracking beacons, so defining `DISABLE_BEACONS` might be a good idea.
-
-By default, beacon support is included in the library.
+With `LMIC_ENABLE_class_b` zero, the LMIC defines both.
 
 ## Enabling Class C
 
@@ -234,6 +230,8 @@ If defined, removes code needed for OTAA activation. Removes the APIs `LMIC_star
 `DISABLE_MCMD_DutyCycleReq`, `DISABLE_MCMD_RXParamSetupReq`, `DISABLE_MCMD_RXTimingSetupReq`, `DISABLE_MCMD_NewChannelReq`, and `DISABLE_MCMD_DlChannelReq` respectively disable code for various Class A MAC commands.
 
 ### Disabling Class B MAC commands
+
+These apply only when `LMIC_ENABLE_class_b` is non-zero.
 
 `DISABLE_MCMD_PingSlotChannelReq` disables the PING_SET MAC commands. It's implied by `DISABLE_PING`.
 

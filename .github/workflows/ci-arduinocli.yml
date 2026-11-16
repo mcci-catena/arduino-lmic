@@ -119,6 +119,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build and run for every region
         run: make -C test/host all-regions
+      - name: Build and run for every region with Class B compiled in
+        run: make -C test/host all-regions CLASS_B=1
 
   # The one check the branch rulesets require. It passes only when every
   # matrix job and the host tests passed, so the rulesets need not list the

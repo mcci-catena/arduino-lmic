@@ -82,7 +82,7 @@ Raise a GitHub issue at [`github.com/mcci-catena/arduino-lmic`](https://github.c
 
 ## Features
 
-The LMIC library provides a fairly complete LoRaWAN Class A, Class B, and Class C
+The LMIC library provides a fairly complete LoRaWAN Class A and Class C
 implementation, supporting the EU-868, US-915, AU-915, AS-923, KR-920 and IN-866 bands. Only a limited
 number of features was tested using this port on Arduino hardware, so be careful when using any of the untested features.
 
@@ -100,7 +100,7 @@ What certainly works:
 
 What has not been tested:
 
-- Class B operation.
+- Class B operation. The Class B code is not compiled unless you set `LMIC_ENABLE_class_b`; see [Configuration Reference](doc/configuration.md#enabling-class-b).
 
 If you try an untested feature and it works, be sure to let
 us know (creating a GitHub issue is probably the best way for that).
@@ -193,7 +193,7 @@ This library can be quite heavy on 8-bit systems, especially if the fairly small
 328p (such as in the Arduino Uno) is used. In the default configuration,
 the available 32K flash space is nearly filled up (this includes some
 debug output overhead, though). By disabling some features in `project_config/lmic_project_config.h`
-(like beacon tracking and ping slots, which are not needed for Class A devices),
+(see [Configuration Reference](doc/configuration.md)),
 some space can be freed up.
 
 ## Pre-Integrated Boards
@@ -300,7 +300,7 @@ See [Encoding Utilities](doc/encoding-utilities.md) for `sflt16`, `uflt16`, `sfl
 
 ## Release History
 
-Current version: **6.1.0** -- adds session state save and restore, accessors for the LMIC fields, channel queries, sleeping between jobs, link check requests, join controls and run-time ADR_ACK limits ([APIs added in v6.1](doc/new-in-v6.1.md)). It keeps Join-Requests within the LoRaWAN 1.0.4 airtime limits, counts DevNonce up across `LMIC_reset()`, fixes SX127x FSK and raw-mode transmit power, and corrects the examples. 6.0.0 added Class C support, the secure element abstraction and the SX1261/SX1262 radio drivers.
+Current version: **6.1.0** -- adds session state save and restore, accessors for the LMIC fields, channel queries, sleeping between jobs, link check requests, join controls and run-time ADR_ACK limits ([APIs added in v6.1](doc/new-in-v6.1.md)). It keeps Join-Requests within the LoRaWAN 1.0.4 airtime limits, counts DevNonce up across `LMIC_reset()`, fixes SX127x FSK and raw-mode transmit power, and corrects the examples. Class B is no longer compiled by default. 6.0.0 added Class C support, the secure element abstraction and the SX1261/SX1262 radio drivers.
 
 See [CHANGELOG.md](CHANGELOG.md) for the full release history.
 
