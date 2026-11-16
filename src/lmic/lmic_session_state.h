@@ -70,7 +70,7 @@ LMIC_BEGIN_DECLS
 |	 16  u4   globalAvail     LMIC.globalDutyAvail - now at save, in ticks;
 |	                          restored as now + value, clamped at zero
 |	 20  u4   Rx2Frequency    LMIC.dn2Freq, Hz
-|	 24  u4   PingFrequency   LMIC.ping.freq, or zero without DISABLE_PING
+|	 24  u4   PingFrequency   LMIC.ping.freq, or zero with DISABLE_PING
 |	 28  u2   ClientTag       not interpreted (Arduino-LoRaWAN: country code)
 |	 30  s2   LinkIntegrity   LMIC.adrAckReq
 |	 32  u1   TxPower         LMIC.adrTxPow

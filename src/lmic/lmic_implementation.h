@@ -47,7 +47,7 @@ static inline bit_t LMICJ_isTxRequested(void) {
 }
 
 static inline bit_t LMICJ_isActiveBeaconTracking(void) {
-#if defined(DISABLE_BEACON)
+#if defined(DISABLE_BEACONS)
     return 0;
 #else
     return (LMIC.opmode & OP_TRACK) != 0;
@@ -55,7 +55,7 @@ static inline bit_t LMICJ_isActiveBeaconTracking(void) {
 }
 
 static inline bit_t LMICJ_isEnabledBeaconTracking(void) {
-#if defined(DISABLE_BEACON) || defined(DISABLE_PING)
+#if defined(DISABLE_BEACONS) || defined(DISABLE_PING)
     return 0;
 #else
     return (LMIC.opmode & (OP_SCAN | OP_TRACK)) != 0;
@@ -71,7 +71,7 @@ static inline bit_t LMICJ_isEnabledBeaconTracking(void) {
 ///     be set in an uplink.
 ///
 static inline bit_t LMICJ_isEnabledClassB(void) {
-#if defined(DISABLE_BEACON) || defined(DISABLE_PING)
+#if defined(DISABLE_BEACONS) || defined(DISABLE_PING)
     return 0;
 #else
     return (LMIC.opmode & (OP_SCAN | OP_TRACK)) != 0 && (LMIC.opmode & OP_PINGABLE) != 0;
@@ -82,11 +82,11 @@ static inline bit_t LMICJ_isEnabledClassB(void) {
 /// \brief return \c true if Class B is being reported active in uplinks.
 ///
 static inline bit_t LMICJ_isActiveClassB(void) {
-#if defined(DISABLE_BEACON) || defined(DISABLE_PING)
+#if defined(DISABLE_BEACONS) || defined(DISABLE_PING)
     return 0;
 #else
     return (LMIC.opmode & (OP_TRACK | OP_PINGABLE)) == (OP_TRACK | OP_PINGABLE);
-#endif // DISABLE_BEACKON
+#endif // DISABLE_BEACONS || DISABLE_PING
 }
 
 LMIC_END_DECLS
