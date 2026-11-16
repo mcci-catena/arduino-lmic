@@ -6,8 +6,9 @@ Arduino sketches get all of these by including `arduino_lmic.h`. Other ports tha
 
 ## Upgrading from 6.0.x
 
-A sketch that builds with 6.0.x builds with 6.1, but these changes can affect it:
+A sketch that builds with 6.0.x builds with 6.1 unless it uses Class B. These changes can affect it:
 
+- **Class B.** The Class B code is no longer compiled by default ([#1189](https://github.com/mcci-catena/arduino-lmic/issues/1189)). A sketch that calls `LMIC_enableTracking()`, `LMIC_disableTracking()`, `LMIC_setPingable()` or `LMIC_stopPingable()` must define `LMIC_ENABLE_class_b` as 1 in the project configuration. The code is untested. Sketches that already define `DISABLE_PING` and `DISABLE_BEACONS` need no change, and other builds get smaller.
 - **Join back-off.** The LMIC keeps Join-Request airtime within the limits of LoRaWAN 1.0.4 section 7: under 36 s in the first hour, under 36 s in the next 10 hours, and under 8.7 s in each 24 hours after that. A device whose joins keep failing now waits longer between retries than it did. `LMIC_reset()` clears the back-off, and so does `LMIC_clearJoinBackoff()`. `LMIC_setJoinBackoffEnabled(0)` turns it off, for certification testing only.
 - **DevNonce.** DevNonce no longer changes at every `LMIC_reset()`. It starts at a random value and counts up with each Join-Request. Unless the sketch saves and restores the session state (below), each power-up still starts at a new random value, and a LoRaWAN 1.0.4 network server may reject a DevNonce it has seen before.
 - **Deprecated names.** `LMIC_setupBand()` is now `LMIC_setupChannelGroup()`, and `ARDUINO_LMIC_VERSION_GET_LOCAL()` is now `ARDUINO_LMIC_VERSION_GET_PRE()`. The old names still work. They draw a deprecation warning on GCC 6 and later and on Clang, if compiler warnings are enabled; the Arduino IDE turns warnings off by default.
