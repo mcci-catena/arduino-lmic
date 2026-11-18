@@ -37,7 +37,7 @@ Radio fixes.
 - SX126x: take operation parameters from `LMIC.radio`, and keep the class C receive running ([#1112](https://github.com/mcci-catena/arduino-lmic/issues/1112), [#1115](https://github.com/mcci-catena/arduino-lmic/issues/1115)); allow time for the cold-start setup ([#1108](https://github.com/mcci-catena/arduino-lmic/issues/1108), [#1110](https://github.com/mcci-catena/arduino-lmic/issues/1110)); use `LMIC.nextRxTime`, not the stale `LMIC.rxtime` ([#1058](https://github.com/mcci-catena/arduino-lmic/issues/1058)); initialize a loop variable in `setRx()` ([#1052](https://github.com/mcci-catena/arduino-lmic/issues/1052), [#1062](https://github.com/mcci-catena/arduino-lmic/issues/1062)); fix the DIO2 RF switch check ([#1063](https://github.com/mcci-catena/arduino-lmic/issues/1063)); store the packet status, so RSSI and SNR are valid ([#1090](https://github.com/mcci-catena/arduino-lmic/issues/1090)).
 - Raw receive takes the received length from `LMIC.radio` ([#1125](https://github.com/mcci-catena/arduino-lmic/issues/1125), [#1127](https://github.com/mcci-catena/arduino-lmic/issues/1127)).
 - `LMIC_setRadioTxPower()` sets the power in raw mode; before, it had no effect ([#1179](https://github.com/mcci-catena/arduino-lmic/issues/1179), [#1181](https://github.com/mcci-catena/arduino-lmic/issues/1181)).
-- `LMIC_getRSSI()` returns the RSSI in dBm; before, it returned the RSSI plus 64 ([#1184](https://github.com/mcci-catena/arduino-lmic/issues/1184), [#1185](https://github.com/mcci-catena/arduino-lmic/issues/1185)).
+- `LMIC_getRSSI()` returns the RSSI of the last received frame in dBm ([#1184](https://github.com/mcci-catena/arduino-lmic/issues/1184), [#1185](https://github.com/mcci-catena/arduino-lmic/issues/1185)).
 
 Boards.
 
